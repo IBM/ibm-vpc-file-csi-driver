@@ -36,9 +36,9 @@ spec:
                 command: ["/bin/sh", "-c", "rm -rf /registration/vpc.file.csi.ibm.io /registration/vpc.file.csi.ibm.io-reg.sock"]
           env:
             - name: ADDRESS
-              value: /csi/csi.sock
+              value: /csi/csi-vpc-file.sock
             - name: DRIVER_REGISTRATION_SOCK
-              value: /var/lib/kubelet/csi-plugins/vpc.file.csi.ibm.io/csi.sock
+              value: /var/lib/kubelet/csi-plugins/vpc.file.csi.ibm.io/csi-vpc-file.sock
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -64,8 +64,11 @@ spec:
           imagePullPolicy: Always
           args:
             - "--v=5"
-            - "--endpoint=unix:/csi/csi.sock"
+            - "--endpoint=unix:/csi/csi-vpc-file.sock"
+            - "--sidecarEndpoint=$(SIDECAREP)"
           env:
+            - name: SIDECAREP
+              value: "/sidecardir/provider-file.sock"
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -93,6 +96,8 @@ spec:
             periodSeconds: 10
             failureThreshold: 5
           volumeMounts:
+            - name: secret-sidecar-sock-dir
+              mountPath: /sidecardir
             - name: kubelet-data-dir
               mountPath: /var/data/kubelet
               mountPropagation: "Bidirectional"
@@ -121,7 +126,7 @@ spec:
             runAsUser: 0
             privileged: false
           args:
-            - --csi-address=/csi/csi.sock
+            - --csi-address=/csi/csi-vpc-file.sock
           resources:
             limits:
               cpu: 50m
@@ -132,7 +137,25 @@ spec:
           volumeMounts:
             - name: plugin-dir
               mountPath: /csi
+        - name: storage-secret-sidecar
+          image: MUSTPATCHWITHKUSTOMIZE
+          imagePullPolicy: Always
+          args:
+            - "--endpoint=$(ENDPOINT)"
+          env:
+            - name: ENDPOINT
+              value: "unix:/sidecardir/provider-file.sock"
+            - name: SECRET_CONFIG_PATH
+              value: /etc/storage_ibmc/cluster_info
+          volumeMounts:
+            - mountPath: /sidecardir
+              name: secret-sidecar-sock-dir
+            - mountPath: /etc/storage_ibmc/cluster_info
+              name: cluster-info
+              readOnly: true
       volumes:
+        - name: secret-sidecar-sock-dir
+          emptyDir: {}
         - name: registration-dir
           hostPath:
             path: /var/lib/kubelet/plugins_registry/

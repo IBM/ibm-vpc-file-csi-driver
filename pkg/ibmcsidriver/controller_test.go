@@ -25,6 +25,7 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -46,7 +47,7 @@ var (
 	stdVolCap = []*csi.VolumeCapability{
 		{
 			AccessType: &csi.VolumeCapability_Mount{
-				Mount: &csi.VolumeCapability_MountVolume{FsType: "ext2"},
+				Mount: &csi.VolumeCapability_MountVolume{FsType: "nfs"},
 			},
 			AccessMode: &csi.VolumeCapability_AccessMode{
 				Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
@@ -56,20 +57,10 @@ var (
 	stdVolCapNotSupported = []*csi.VolumeCapability{
 		{
 			AccessType: &csi.VolumeCapability_Mount{
-				Mount: &csi.VolumeCapability_MountVolume{FsType: "ext2"},
+				Mount: &csi.VolumeCapability_MountVolume{FsType: "nfs"},
 			},
 			AccessMode: &csi.VolumeCapability_AccessMode{
-				Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
-			},
-		},
-	}
-	stdBlockVolCap = []*csi.VolumeCapability{
-		{
-			AccessType: &csi.VolumeCapability_Block{
-				Block: &csi.VolumeCapability_BlockVolume{},
-			},
-			AccessMode: &csi.VolumeCapability_AccessMode{
-				Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
 			},
 		},
 	}
@@ -77,8 +68,7 @@ var (
 		RequiredBytes: 20 * 1024 * 1024 * 1024,
 	}
 	stdParams = map[string]string{
-		//"type": "ext2",
-		Profile: "general-purpose",
+		Profile: "tier-10iops",
 		Zone:    "myzone",
 		Region:  "myregion",
 	}
@@ -89,18 +79,123 @@ var (
 	}
 )
 
+func TestCreateSnapshot(t *testing.T) {
+	// test cases
+	testCases := []struct {
+		name        string
+		req         *csi.CreateSnapshotRequest
+		expResponse *csi.CreateSnapshotResponse
+		expErrCode  codes.Code
+	}{
+		{
+			name:        "Unsupported operation create snapshot",
+			req:         &csi.CreateSnapshotRequest{},
+			expResponse: nil,
+			expErrCode:  codes.Unimplemented,
+		},
+	}
+
+	// Creating test logger
+	_, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Logf("test case: %s", tc.name)
+		// Setup new driver each time so no interference
+		icDriver := initIBMCSIDriver(t)
+
+		_, err := icDriver.cs.CreateSnapshot(context.Background(), tc.req)
+		if tc.expErrCode != codes.OK {
+			t.Logf("Error code")
+			assert.NotNil(t, err)
+		}
+	}
+}
+
+func TestDeleteSnapshot(t *testing.T) {
+	// test cases
+	testCases := []struct {
+		name        string
+		req         *csi.DeleteSnapshotRequest
+		expResponse *csi.DeleteSnapshotResponse
+		expErrCode  codes.Code
+	}{
+		{
+			name:        "Unsupported operation delete snapshot",
+			req:         &csi.DeleteSnapshotRequest{},
+			expResponse: nil,
+			expErrCode:  codes.OK,
+		},
+	}
+
+	// Creating test logger
+	_, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Logf("test case: %s", tc.name)
+		// Setup new driver each time so no interference
+		icDriver := initIBMCSIDriver(t)
+
+		_, err := icDriver.cs.DeleteSnapshot(context.Background(), tc.req)
+		if tc.expErrCode != codes.OK {
+			t.Logf("Error code")
+			assert.NotNil(t, err)
+		}
+	}
+}
+
+func TestListSnapshots(t *testing.T) {
+	// test cases
+	testCases := []struct {
+		name        string
+		req         *csi.ListSnapshotsRequest
+		expResponse *csi.ListSnapshotsResponse
+		expErrCode  codes.Code
+	}{
+		{
+			name:        "Unsupported Operation list snapshots",
+			req:         &csi.ListSnapshotsRequest{},
+			expResponse: nil,
+			expErrCode:  codes.Unimplemented,
+		},
+	}
+
+	// Creating test logger
+	_, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Logf("test case: %s", tc.name)
+		// Setup new driver each time so no interference
+		icDriver := initIBMCSIDriver(t)
+
+		// Call CSI CreateVolume
+		_, err := icDriver.cs.ListSnapshots(context.Background(), tc.req)
+		if tc.expErrCode != codes.OK {
+			t.Logf("Error code")
+			assert.NotNil(t, err)
+		}
+	}
+}
 func TestCreateVolumeArguments(t *testing.T) {
 	cap := 20
 	volName := "test-name"
 	iopsStr := ""
 	// test cases
 	testCases := []struct {
-		name              string
-		req               *csi.CreateVolumeRequest
-		expVol            *csi.Volume
-		expErrCode        codes.Code
-		libVolumeResponse *provider.Volume
-		libVolumeError    error
+		name                          string
+		req                           *csi.CreateVolumeRequest
+		expVol                        *csi.Volume
+		expErrCode                    codes.Code
+		libVolumeResponse             *provider.Volume
+		libVolumeAccessPointResp      *provider.VolumeAccessPointResponse
+		libVolumeError                error
+		libVolumeAccessPointError     error
+		libVolumeAccessPointWaitError error
 	}{
 		{
 			name: "Success default",
@@ -112,13 +207,63 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 			expVol: &csi.Volume{
 				CapacityBytes:      20 * 1024 * 1024 * 1024, // In byte
-				VolumeId:           "testVolumeId",
-				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: ""},
+				VolumeId:           "testVolumeId:testVolumeAccessPointId",
+				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId:testVolumeAccessPointId", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: ""},
 				AccessibleTopology: stdTopology,
 			},
-			libVolumeResponse: &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
-			expErrCode:        codes.OK,
-			libVolumeError:    nil,
+
+			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
+				VolumeID:      "testVolumeId",
+				AccessPointID: "testVolumeAccessPointId",
+				Status:        "Stable",
+				MountPath:     "abc:/xyz/pqr",
+				CreatedAt:     &time.Time{},
+			},
+
+			libVolumeResponse:             &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			expErrCode:                    codes.OK,
+			libVolumeError:                nil,
+			libVolumeAccessPointError:     nil,
+			libVolumeAccessPointWaitError: nil,
+		},
+		{
+			name: "CreateVolume Access Point failure",
+			req: &csi.CreateVolumeRequest{
+				Name:               volName,
+				CapacityRange:      stdCapRange,
+				VolumeCapabilities: stdVolCap,
+				Parameters:         stdParams,
+			},
+			expVol:                        nil,
+			libVolumeAccessPointResp:      nil,
+			libVolumeResponse:             &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			expErrCode:                    codes.Internal,
+			libVolumeError:                nil,
+			libVolumeAccessPointWaitError: nil,
+			libVolumeAccessPointError:     providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume Access Point failed", Type: providerError.ProvisioningFailed},
+		},
+		{
+			name: "Wait for CreateVolume Access Point failure",
+			req: &csi.CreateVolumeRequest{
+				Name:               volName,
+				CapacityRange:      stdCapRange,
+				VolumeCapabilities: stdVolCap,
+				Parameters:         stdParams,
+			},
+			expVol: nil,
+
+			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
+				VolumeID:      "testVolumeId",
+				AccessPointID: "testVolumeAccessPointId",
+				Status:        "Pending",
+				MountPath:     "abc:/xyz/pqr",
+				CreatedAt:     &time.Time{},
+			},
+			libVolumeResponse:             &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			expErrCode:                    codes.Internal,
+			libVolumeError:                nil,
+			libVolumeAccessPointError:     nil,
+			libVolumeAccessPointWaitError: providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume Access Point not in stable failed", Type: providerError.ProvisioningFailed},
 		},
 		{
 			name: "Empty volume name",
@@ -128,10 +273,12 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: stdVolCap,
 				Parameters:         stdParams,
 			},
-			expVol:            nil,
-			libVolumeResponse: nil,
-			expErrCode:        codes.InvalidArgument,
-			libVolumeError:    nil,
+			expVol:                        nil,
+			libVolumeResponse:             nil,
+			expErrCode:                    codes.InvalidArgument,
+			libVolumeError:                nil,
+			libVolumeAccessPointWaitError: nil,
+			libVolumeAccessPointError:     nil,
 		},
 		{
 			name: "Empty volume capabilities",
@@ -141,10 +288,12 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: nil,
 				Parameters:         stdParams,
 			},
-			expVol:            nil,
-			libVolumeResponse: nil,
-			expErrCode:        codes.InvalidArgument,
-			libVolumeError:    nil,
+			expVol:                        nil,
+			libVolumeResponse:             nil,
+			expErrCode:                    codes.InvalidArgument,
+			libVolumeError:                nil,
+			libVolumeAccessPointWaitError: nil,
+			libVolumeAccessPointError:     nil,
 		},
 		{
 			name: "Not supported volume Capabilities",
@@ -154,10 +303,12 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: stdVolCapNotSupported,
 				Parameters:         stdParams,
 			},
-			expVol:            nil,
-			libVolumeResponse: nil,
-			expErrCode:        codes.InvalidArgument,
-			libVolumeError:    nil,
+			expVol:                        nil,
+			libVolumeResponse:             nil,
+			expErrCode:                    codes.InvalidArgument,
+			libVolumeError:                nil,
+			libVolumeAccessPointWaitError: nil,
+			libVolumeAccessPointError:     nil,
 		},
 		{
 			name: "ProvisioningFailed lib error form create volume",
@@ -167,10 +318,12 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: stdVolCap,
 				Parameters:         stdParams,
 			},
-			expErrCode:        codes.Internal,
-			expVol:            nil,
-			libVolumeResponse: nil,
-			libVolumeError:    providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.ProvisioningFailed},
+			expErrCode:                    codes.Internal,
+			expVol:                        nil,
+			libVolumeResponse:             nil,
+			libVolumeAccessPointError:     nil,
+			libVolumeAccessPointWaitError: nil,
+			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.ProvisioningFailed},
 		},
 		{
 			name: "InvalidRequest lib error form create volume",
@@ -180,10 +333,12 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: stdVolCap,
 				Parameters:         stdParams,
 			},
-			expErrCode:        codes.Internal,
-			expVol:            nil,
-			libVolumeResponse: nil,
-			libVolumeError:    providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.InvalidRequest},
+			expErrCode:                    codes.Internal,
+			expVol:                        nil,
+			libVolumeResponse:             nil,
+			libVolumeAccessPointError:     nil,
+			libVolumeAccessPointWaitError: nil,
+			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.InvalidRequest},
 		},
 		{
 			name: "Other error lib error form create volume",
@@ -193,10 +348,11 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: stdVolCap,
 				Parameters:         stdParams,
 			},
-			expErrCode:        codes.Internal,
-			expVol:            nil,
-			libVolumeResponse: nil,
-			libVolumeError:    providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.Unauthenticated},
+			expErrCode:                codes.Internal,
+			expVol:                    nil,
+			libVolumeResponse:         nil,
+			libVolumeAccessPointError: nil,
+			libVolumeError:            providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.Unauthenticated},
 		},
 	}
 
@@ -218,6 +374,8 @@ func TestCreateVolumeArguments(t *testing.T) {
 		fakeStructSession.CreateVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
 		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeError)
 		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
+		fakeStructSession.CreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointError)
+		fakeStructSession.WaitForCreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointWaitError)
 
 		// Call CSI CreateVolume
 		resp, err := icDriver.cs.CreateVolume(context.Background(), tc.req)
@@ -257,23 +415,100 @@ func TestCreateVolumeArguments(t *testing.T) {
 func TestDeleteVolume(t *testing.T) {
 	// test cases
 	testCases := []struct {
-		name               string
-		req                *csi.DeleteVolumeRequest
-		expResponse        *csi.DeleteVolumeResponse
-		expErrCode         codes.Code
-		libVolumeRespError error
-		libVolumeResponse  *provider.Volume
+		name                               string
+		req                                *csi.DeleteVolumeRequest
+		expResponse                        *csi.DeleteVolumeResponse
+		expErrCode                         codes.Code
+		libVolumeRespError                 error
+		expectedDeleteVAPErrorResponse     error
+		expectedWaitDeleteVAPErrorResponse error
+		libVolumeResponse                  *provider.Volume
+		libVolumeAccessPointResp           *provider.VolumeAccessPointResponse
+		response                           *http.Response
 	}{
 		{
 			name:              "Success volume delete",
-			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId"},
+			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
 			expResponse:       &csi.DeleteVolumeResponse{},
 			expErrCode:        codes.OK,
 			libVolumeResponse: &provider.Volume{VolumeID: "testVolumeId", Az: "myzone", Region: "myregion"},
+			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
+				VolumeID:      "testVolumeId",
+				AccessPointID: "testVolumeAccessPointId",
+				Status:        "Stable",
+				MountPath:     "abc:/xyz/pqr",
+				CreatedAt:     &time.Time{},
+			},
+			response: &http.Response{
+				StatusCode: http.StatusOK,
+			},
+		},
+		{
+			name:              "Failure to delete volume access Point delete",
+			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
+			expResponse:       nil,
+			expErrCode:        codes.OK,
+			libVolumeResponse: &provider.Volume{VolumeID: "testVolumeId", Az: "myzone", Region: "myregion"},
+			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
+				VolumeID:      "testVolumeId",
+				AccessPointID: "testVolumeAccessPointId",
+				Status:        "Stable",
+				MountPath:     "abc:/xyz/pqr",
+				CreatedAt:     &time.Time{},
+			},
+			response:                       nil,
+			expectedDeleteVAPErrorResponse: providerError.Message{Code: "DeleteVolumeAccessPointFailed", Description: "Volume access Point deletion failed", Type: providerError.DeleteVolumeAccessPointFailed},
+		},
+		{
+			name:              "Failure to delete volume access Point due to stuck in deleting state",
+			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
+			expResponse:       nil,
+			expErrCode:        codes.OK,
+			libVolumeResponse: &provider.Volume{VolumeID: "testVolumeId", Az: "myzone", Region: "myregion"},
+			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
+				VolumeID:      "testVolumeId",
+				AccessPointID: "testVolumeAccessPointId",
+				Status:        "Deleting",
+				MountPath:     "abc:/xyz/pqr",
+				CreatedAt:     &time.Time{},
+			},
+			response:                           nil,
+			expectedDeleteVAPErrorResponse:     nil,
+			expectedWaitDeleteVAPErrorResponse: providerError.Message{Code: "DeleteVolumeAccessPointFailed", Description: "Volume access Point deletion failed", Type: providerError.DeleteVolumeAccessPointFailed},
+		},
+		{
+			name:        "Failed volume delete with multiple access point exists for volume",
+			req:         &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
+			expResponse: nil,
+			expErrCode:  codes.Internal,
+			libVolumeResponse: &provider.Volume{VolumeID: "testVolumeId", Az: "myzone", Region: "myregion", VPCVolume: provider.VPCVolume{
+				Href:                "",
+				ResourceGroup:       &provider.ResourceGroup{},
+				VolumeEncryptionKey: &provider.VolumeEncryptionKey{},
+				Profile:             &provider.Profile{},
+				CRN:                 "",
+				VPCBlockVolume:      provider.VPCBlockVolume{},
+				VPCFileVolume: provider.VPCFileVolume{
+					VolumeAccessPoints: &[]provider.VolumeAccessPoint{
+						{
+							ID: "testVolumeAccessPointId",
+							VPC: &provider.VPC{
+								ID: "1234",
+							},
+						},
+						{
+							ID: "testVolumeAccessPointId",
+							VPC: &provider.VPC{
+								ID: "1234",
+							},
+						},
+					},
+				},
+			}},
 		},
 		{
 			name:        "Success volume delete in case volume not found",
-			req:         &csi.DeleteVolumeRequest{VolumeId: "testVolumeId"},
+			req:         &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
 			expResponse: &csi.DeleteVolumeResponse{},
 			expErrCode:  codes.OK,
 		},
@@ -285,11 +520,19 @@ func TestDeleteVolume(t *testing.T) {
 		},
 		{
 			name:               "Failed from lib volume delete failed",
-			req:                &csi.DeleteVolumeRequest{VolumeId: "testVolumeId"},
+			req:                &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
 			expResponse:        nil,
 			expErrCode:         codes.Internal,
 			libVolumeRespError: providerError.Message{Code: "FailedToDeleteVolume", Description: "Volume deletion failed", Type: providerError.DeletionFailed},
 			libVolumeResponse:  &provider.Volume{VolumeID: "testVolumeId", Az: "myzone", Region: "myregion"},
+		},
+		{
+			name:               "Volume ID invalid format",
+			req:                &csi.DeleteVolumeRequest{VolumeId: "testVolumeId"},
+			expResponse:        nil,
+			expErrCode:         codes.Internal,
+			libVolumeRespError: providerError.Message{Code: "FailedToDeleteVolume", Description: "Volume deletion failed", Type: providerError.DeletionFailed},
+			libVolumeResponse:  nil,
 		},
 	}
 
@@ -311,247 +554,14 @@ func TestDeleteVolume(t *testing.T) {
 		fakeStructSession.DeleteVolumeReturns(tc.libVolumeRespError)
 		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, nil)
 		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, nil)
+		fakeStructSession.DeleteVolumeAccessPointReturns(tc.response, tc.expectedDeleteVAPErrorResponse)
+		fakeStructSession.WaitForDeleteVolumeAccessPointReturns(tc.expectedWaitDeleteVAPErrorResponse)
 
 		// Call CSI CreateVolume
 		response, err := icDriver.cs.DeleteVolume(context.Background(), tc.req)
 		if tc.expErrCode != codes.OK {
 			assert.NotNil(t, err)
 		}
-		assert.Equal(t, tc.expResponse, response)
-	}
-}
-
-func isPublishVolumeresponseEqual(expected *csi.ControllerPublishVolumeResponse, actual *csi.ControllerPublishVolumeResponse) bool {
-	if expected == nil && actual == nil {
-		return true
-	}
-
-	if expected == nil || actual == nil {
-		return false
-	}
-
-	return expected.PublishContext["volume-id"] == actual.PublishContext["volume-id"] &&
-		expected.PublishContext["node-id"] == actual.PublishContext["node-id"] &&
-		expected.PublishContext["device-path"] == actual.PublishContext["device-path"]
-}
-
-func TestControllerPublishVolume(t *testing.T) {
-	// test cases
-	testCases := []struct {
-		name                   string
-		req                    *csi.ControllerPublishVolumeRequest
-		expResponse            *csi.ControllerPublishVolumeResponse
-		expErrCode             codes.Code
-		libAttachResponse      *provider.VolumeAttachmentResponse
-		libAttachRespError     error
-		libWaitAttachResponse  *provider.VolumeAttachmentResponse
-		libWaitAttachRespError error
-		libVolumeResponse      *provider.Volume
-		libVolumeRespError     error
-	}{
-		{
-			name:                   "Success attachment",
-			req:                    &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "node123", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-			expResponse:            &csi.ControllerPublishVolumeResponse{PublishContext: map[string]string{"attach-status": "", "device-path": "/tmp", "node-id": "node123", "volume-id": "vol123"}},
-			expErrCode:             codes.OK,
-			libAttachResponse:      &provider.VolumeAttachmentResponse{VolumeAttachmentRequest: provider.VolumeAttachmentRequest{VolumeID: "vol123", InstanceID: "node123", VPCVolumeAttachment: &provider.VolumeAttachment{DevicePath: "/tmp"}}},
-			libAttachRespError:     nil,
-			libWaitAttachResponse:  &provider.VolumeAttachmentResponse{VolumeAttachmentRequest: provider.VolumeAttachmentRequest{VolumeID: "vol123", InstanceID: "node123", VPCVolumeAttachment: &provider.VolumeAttachment{DevicePath: "/tmp"}}},
-			libWaitAttachRespError: nil,
-			libVolumeResponse:      &provider.Volume{VolumeID: "vol123"},
-			libVolumeRespError:     nil,
-		},
-		{
-			name:               "Failed AttachVolume library call for node not found",
-			req:                &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "node123", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-			expResponse:        nil,
-			expErrCode:         codes.NotFound,
-			libAttachResponse:  nil,
-			libAttachRespError: providerError.Message{Code: "AttachFailed", Description: "Volume attach failed", Type: providerError.NodeNotFound},
-			libVolumeResponse:  &provider.Volume{VolumeID: "vol123"},
-			libVolumeRespError: nil,
-		},
-		{
-			name:               "Failed AttachVolume library call AttachVolume failed with internal error",
-			req:                &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "node123", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-			expResponse:        nil,
-			expErrCode:         codes.Internal,
-			libAttachResponse:  nil,
-			libAttachRespError: providerError.Message{Code: "AttachFailed", Description: "Volume attach failed", Type: providerError.PermissionDenied}, // any error apart from NodeNotFound
-			libVolumeResponse:  &provider.Volume{VolumeID: "vol123"},
-			libVolumeRespError: nil,
-		},
-		{
-			name:               "Failed AttachVolume library call for volume not found",
-			req:                &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "node123", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-			expResponse:        nil,
-			expErrCode:         codes.NotFound,
-			libVolumeResponse:  nil,
-			libVolumeRespError: providerError.Message{Code: "EntityNotFound", Description: "Volume not found", Type: providerError.EntityNotFound},
-		},
-		{
-			name:               "Failed AttachVolume library call internal error for get volume call",
-			req:                &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "node123", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-			expResponse:        nil,
-			expErrCode:         codes.Internal,
-			libVolumeResponse:  nil,
-			libVolumeRespError: providerError.Message{Description: "internal error", Type: providerError.PermissionDenied}, // any error apart from not found
-		},
-		{
-			name:        "Failed volume id empty",
-			req:         &csi.ControllerPublishVolumeRequest{VolumeId: "", NodeId: "node123", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-			expResponse: nil,
-			expErrCode:  codes.InvalidArgument,
-		},
-		{
-			name:        "Failed node id empty",
-			req:         &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-			expResponse: nil,
-			expErrCode:  codes.InvalidArgument,
-		},
-		{
-			name:        "Failed nil volume capabilities",
-			req:         &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "node123"},
-			expResponse: nil,
-			expErrCode:  codes.InvalidArgument,
-		},
-		{
-			name:        "Failed unsupported volume capability",
-			req:         &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "node123", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
-			expResponse: nil,
-			expErrCode:  codes.InvalidArgument,
-		},
-		{
-			name:                   "Failed while waiting for attachment",
-			req:                    &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "node123", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-			expResponse:            nil,
-			expErrCode:             codes.Internal,
-			libAttachResponse:      &provider.VolumeAttachmentResponse{VolumeAttachmentRequest: provider.VolumeAttachmentRequest{VolumeID: "vol123", InstanceID: "node123", VPCVolumeAttachment: &provider.VolumeAttachment{DevicePath: "/tmp"}}},
-			libWaitAttachRespError: providerError.Message{Description: "internal error while waiting for attachment"}, // any error code is fine
-			libVolumeResponse:      &provider.Volume{VolumeID: "vol123"},
-		},
-	}
-
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		// Setup new driver each time so no interference
-		icDriver := initIBMCSIDriver(t)
-
-		// Set the response for CreateVolume
-		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-		assert.Nil(t, err)
-		fakeStructSession, ok := fakeSession.(*fake.FakeSession)
-		assert.Equal(t, true, ok)
-		fakeStructSession.AttachVolumeReturns(tc.libAttachResponse, tc.libAttachRespError)
-		fakeStructSession.WaitForAttachVolumeReturns(tc.libWaitAttachResponse, tc.libWaitAttachRespError)
-		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeRespError)
-		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeRespError)
-
-		// Call CSI CreateVolume
-		response, err := icDriver.cs.ControllerPublishVolume(context.Background(), tc.req)
-		if tc.expErrCode != codes.OK {
-			assert.NotNil(t, err)
-		}
-		// This is because csi.ControllerPublishVolumeResponse contains request ID which is always different
-		// hence better to compair all fields
-		assert.Equal(t, true, isPublishVolumeresponseEqual(tc.expResponse, response))
-	}
-}
-
-func TestControllerUnpublishVolume(t *testing.T) {
-	// test cases
-	testCases := []struct {
-		name                  string
-		req                   *csi.ControllerUnpublishVolumeRequest
-		expResponse           *csi.ControllerUnpublishVolumeResponse
-		expErrCode            codes.Code
-		libDetachResponse     *http.Response
-		libDetachResponseErr  error
-		libWaitDetachResponse error
-	}{
-		{
-			name:                  "Success detach volume",
-			req:                   &csi.ControllerUnpublishVolumeRequest{VolumeId: "volumeid", NodeId: "nodeid"},
-			expResponse:           &csi.ControllerUnpublishVolumeResponse{},
-			expErrCode:            codes.OK,
-			libDetachResponse:     &http.Response{StatusCode: http.StatusOK},
-			libDetachResponseErr:  nil,
-			libWaitDetachResponse: nil,
-		},
-		{
-			name:                  "Nil volume ID",
-			req:                   &csi.ControllerUnpublishVolumeRequest{VolumeId: "", NodeId: "nodeid"},
-			expResponse:           nil,
-			expErrCode:            codes.InvalidArgument,
-			libDetachResponse:     nil,
-			libDetachResponseErr:  nil,
-			libWaitDetachResponse: nil,
-		},
-		{
-			name:                  "Nil node ID",
-			req:                   &csi.ControllerUnpublishVolumeRequest{VolumeId: "volumeid", NodeId: ""},
-			expResponse:           nil,
-			expErrCode:            codes.InvalidArgument,
-			libDetachResponse:     nil,
-			libDetachResponseErr:  nil,
-			libWaitDetachResponse: nil,
-		},
-		{
-			name:              "Detach volume failed",
-			req:               &csi.ControllerUnpublishVolumeRequest{VolumeId: "volumeid", NodeId: "nodeid"},
-			expResponse:       nil,
-			expErrCode:        codes.Internal,
-			libDetachResponse: nil,
-			libDetachResponseErr: providerError.Message{
-				Description: "Volume detach failed",
-				Type:        providerError.DetachFailed,
-			},
-			libWaitDetachResponse: nil,
-		},
-		{
-			name:                 "Wait for detach volume failed",
-			req:                  &csi.ControllerUnpublishVolumeRequest{VolumeId: "volumeid", NodeId: "nodeid"},
-			expResponse:          nil,
-			expErrCode:           codes.Internal,
-			libDetachResponse:    nil,
-			libDetachResponseErr: nil,
-			libWaitDetachResponse: providerError.Message{
-				Description: "Volume detach status failed",
-				Type:        providerError.RetrivalFailed, // any error is fine as driver is checking error only
-			},
-		},
-	}
-
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		// Setup new driver each time so no interference
-		icDriver := initIBMCSIDriver(t)
-
-		// Set the response for CreateVolume
-		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-		assert.Nil(t, err)
-		fakeStructSession, ok := fakeSession.(*fake.FakeSession)
-		assert.Equal(t, true, ok)
-		fakeStructSession.DetachVolumeReturns(tc.libDetachResponse, tc.libDetachResponseErr)
-		fakeStructSession.WaitForDetachVolumeReturns(tc.libWaitDetachResponse)
-
-		// Call CSI CreateVolume
-		response, err := icDriver.cs.ControllerUnpublishVolume(context.Background(), tc.req)
-		if tc.expErrCode != codes.OK {
-			assert.NotNil(t, err)
-		}
-		// This is because csi.ControllerPublishVolumeResponse contains request ID which is always different
-		// hence better to compair all fields
 		assert.Equal(t, tc.expResponse, response)
 	}
 }
@@ -803,6 +813,74 @@ func TestGetCapacity(t *testing.T) {
 	}
 }
 
+func TestControllerPublishVolume(t *testing.T) {
+	// test cases
+	testCases := []struct {
+		name        string
+		req         *csi.ControllerPublishVolumeRequest
+		expResponse *csi.ControllerPublishVolumeResponse
+		expErrCode  codes.Code
+	}{
+		{
+			name:        "Failed unsupported Controller Publish Volume",
+			req:         &csi.ControllerPublishVolumeRequest{VolumeId: "vol123", NodeId: "node123", VolumeCapability: &csi.VolumeCapability{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+			expResponse: nil,
+			expErrCode:  codes.Unimplemented,
+		},
+	}
+
+	// Creating test logger
+	_, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Logf("test case: %s", tc.name)
+		// Setup new driver each time so no interference
+		icDriver := initIBMCSIDriver(t)
+
+		// Call CSI CreateVolume
+		_, err := icDriver.cs.ControllerPublishVolume(context.Background(), tc.req)
+		if tc.expErrCode != codes.OK {
+			assert.NotNil(t, err)
+		}
+	}
+}
+
+func TestControllerUnpublishVolume(t *testing.T) {
+	// test cases
+	testCases := []struct {
+		name        string
+		req         *csi.ControllerUnpublishVolumeRequest
+		expResponse *csi.ControllerUnpublishVolumeResponse
+		expErrCode  codes.Code
+	}{
+		{
+			name:        "Failed unsupported Controller UnPublish Volume",
+			req:         &csi.ControllerUnpublishVolumeRequest{VolumeId: "volumeid", NodeId: "nodeid"},
+			expResponse: nil,
+			expErrCode:  codes.Unimplemented,
+		},
+	}
+
+	// Creating test logger
+	_, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Logf("test case: %s", tc.name)
+		// Setup new driver each time so no interference
+		icDriver := initIBMCSIDriver(t)
+
+		// Call CSI CreateVolume
+		_, err := icDriver.cs.ControllerUnpublishVolume(context.Background(), tc.req)
+		if tc.expErrCode != codes.OK {
+			assert.NotNil(t, err)
+		}
+	}
+}
+
 func TestControllerGetCapabilities(t *testing.T) {
 	// test cases
 	testCases := []struct {
@@ -817,9 +895,9 @@ func TestControllerGetCapabilities(t *testing.T) {
 			expResponse: &csi.ControllerGetCapabilitiesResponse{
 				Capabilities: []*csi.ControllerServiceCapability{
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME}}},
-					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME}}},
+					//{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME}}},
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_LIST_VOLUMES}}},
-					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_EXPAND_VOLUME}}},
+					//{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_EXPAND_VOLUME}}},
 					// &csi.ControllerServiceCapability{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_GET_CAPACITY}}},
 					// &csi.ControllerServiceCapability{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT}}},
 					// &csi.ControllerServiceCapability{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS}}},
@@ -857,273 +935,24 @@ func TestControllerGetCapabilities(t *testing.T) {
 		}
 	}
 }
-
-func TestCreateSnapshot(t *testing.T) {
-	// test cases
-	testCases := []struct {
-		name        string
-		req         *csi.CreateSnapshotRequest
-		expResponse *csi.CreateSnapshotResponse
-		expErrCode  codes.Code
-	}{
-		{
-			name:        "Success create snapshot",
-			req:         &csi.CreateSnapshotRequest{},
-			expResponse: nil,
-			expErrCode:  codes.OK,
-		},
-	}
-
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		// Setup new driver each time so no interference
-		icDriver := initIBMCSIDriver(t)
-
-		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-		assert.Nil(t, err)
-		/*fakeStructSession*/ _, ok := fakeSession.(*fake.FakeSession)
-		assert.Equal(t, true, ok)
-
-		// Call CSI CreateVolume
-		response, err := icDriver.cs.CreateSnapshot(context.Background(), tc.req)
-		if tc.expErrCode != codes.OK {
-			t.Logf("Error code")
-			assert.NotNil(t, err)
-		}
-		assert.Equal(t, tc.expResponse, response)
-	}
-}
-
-func TestDeleteSnapshot(t *testing.T) {
-	// test cases
-	testCases := []struct {
-		name        string
-		req         *csi.DeleteSnapshotRequest
-		expResponse *csi.DeleteSnapshotResponse
-		expErrCode  codes.Code
-	}{
-		{
-			name:        "Success delete snapshot",
-			req:         &csi.DeleteSnapshotRequest{},
-			expResponse: nil,
-			expErrCode:  codes.OK,
-		},
-	}
-
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		// Setup new driver each time so no interference
-		icDriver := initIBMCSIDriver(t)
-
-		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-		assert.Nil(t, err)
-		/*fakeStructSession*/ _, ok := fakeSession.(*fake.FakeSession)
-		assert.Equal(t, true, ok)
-
-		// Call CSI CreateVolume
-		response, err := icDriver.cs.DeleteSnapshot(context.Background(), tc.req)
-		if tc.expErrCode != codes.OK {
-			t.Logf("Error code")
-			assert.NotNil(t, err)
-		}
-		assert.Equal(t, tc.expResponse, response)
-	}
-}
-
-func TestListSnapshots(t *testing.T) {
-	// test cases
-	testCases := []struct {
-		name        string
-		req         *csi.ListSnapshotsRequest
-		expResponse *csi.ListSnapshotsResponse
-		expErrCode  codes.Code
-	}{
-		{
-			name:        "Success list snapshots",
-			req:         &csi.ListSnapshotsRequest{},
-			expResponse: nil,
-			expErrCode:  codes.OK,
-		},
-	}
-
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		// Setup new driver each time so no interference
-		icDriver := initIBMCSIDriver(t)
-
-		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-		assert.Nil(t, err)
-		/*fakeStructSession*/ _, ok := fakeSession.(*fake.FakeSession)
-		assert.Equal(t, true, ok)
-
-		// Call CSI CreateVolume
-		response, err := icDriver.cs.ListSnapshots(context.Background(), tc.req)
-		if tc.expErrCode != codes.OK {
-			t.Logf("Error code")
-			assert.NotNil(t, err)
-		}
-		assert.Equal(t, tc.expResponse, response)
-	}
-}
-
-func TestGetSnapshots(t *testing.T) {
-	// test cases
-	testCases := []struct {
-		name        string
-		req         *csi.ListSnapshotsRequest
-		expResponse *csi.ListSnapshotsResponse
-		expErrCode  codes.Code
-	}{
-		{
-			name:        "Success get snapshots",
-			req:         &csi.ListSnapshotsRequest{},
-			expResponse: nil,
-			expErrCode:  codes.OK,
-		},
-	}
-
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		// Setup new driver each time so no interference
-		icDriver := initIBMCSIDriver(t)
-
-		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-		assert.Nil(t, err)
-		/*fakeStructSession*/ _, ok := fakeSession.(*fake.FakeSession)
-		assert.Equal(t, true, ok)
-
-		// Call CSI CreateVolume
-		response, err := icDriver.cs.getSnapshots(context.Background(), tc.req)
-		if tc.expErrCode != codes.OK {
-			t.Logf("Error code")
-			assert.NotNil(t, err)
-		}
-		assert.Equal(t, tc.expResponse, response)
-	}
-}
-
-func TestGetSnapshotByID(t *testing.T) {
-	// test cases
-	testCases := []struct {
-		name        string
-		req         string
-		expResponse *csi.ListSnapshotsResponse
-		expErrCode  codes.Code
-	}{
-		{
-			name:        "Success get snapshotByID",
-			req:         "snapshotID",
-			expResponse: nil,
-			expErrCode:  codes.OK,
-		},
-	}
-
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	// Run test cases
-	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		// Setup new driver each time so no interference
-		icDriver := initIBMCSIDriver(t)
-
-		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-		assert.Nil(t, err)
-		/*fakeStructSession*/ _, ok := fakeSession.(*fake.FakeSession)
-		assert.Equal(t, true, ok)
-
-		// Call CSI CreateVolume
-		response, err := icDriver.cs.getSnapshotByID(context.Background(), tc.req)
-		if tc.expErrCode != codes.OK {
-			t.Logf("Error code")
-			assert.NotNil(t, err)
-		}
-		assert.Equal(t, tc.expResponse, response)
-	}
-}
-
 func TestControllerExpandVolume(t *testing.T) {
-	cap := 20
-	volName := "test-name"
-	iopsStr := ""
 	// test cases
 	testCases := []struct {
-		name                 string
-		req                  *csi.ControllerExpandVolumeRequest
-		expResponse          *csi.ControllerExpandVolumeResponse
-		expErrCode           codes.Code
-		libExpandResponse    *http.Response
-		libVolumeResponse    *provider.Volume
-		libExpandResponseErr error
-		libVolumeError       error
+		name        string
+		req         *csi.ControllerExpandVolumeRequest
+		expResponse *csi.ControllerExpandVolumeResponse
+		expErrCode  codes.Code
 	}{
 		{
-			name:                 "Success controller expand volume",
-			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid", CapacityRange: stdCapRange},
-			expResponse:          &csi.ControllerExpandVolumeResponse{CapacityBytes: stdCapRange.RequiredBytes, NodeExpansionRequired: true},
-			expErrCode:           codes.OK,
-			libExpandResponse:    &http.Response{StatusCode: http.StatusOK},
-			libVolumeResponse:    &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "volumeid", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
-			libExpandResponseErr: nil,
-			libVolumeError:       nil,
-		},
-		{
-			name:                 "Nil capacity",
-			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid", CapacityRange: nil},
-			expResponse:          nil,
-			expErrCode:           codes.InvalidArgument,
-			libExpandResponse:    nil,
-			libVolumeResponse:    nil,
-			libExpandResponseErr: nil,
-			libVolumeError:       nil,
-		},
-		{
-			name:                 "Nil volume ID",
-			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "", CapacityRange: stdCapRange},
-			expResponse:          nil,
-			expErrCode:           codes.InvalidArgument,
-			libExpandResponse:    nil,
-			libVolumeResponse:    nil,
-			libExpandResponseErr: nil,
-			libVolumeError:       nil,
-		},
-		{
-			name:              "Expand volume failed",
-			req:               &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid", CapacityRange: stdCapRange},
-			expResponse:       nil,
-			expErrCode:        codes.Internal,
-			libExpandResponse: nil,
-			libVolumeResponse: &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "volumeid", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
-			libExpandResponseErr: providerError.Message{
-				Code: "FailedToPlaceOrder",
-			},
-			libVolumeError: providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume expansion failed", Type: providerError.Unauthenticated},
+			name:        "Expand volume unsupportedfailed",
+			req:         &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid", CapacityRange: stdCapRange},
+			expResponse: nil,
+			expErrCode:  codes.Unimplemented,
 		},
 	}
 
 	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
+	_, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
 
 	// Run test cases
@@ -1132,24 +961,12 @@ func TestControllerExpandVolume(t *testing.T) {
 		// Setup new driver each time so no interference
 		icDriver := initIBMCSIDriver(t)
 
-		// Set the response for CreateVolume
-		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-		assert.Nil(t, err)
-		fakeStructSession, ok := fakeSession.(*fake.FakeSession)
-		assert.Equal(t, true, ok)
-		if tc.req.CapacityRange != nil {
-			fakeStructSession.ExpandVolumeReturns(tc.req.CapacityRange.RequiredBytes, tc.libVolumeError)
-		}
-		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeError)
-		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
-
 		// Call CSI CreateVolume
-		response, err := icDriver.cs.ControllerExpandVolume(context.Background(), tc.req)
+		_, err := icDriver.cs.ControllerExpandVolume(context.Background(), tc.req)
 		if tc.expErrCode != codes.OK {
 			t.Logf("Error code")
 			assert.NotNil(t, err)
 		}
-		assert.Equal(t, tc.expResponse, response)
 	}
 }
 

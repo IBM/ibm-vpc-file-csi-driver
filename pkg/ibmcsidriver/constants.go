@@ -19,14 +19,6 @@
 //Package ibmcsidriver ...
 package ibmcsidriver
 
-import (
-	"github.com/IBM/ibm-vpc-file-csi-driver/config"
-)
-
-const (
-	createdByIBM = "Created By " + config.CSIDriverLogName
-)
-
 const (
 	// Profile ...
 	Profile = "profile"
@@ -109,6 +101,12 @@ const (
 	// ClusterIDLabel ...
 	ClusterIDLabel = "clusterID"
 
+	//NFSServerPath
+	NFSServerPath = "nfsServerPath"
+
+	//AccessPointID
+	AccessPointID = "accessPointID"
+
 	// IOPSLabel ...
 	IOPSLabel = "iops"
 
@@ -120,7 +118,7 @@ const (
 )
 
 // SupportedFS the supported FS types
-var SupportedFS = []string{"ext2", "ext3", "ext4", "xfs"}
+var SupportedFS = []string{"ext2", "ext3", "ext4", "nfs"}
 
 // SupportedProfile the supported profile names
-var SupportedProfile = []string{"general-purpose", "5iops-tier", "10iops-tier"}
+var SupportedProfile = []string{"tier-5iops", "tier-3iops", "tier-10iops"}

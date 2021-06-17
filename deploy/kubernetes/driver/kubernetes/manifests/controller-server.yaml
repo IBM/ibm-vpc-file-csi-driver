@@ -35,49 +35,7 @@ spec:
             - "--feature-gates=Topology=true"
           env:
             - name: ADDRESS
-              value: /csi/csi.sock
-          resources:
-            limits:
-              cpu: 100m
-              memory: 100Mi
-            requests:
-              cpu: 10m
-              memory: 20Mi
-          volumeMounts:
-            - name: socket-dir
-              mountPath: /csi
-        - name: csi-resizer
-          image: MUSTPATCHWITHKUSTOMIZE
-          imagePullPolicy: Always
-          securityContext:
-            privileged: false
-            allowPrivilegeEscalation: false
-          args:
-            - "--v=5"
-            - "--csi-address=$(ADDRESS)"
-            - "--timeout=600s"
-          env:
-            - name: ADDRESS
-              value: /csi/csi.sock
-          resources:
-            limits:
-              cpu: 100m
-              memory: 100Mi
-            requests:
-              cpu: 10m
-              memory: 20Mi
-          volumeMounts:
-            - name: socket-dir
-              mountPath: /csi
-        - name: csi-attacher
-          image: MUSTPATCHWITHKUSTOMIZE
-          securityContext:
-            privileged: false
-            allowPrivilegeEscalation: false
-          args:
-            - "--v=5"
-            - "--csi-address=/csi/csi.sock"
-            - "--timeout=900s"
+              value: /csi/csi-vpc-file.sock
           resources:
             limits:
               cpu: 100m
@@ -98,10 +56,13 @@ spec:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--lock_enabled=false"
+            - "--sidecarEndpoint=$(SIDECAREP)"
           envFrom:
           - configMapRef:
               name: ibm-vpc-file-csi-configmap
           env:
+            - name: SIDECAREP
+              value: "/sidecardir/provider-file.sock"
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -110,6 +71,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: VPC_ID
+              value: "r006-7491f5ef-0194-455e-a5e1-1b1fef5d647b"
           resources:
             limits:
               cpu: 500m
@@ -138,13 +101,15 @@ spec:
             - name: cluster-info
               readOnly: true
               mountPath: /etc/storage_ibmc/cluster_info
+            - name: socket-dir
+              mountPath: /sidecardir
         - name: liveness-probe
           image: MUSTPATCHWITHKUSTOMIZE
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false
           args:
-            - --csi-address=/csi/csi.sock
+            - --csi-address=/csi/csi-vpc-file.sock
           resources:
             limits:
               cpu: 50m
@@ -155,6 +120,22 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
+        - name: storage-secret-sidecar
+          image: MUSTPATCHWITHKUSTOMIZE
+          imagePullPolicy: Always
+          args:
+            - "--endpoint=$(ENDPOINT)"
+          env:
+            - name: ENDPOINT
+              value: "unix:/sidecardir/provider-file.sock"
+            - name: SECRET_CONFIG_PATH
+              value: /etc/storage_ibmc/cluster_info
+          volumeMounts:
+            - mountPath: /sidecardir
+              name: socket-dir
+            - mountPath: /etc/storage_ibmc/cluster_info
+              name: cluster-info
+              readOnly: true
       volumes:
         - name: socket-dir
           emptyDir: {}

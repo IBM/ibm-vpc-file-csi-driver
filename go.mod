@@ -3,8 +3,8 @@ module github.com/IBM/ibm-vpc-file-csi-driver
 go 1.16
 
 require (
-	github.com/IBM/ibm-csi-common v1.0.0-beta2
-	github.com/IBM/ibmcloud-volume-interface v1.0.0-beta7
+	github.com/IBM/ibm-csi-common v1.0.0-beta2.0.20210608080600-a1f4ea9dc9ac
+	github.com/IBM/ibmcloud-volume-interface v1.0.1-0.20210521060243-49282e5e5cec
 	github.com/container-storage-interface/spec v1.2.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/google/uuid v1.1.1

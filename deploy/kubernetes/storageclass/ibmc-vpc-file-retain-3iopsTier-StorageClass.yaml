@@ -1,16 +1,16 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: ibmc-vpc-file-retain-10iops-tier
+  name: ibmc-vpc-file-retain-3iops-tier
 provisioner: vpc.file.csi.ibm.io
 mountOptions:
     - hard
     - nfsvers=4.0
     - sec=sys
 parameters:
-  profile: "tier-10iops"              # The VPC Storage profile used.
-  # iopsPerGB: "10"                   # The IOPS per Gigabyte that is supported for this profile. This is just for the user info.
-  sizeRange: "[10-4800]GiB"           # The size range in GiB that is supported. The user will specify a size on the PVC
+  profile: "tier-3iops"               # The VPC Storage profile used.
+  # iopsPerGB: "5"                    # The IOPS per Gigabyte that is supported for this profile. This is just for the user info.
+  sizeRange: "[10-16000]GiB"           # The size range in GiB that is supported. The user will specify a size on the PVC
   csi.storage.k8s.io/fstype: "nfs"   # ext4 is the default filesytem used. The user can override this default
   billingType: "hourly"               # The default billing policy used. The uer can override this default
   encrypted: "false"                  # By default, all PVC using this class will only be provider managed encrypted. The user can override this default

@@ -23,44 +23,7 @@ import (
 	"testing"
 
 	cloudProvider "github.com/IBM/ibm-csi-common/pkg/ibmcloudprovider"
-	"github.com/stretchr/testify/assert"
 )
-
-func TestFindDevicePathSource(t *testing.T) {
-	testCases := []struct {
-		name        string
-		req         string
-		expResponse string
-		expError    error
-	}{
-		{
-			name:        "Valid device path",
-			req:         "/tmp",
-			expResponse: "/tmp",
-			expError:    nil,
-		},
-		{
-			name:        "nvme device path",
-			req:         "tmp1234422344",
-			expResponse: "tmp1234422344",
-			expError:    nil,
-		},
-	}
-
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	icDriver := initIBMCSIDriver(t)
-	for _, tc := range testCases {
-		t.Logf("Test case: %s", tc.name)
-		response, err := icDriver.ns.findDevicePathSource(logger, tc.req, "")
-		if tc.expError != nil {
-			assert.Equal(t, tc.expError, err)
-		}
-		assert.Equal(t, tc.expResponse, response)
-	}
-}
 
 func TestProcessMount(t *testing.T) {
 	// Creating test logger
@@ -71,25 +34,5 @@ func TestProcessMount(t *testing.T) {
 	ops := []string{"a", "b"}
 	response, err := icDriver.ns.processMount(logger, "processMount", "/staging", "/targetpath", "ext4", ops)
 	t.Logf("Response %v, error %v", response, err)
-}
 
-func TestUdevadmTrigger(t *testing.T) {
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	icDriver := initIBMCSIDriver(t)
-	err := icDriver.ns.udevadmTrigger(logger)
-	t.Logf("Response error %v", err)
-}
-
-func TestProcessMountForBlock(t *testing.T) {
-	// Creating test logger
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	icDriver := initIBMCSIDriver(t)
-	ops := []string{"bind"}
-	response, err := icDriver.ns.processMountForBlock(logger, "ProcessMountForBlock", "/dev/sda", "/targetpath", "volumeidxxx", ops)
-	t.Logf("Response %v, error %v", response, err)
 }

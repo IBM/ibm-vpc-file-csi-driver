@@ -23,11 +23,8 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strconv"
-	"strings"
 	"sync"
 
-	"os/exec"
 	"time"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
@@ -39,14 +36,13 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 	"k8s.io/kubernetes/pkg/util/mount"
-	"k8s.io/kubernetes/pkg/util/resizefs"
 	"k8s.io/kubernetes/pkg/volume/util/fs"
 )
 
 // CSINodeServer ...
 type CSINodeServer struct {
 	Driver   *IBMCSIDriver
-	Mounter  *mount.SafeFormatAndMount
+	Mounter  mount.Interface
 	Metadata nodeMetadata.NodeMetadata
 	Stats    StatsUtils
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
@@ -56,22 +52,11 @@ type CSINodeServer struct {
 // StatsUtils ...
 type StatsUtils interface {
 	FSInfo(path string) (int64, int64, int64, int64, int64, int64, error)
-	IsBlockDevice(devicePath string) (bool, error)
-	DeviceInfo(devicePath string) (int64, error)
 	IsDevicePathNotExist(devicePath string) bool
-}
-
-// MountUtils ...
-type MountUtils interface {
-	Resize(mounter *mount.SafeFormatAndMount, devicePath string, deviceMountPath string) (bool, error)
 }
 
 // VolumeStatUtils ...
 type VolumeStatUtils struct {
-}
-
-// VolumeMountUtils ...
-type VolumeMountUtils struct {
 }
 
 //FSInfo ...
@@ -102,15 +87,10 @@ const (
 	FSTypeXfs = "xfs"
 
 	// default file system type to be used when it is not provided
-	defaultFsType = FSTypeExt4
+	defaultFsType = "nfs"
 )
 
 var _ csi.NodeServer = &CSINodeServer{}
-var mountmgr MountUtils
-
-func init() {
-	mountmgr = &VolumeMountUtils{}
-}
 
 // NodePublishVolume ...
 func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -128,7 +108,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 
-	source := req.GetStagingTargetPath()
+	source := req.GetVolumeContext()[NFSServerPath]
 	if len(source) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoStagingTargetPath, requestID, nil)
 	}
@@ -166,24 +146,18 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		*/
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
-	// Perform a bind mount to the full path to allow duplicate mounts of the same PD.
-	options := []string{"bind"}
-	readOnly := req.GetReadonly()
-	if readOnly {
-		options = append(options, "ro")
+	mnt := volumeCapability.GetMount()
+	options := mnt.MountFlags
+	// find  FS type
+	fsType := defaultFsType
+	if mnt.FsType != "" {
+		fsType = mnt.FsType
 	}
-	fsType := "" // Let the fsType be derived from global mount(NodeStageVolume)
 
 	var nodePublishResponse *csi.NodePublishVolumeResponse
 	var mountErr error
 
-	switch volumeCapability.GetAccessType().(type) {
-	case *csi.VolumeCapability_Block:
-		nodePublishResponse, mountErr = csiNS.processMountForBlock(ctxLogger, requestID, publishContext[PublishInfoDevicePath], target, volumeID, options)
-
-	case *csi.VolumeCapability_Mount:
-		nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, source, target, fsType, options)
-	}
+	nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, source, target, fsType, options)
 
 	ctxLogger.Info("CSINodeServer-NodePublishVolume response...", zap.Reflect("Response", nodePublishResponse), zap.Error(mountErr))
 	return nodePublishResponse, mountErr
@@ -207,7 +181,7 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 	}
 
 	ctxLogger.Info("Unmounting  target path", zap.String("targetPath", targetPath))
-	err := mount.CleanupMountPoint(targetPath, csiNS.Mounter.Interface, false /* bind mount */)
+	err := mount.CleanupMountPoint(targetPath, csiNS.Mounter, false /* bind mount */)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
 	}
@@ -219,126 +193,16 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 
 // NodeStageVolume ...
 func (csiNS *CSINodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
-	publishContext := req.GetPublishContext()
-	controlleRequestID := publishContext[PublishInfoRequestID]
-	ctxLogger, requestID := utils.GetContextLoggerWithRequestID(ctx, false, &controlleRequestID)
-	ctxLogger.Info("CSINodeServer-NodeStageVolume...", zap.Reflect("Request", *req))
-	metrics.UpdateDurationFromStart(ctxLogger, "NodeStageVolume", time.Now())
-
-	csiNS.mux.Lock()
-	defer csiNS.mux.Unlock()
-
-	volumeID := req.GetVolumeId()
-	if len(volumeID) == 0 {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
-	}
-	stagingTargetPath := req.GetStagingTargetPath()
-	if len(stagingTargetPath) == 0 {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.NoStagingTargetPath, requestID, nil)
-	}
-	volumeCapability := req.GetVolumeCapability()
-	if volumeCapability == nil || volumeCapability.AccessMode.GetMode() == csi.VolumeCapability_AccessMode_UNKNOWN {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.NoVolumeCapabilities, requestID, nil)
-	}
-
-	volumeCapabilities := []*csi.VolumeCapability{volumeCapability}
-	// Validate volume capabilities, are all capabilities supported by driver or not
-	if !areVolumeCapabilitiesSupported(volumeCapabilities, csiNS.Driver.vcap) {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeCapabilitiesNotSupported, requestID, nil)
-	}
-
-	// If the access type is block, do nothing for stage
-	switch volumeCapability.GetAccessType().(type) {
-	case *csi.VolumeCapability_Block:
-		return &csi.NodeStageVolumeResponse{}, nil
-	}
-
-	// Check devicePath is available in the publish context
-	devicePath := publishContext[PublishInfoDevicePath]
-	if len(devicePath) == 0 {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyDevicePath, requestID, nil)
-	}
-	// Check source Path
-	source, err := csiNS.findDevicePathSource(ctxLogger, devicePath, volumeID)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.DevicePathFindFailed, requestID, nil, devicePath)
-	}
-	ctxLogger.Info("Found device path ", zap.String("devicePath", devicePath), zap.String("source", source))
-
-	// Check target path
-	exists, err := csiNS.Mounter.ExistsPath(stagingTargetPath)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCheckFailed, requestID, err, stagingTargetPath)
-	}
-
-	// Create the target directory if does not exist.
-	if !exists {
-		// If target path does not exist we need to create the directory where volume will be staged
-		ctxLogger.Info("Creating target directory ", zap.String("stagingTargetPath", stagingTargetPath))
-		if err = csiNS.Mounter.MakeDir(stagingTargetPath); err != nil {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, stagingTargetPath)
-		}
-	}
-	// Check if a device is mounted in target directory
-	device, _, err := mount.GetDeviceNameFromMount(csiNS.Mounter, stagingTargetPath)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeMountCheckFailed, requestID, err, stagingTargetPath)
-	}
-
-	// This operation (NodeStageVolume) MUST be idempotent.
-	// If the volume corresponding to the volume_id is already staged to the staging_target_path,
-	// and is identical to the specified volume_capability the Plugin MUST reply 0 OK.
-	if device == source {
-		ctxLogger.Info("volume already staged", zap.String("volumeID", volumeID))
-		return &csi.NodeStageVolumeResponse{}, nil
-	}
-
-	mnt := volumeCapability.GetMount()
-	options := mnt.MountFlags
-	// find  FS type
-	fsType := defaultFsType
-	if mnt.FsType != "" {
-		fsType = mnt.FsType
-	}
-
-	// FormatAndMount will format only if needed
-	ctxLogger.Info("Formating and mounting ", zap.String("source", source), zap.String("stagingTargetPath", stagingTargetPath), zap.String("fsType", fsType), zap.Reflect("options", options))
-	err = csiNS.Mounter.FormatAndMount(source, stagingTargetPath, fsType, options)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.FormatAndMountFailed, requestID, err, source, stagingTargetPath)
-	}
-
-	nodeStageVolumeResponse := &csi.NodeStageVolumeResponse{}
-	return nodeStageVolumeResponse, err
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	ctxLogger.Info("CSINodeServer-NodeStageVolume", zap.Reflect("Request", *req))
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "NodeStageVolume")
 }
 
 // NodeUnstageVolume ...
 func (csiNS *CSINodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodeUnstageVolume ... ", zap.Reflect("Request", *req))
-	metrics.UpdateDurationFromStart(ctxLogger, "NodeUnstageVolume", time.Now())
-	csiNS.mux.Lock()
-	defer csiNS.mux.Unlock()
-
-	// Validate arguments
-	volumeID := req.GetVolumeId()
-	stagingTargetPath := req.GetStagingTargetPath()
-	if len(volumeID) == 0 {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
-	}
-	if len(stagingTargetPath) == 0 {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.NoStagingTargetPath, requestID, nil)
-	}
-
-	ctxLogger.Info("Unmounting staging target path", zap.String("stagingTargetPath", stagingTargetPath))
-	err := mount.CleanupMountPoint(stagingTargetPath, csiNS.Mounter.Interface, false /* bind mount */)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, stagingTargetPath)
-	}
-
-	ctxLogger.Info("Successfully Unmounted staging target path", zap.String("stagingTargetPath", stagingTargetPath))
-	nodeUnstageVolumeResponse := &csi.NodeUnstageVolumeResponse{}
-	return nodeUnstageVolumeResponse, err
+	ctxLogger.Info("CSINodeServer-NodeUnstageVolume", zap.Reflect("Request", *req))
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "NodeUnstageVolume")
 }
 
 // NodeGetCapabilities ...
@@ -412,31 +276,6 @@ func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.Nod
 		return nil, commonError.GetCSIError(ctxLogger, commonError.DevicePathNotExists, requestID, nil, volumePath, req.VolumeId)
 	}
 
-	// check if volume mode is raw volume mode
-	isBlock, err := csiNS.Stats.IsBlockDevice(volumePath)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.BlockDeviceCheckFailed, requestID, err, req.VolumeId)
-	}
-	// if block device, get deviceStats
-	if isBlock {
-		capacity, err := csiNS.Stats.DeviceInfo(volumePath)
-		if err != nil {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.GetDeviceInfoFailed, requestID, err)
-		}
-
-		resp = &csi.NodeGetVolumeStatsResponse{
-			Usage: []*csi.VolumeUsage{
-				{
-					Total: capacity,
-					Unit:  csi.VolumeUsage_BYTES,
-				},
-			},
-		}
-
-		ctxLogger.Info("Response for Volume stats", zap.Reflect("Response", resp))
-		return resp, nil
-	}
-
 	// else get the file system stats
 	available, capacity, usage, inodes, inodesFree, inodesUsed, err := csiNS.Stats.FSInfo(volumePath)
 	if err != nil {
@@ -467,59 +306,7 @@ func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.Nod
 func (csiNS *CSINodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeExpandVolume", zap.Reflect("Request", *req))
-	volumePath := req.GetVolumePath()
-	if len(volumePath) == 0 {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumePath, requestID, nil)
-	}
-	notMounted, err := csiNS.Mounter.IsLikelyNotMountPoint(volumePath)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, err, volumePath)
-	}
-
-	if notMounted {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumePathNotMounted, requestID, nil, volumePath)
-	}
-
-	devicePath, _, err := mount.GetDeviceNameFromMount(csiNS.Mounter, volumePath)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.GetDeviceInfoFailed, requestID, err, volumePath)
-	}
-
-	if devicePath == "" {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyDevicePath, requestID, err)
-	}
-
-	if _, err := mountmgr.Resize(csiNS.Mounter, devicePath, volumePath); err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.FileSystemResizeFailed, requestID, err)
-	}
-	return &csi.NodeExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes}, nil
-}
-
-// IsBlockDevice ...
-func (su *VolumeStatUtils) IsBlockDevice(devicePath string) (bool, error) {
-	var stat unix.Stat_t
-	err := unix.Stat(devicePath, &stat)
-	if err != nil {
-		return false, err
-	}
-
-	return (stat.Mode & unix.S_IFMT) == unix.S_IFBLK, nil
-}
-
-// DeviceInfo ...
-func (su *VolumeStatUtils) DeviceInfo(devicePath string) (int64, error) {
-	// See http://man7.org/linux/man-pages/man8/blockdev.8.html for details
-	output, err := exec.Command("blockdev", "getsize64", devicePath).CombinedOutput() //nolint:gosec
-	if err != nil {
-		return 0, fmt.Errorf("failed to get size of block volume at path %s: output: %s, err: %v", devicePath, string(output), err)
-	}
-	strOut := strings.TrimSpace(string(output))
-	gotSizeBytes, err := strconv.ParseInt(strOut, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse size '%s' into int", strOut)
-	}
-
-	return gotSizeBytes, nil
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "NodeExpandVolume")
 }
 
 // IsDevicePathNotExist ...
@@ -532,13 +319,4 @@ func (su *VolumeStatUtils) IsDevicePathNotExist(devicePath string) bool {
 		}
 	}
 	return false
-}
-
-// Resize expands the fs
-func (volMountUtils *VolumeMountUtils) Resize(mounter *mount.SafeFormatAndMount, devicePath string, deviceMountPath string) (bool, error) {
-	r := resizefs.NewResizeFs(mounter)
-	if _, err := r.Resize(devicePath, deviceMountPath); err != nil {
-		return false, err
-	}
-	return true, nil
 }

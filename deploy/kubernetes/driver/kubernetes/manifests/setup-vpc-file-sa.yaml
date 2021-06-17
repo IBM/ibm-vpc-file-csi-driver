@@ -7,6 +7,7 @@
    - name: bluemix-default-secret
    - name: bluemix-default-secret-regional
    - name: bluemix-default-secret-international
+   - name: ssprodimagepull
 
 ---
 
@@ -48,6 +49,7 @@ roleRef:
    - name: bluemix-default-secret
    - name: bluemix-default-secret-regional
    - name: bluemix-default-secret-international
+   - name: ssprodimagepull
 
 ---
 # xref: https://github.com/kubernetes-csi/external-provisioner/blob/master/deploy/kubernetes/rbac.yaml
@@ -97,41 +99,6 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: vpc-file-provisioner-role
-  apiGroup: rbac.authorization.k8s.io
-
----
-# xref: https://github.com/kubernetes-csi/external-attacher/blob/master/deploy/kubernetes/rbac.yaml
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: vpc-file-external-attacher-role
-rules:
-  - apiGroups: [""]
-    resources: ["persistentvolumes"]
-    verbs: ["get", "list", "watch", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["csi.storage.k8s.io"]
-    resources: ["csinodeinfos"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["storage.k8s.io"]
-    resources: ["volumeattachments"]
-    verbs: ["get", "list", "watch", "update", "patch"]
-
----
-
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: vpc-file-external-attacher-binding
-subjects:
-  - kind: ServiceAccount
-    name: ibm-vpc-file-controller-sa
-    namespace: default
-roleRef:
-  kind: ClusterRole
-  name: vpc-file-external-attacher-role
   apiGroup: rbac.authorization.k8s.io
 
 ---

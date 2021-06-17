@@ -47,7 +47,9 @@ import (
 func init() {
 	_ = flag.Set("logtostderr", "true")
 	logger = setUpLogger()
-	defer logger.Sync()
+	defer func() {
+		_ = logger.Sync()
+	}()
 }
 
 var (

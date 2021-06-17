@@ -34,7 +34,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/kubernetes/pkg/util/mount"
 )
 
 const defaultVolumeID = "csiprovidervolumeid"
@@ -42,24 +41,9 @@ const defaultTargetPath = "/mnt/test"
 const defaultStagingPath = "/staging"
 const defaultVolumePath = "/var/volpath"
 
-const errorDeviceInfo = "/for/errordevicepath"
-const errorBlockDevice = "/for/errorblock"
 const notBlockDevice = "/for/notblocktest"
 
 type MockStatUtils struct {
-}
-
-type MockMountUtils struct {
-}
-
-// Resize expands the fs
-func (mu *MockMountUtils) Resize(mounter *mount.SafeFormatAndMount, devicePath string, deviceMountPath string) (bool, error) {
-	if strings.Contains(deviceMountPath, "fake-") {
-		return false, fmt.Errorf("failed to resize fs")
-	} else if strings.Contains(deviceMountPath, "valid-") {
-		return true, nil
-	}
-	return false, fmt.Errorf("failed to resize fs")
 }
 
 func (su *MockStatUtils) FSInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
@@ -100,6 +84,7 @@ func TestNodePublishVolume(t *testing.T) {
 				StagingTargetPath: defaultStagingPath,
 				Readonly:          false,
 				VolumeCapability:  stdVolCap[0],
+				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.OK,
 		},
@@ -155,42 +140,6 @@ func TestNodePublishVolume(t *testing.T) {
 				StagingTargetPath: defaultStagingPath,
 				Readonly:          false,
 				VolumeCapability:  stdVolCapNotSupported[0],
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Raw block request with validdevice",
-			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          defaultVolumeID,
-				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
-				PublishContext:    map[string]string{PublishInfoDevicePath: "/dev/sda"},
-				Readonly:          false,
-				VolumeCapability:  stdBlockVolCap[0],
-			},
-			expErrCode: codes.OK,
-		},
-		{
-			name: "Raw block request with invaliddevice",
-			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          defaultVolumeID,
-				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
-				PublishContext:    map[string]string{PublishInfoDevicePath: ""},
-				Readonly:          false,
-				VolumeCapability:  stdBlockVolCap[0],
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Raw block request with invalidTarget",
-			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          defaultVolumeID,
-				TargetPath:        "",
-				StagingTargetPath: defaultStagingPath,
-				PublishContext:    map[string]string{PublishInfoDevicePath: "/dev/sda"},
-				Readonly:          false,
-				VolumeCapability:  stdBlockVolCap[0],
 			},
 			expErrCode: codes.InvalidArgument,
 		},
@@ -254,157 +203,6 @@ func TestNodeUnpublishVolume(t *testing.T) {
 	for _, tc := range testCases {
 		t.Logf("Test case: %s", tc.name)
 		_, err := icDriver.ns.NodeUnpublishVolume(context.Background(), tc.req)
-		if err != nil {
-			serverError, ok := status.FromError(err)
-			if !ok {
-				t.Fatalf("Could not get error status code from err: %v", err)
-			}
-			if serverError.Code() != tc.expErrCode {
-				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
-			}
-			continue
-		}
-		if tc.expErrCode != codes.OK {
-			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
-		}
-	}
-}
-
-func TestNodeStageVolume(t *testing.T) {
-	volumeID := "newstagevolumeID"
-	testCases := []struct {
-		name       string
-		req        *csi.NodeStageVolumeRequest
-		expErrCode codes.Code
-	}{
-		{
-			name: "Valid request",
-			req: &csi.NodeStageVolumeRequest{
-				VolumeId:          volumeID,
-				StagingTargetPath: defaultStagingPath,
-				VolumeCapability:  stdVolCap[0],
-				PublishContext:    map[string]string{PublishInfoDevicePath: "/dev"},
-			},
-			expErrCode: codes.OK,
-		},
-		{
-			name: "Empty volume ID",
-			req: &csi.NodeStageVolumeRequest{
-				VolumeId:          "",
-				StagingTargetPath: defaultStagingPath,
-				VolumeCapability:  stdVolCap[0],
-				PublishContext:    map[string]string{PublishInfoDevicePath: "/dev"},
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Empty target path",
-			req: &csi.NodeStageVolumeRequest{
-				VolumeId:          volumeID,
-				StagingTargetPath: "",
-				VolumeCapability:  stdVolCap[0],
-				PublishContext:    map[string]string{PublishInfoDevicePath: "/dev"},
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Empty volume capabilities",
-			req: &csi.NodeStageVolumeRequest{
-				VolumeId:          volumeID,
-				StagingTargetPath: defaultTargetPath,
-				VolumeCapability:  nil,
-				PublishContext:    map[string]string{PublishInfoDevicePath: "/dev"},
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Not supported volume capabilities",
-			req: &csi.NodeStageVolumeRequest{
-				VolumeId:          volumeID,
-				StagingTargetPath: defaultTargetPath,
-				VolumeCapability:  stdVolCapNotSupported[0],
-				PublishContext:    map[string]string{PublishInfoDevicePath: "/dev"},
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Empty device path in the context",
-			req: &csi.NodeStageVolumeRequest{
-				VolumeId:          volumeID,
-				StagingTargetPath: defaultTargetPath,
-				VolumeCapability:  stdVolCap[0],
-				PublishContext:    map[string]string{PublishInfoDevicePath: ""},
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Valid raw block StageVolume request",
-			req: &csi.NodeStageVolumeRequest{
-				VolumeId:          volumeID,
-				StagingTargetPath: defaultStagingPath,
-				VolumeCapability:  stdBlockVolCap[0],
-				PublishContext:    map[string]string{PublishInfoDevicePath: "/dev/sda"},
-			},
-			expErrCode: codes.OK,
-		},
-	}
-
-	icDriver := initIBMCSIDriver(t)
-	for _, tc := range testCases {
-		t.Logf("Test case: %s", tc.name)
-		_, err := icDriver.ns.NodeStageVolume(context.Background(), tc.req)
-		if err != nil {
-			serverError, ok := status.FromError(err)
-			if !ok {
-				t.Fatalf("Could not get error status code from err: %v", err)
-			}
-			if serverError.Code() != tc.expErrCode {
-				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
-			}
-			continue
-		}
-		if tc.expErrCode != codes.OK {
-			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
-		}
-	}
-}
-
-func TestNodeUnstageVolume(t *testing.T) {
-	testCases := []struct {
-		name       string
-		req        *csi.NodeUnstageVolumeRequest
-		expErrCode codes.Code
-	}{
-		{
-			name: "Valid request",
-			req: &csi.NodeUnstageVolumeRequest{
-				VolumeId:          defaultVolumeID,
-				StagingTargetPath: defaultTargetPath,
-			},
-			expErrCode: codes.OK,
-		},
-		{
-			name: "Empty volume ID",
-			req: &csi.NodeUnstageVolumeRequest{
-				VolumeId:          "",
-				StagingTargetPath: defaultStagingPath,
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Empty target path",
-			req: &csi.NodeUnstageVolumeRequest{
-				VolumeId:          defaultVolumeID,
-				StagingTargetPath: "",
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-	}
-
-	icDriver := initIBMCSIDriver(t)
-	for _, tc := range testCases {
-		t.Logf("Test case: %s", tc.name)
-		_, err := icDriver.ns.NodeUnstageVolume(context.Background(), tc.req)
 		if err != nil {
 			serverError, ok := status.FromError(err)
 			if !ok {
@@ -501,23 +299,6 @@ func TestNodeGetVolumeStats(t *testing.T) {
 		expError   string
 	}{
 		{
-			name: "Mode is block",
-			req: &csi.NodeGetVolumeStatsRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: defaultVolumePath,
-			},
-			resp: &csi.NodeGetVolumeStatsResponse{
-				Usage: []*csi.VolumeUsage{
-					{
-						Total: 1,
-						Unit:  1,
-					},
-				},
-			},
-			expErrCode: codes.OK,
-			expError:   "",
-		},
-		{
 			name: "Empty volume ID",
 			req: &csi.NodeGetVolumeStatsRequest{
 				VolumeId:   "",
@@ -562,24 +343,6 @@ func TestNodeGetVolumeStats(t *testing.T) {
 			expErrCode: codes.OK,
 			expError:   "",
 		},
-		{
-			name: "Error in checking block device",
-			req: &csi.NodeGetVolumeStatsRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: errorBlockDevice,
-			},
-			resp:     nil,
-			expError: "Failed to determine if volume is block",
-		},
-		{
-			name: "Failed to get block size",
-			req: &csi.NodeGetVolumeStatsRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: errorDeviceInfo,
-			},
-			resp:     nil,
-			expError: "Failed to get size of block volume",
-		},
 	}
 	icDriver := initIBMCSIDriver(t)
 	for _, tc := range testCases {
@@ -616,45 +379,14 @@ func TestNodeExpandVolume(t *testing.T) {
 		expErrCode codes.Code
 	}{
 		{
-			name: "Empty volume Path",
-			req: &csi.NodeExpandVolumeRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: "",
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Invalid volumePath",
-			req: &csi.NodeExpandVolumeRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: "/invalid-volPath",
-			},
-			expErrCode: codes.FailedPrecondition,
-		},
-		{
-			name: "valid volumePath",
-			req: &csi.NodeExpandVolumeRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: "valid-vol-path",
-				CapacityRange: &csi.CapacityRange{
-					RequiredBytes: 20 * 1024 * 1024 * 1024,
-				},
-			},
-			expErrCode: codes.OK,
-		},
-		{
-			name: "volumePath not mounted",
-			req: &csi.NodeExpandVolumeRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: "fake-volPath",
-			},
-			expErrCode: codes.FailedPrecondition,
+			name:       "Unsupported node expand volume",
+			req:        &csi.NodeExpandVolumeRequest{},
+			expErrCode: codes.Unimplemented,
 		},
 	}
 	icDriver := initIBMCSIDriver(t)
 	_ = os.MkdirAll("valid-vol-path", os.FileMode(0755))
 	_ = icDriver.ns.Mounter.Mount("valid-devicePath", "valid-vol-path", "ext4", []string{})
-	mountmgr = &MockMountUtils{}
 	for _, tc := range testCases {
 		t.Logf("Test case: %s", tc.name)
 		_, err := icDriver.ns.NodeExpandVolume(context.Background(), tc.req)
@@ -675,36 +407,69 @@ func TestNodeExpandVolume(t *testing.T) {
 	_ = os.RemoveAll("valid-vol-path")
 }
 
-func TestIsBlockDevice(t *testing.T) {
+func TestNodeStageVolume(t *testing.T) {
 	testCases := []struct {
-		name          string
-		reqDevicePath string
-		yes           bool
-		respError     error
+		name       string
+		req        *csi.NodeStageVolumeRequest
+		expErrCode codes.Code
 	}{
+
 		{
-			name:          "Not a valid path, hence its not block device",
-			reqDevicePath: "/tmp111111111111111",
-			yes:           false,
-			respError:     fmt.Errorf("any error is fine"),
-		},
-		{
-			name:          "Valid path but not a block device",
-			reqDevicePath: "/tmp",
-			yes:           false,
-			respError:     nil,
+			name:       "Unsupported operation",
+			req:        &csi.NodeStageVolumeRequest{},
+			expErrCode: codes.Unimplemented,
 		},
 	}
 
-	statUtils := &VolumeStatUtils{}
+	icDriver := initIBMCSIDriver(t)
 	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		response, err := statUtils.IsBlockDevice(tc.reqDevicePath)
-		assert.Equal(t, tc.yes, response)
-		if tc.respError != nil {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
+		t.Logf("Test case: %s", tc.name)
+		_, err := icDriver.ns.NodeStageVolume(context.Background(), tc.req)
+		if err != nil {
+			serverError, ok := status.FromError(err)
+			if !ok {
+				t.Fatalf("Could not get error status code from err: %v", err)
+			}
+			if serverError.Code() != tc.expErrCode {
+				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
+			continue
+		}
+		if tc.expErrCode != codes.OK {
+			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
+		}
+	}
+}
+
+func TestNodeUnstageVolume(t *testing.T) {
+	testCases := []struct {
+		name       string
+		req        *csi.NodeUnstageVolumeRequest
+		expErrCode codes.Code
+	}{
+		{
+			name:       "Unsupported Operation",
+			req:        &csi.NodeUnstageVolumeRequest{},
+			expErrCode: codes.Unimplemented,
+		},
+	}
+
+	icDriver := initIBMCSIDriver(t)
+	for _, tc := range testCases {
+		t.Logf("Test case: %s", tc.name)
+		_, err := icDriver.ns.NodeUnstageVolume(context.Background(), tc.req)
+		if err != nil {
+			serverError, ok := status.FromError(err)
+			if !ok {
+				t.Fatalf("Could not get error status code from err: %v", err)
+			}
+			if serverError.Code() != tc.expErrCode {
+				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
+			continue
+		}
+		if tc.expErrCode != codes.OK {
+			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
 		}
 	}
 }
@@ -732,35 +497,5 @@ func TestIsDevicePathNotExist(t *testing.T) {
 		t.Logf("test case: %s", tc.name)
 		isBlock := statUtils.IsDevicePathNotExist(tc.reqDevicePath)
 		assert.Equal(t, tc.expResp, isBlock)
-	}
-}
-
-func TestDeviceInfo(t *testing.T) {
-	testCases := []struct {
-		name          string
-		reqDevicePath string
-		respError     error
-	}{
-		{
-			name:          "Success device info",
-			reqDevicePath: "/tmp",
-			respError:     nil,
-		},
-		{
-			name:          "Failed device info",
-			reqDevicePath: "/tmp11111111111",
-			respError:     fmt.Errorf("any error is fine"),
-		},
-	}
-
-	statUtils := &VolumeStatUtils{}
-	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		_, _ = statUtils.DeviceInfo(tc.reqDevicePath)
-		/*if tc.respError != nil {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
-		}*/
 	}
 }

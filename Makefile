@@ -16,7 +16,7 @@
 
 EXE_DRIVER_NAME=ibm-vpc-file-csi-driver
 DRIVER_NAME=vpcFileDriver
-IMAGE = contsto2/${EXE_DRIVER_NAME}
+IMAGE = ${EXE_DRIVER_NAME}
 GOPACKAGES=$(shell go list ./... | grep -v /vendor/ | grep -v /cmd | grep -v /tests)
 VERSION := latest
 PROXY_IMAGE_URL:="registry.ng.bluemix.net"
