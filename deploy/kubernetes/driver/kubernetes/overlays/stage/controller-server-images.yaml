@@ -12,6 +12,4 @@ spec:
           image: icr.io/ext/k8scsi/livenessprobe:v2.0.0
         - name: iks-vpc-file-driver
           imagePullPolicy: Always
-          image: us.icr.io/sameshai/ibm-vpc-file-csi-driver:latest
-        - name: storage-secret-sidecar
-          image: us.icr.io/sameshai/armada-storage-secret-sidecar:v1.0.0
+          image: icr.io/ibm/ibm-vpc-file-csi-driver:v3.0.4

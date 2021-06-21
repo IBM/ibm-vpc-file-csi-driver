@@ -7,7 +7,6 @@
    - name: bluemix-default-secret
    - name: bluemix-default-secret-regional
    - name: bluemix-default-secret-international
-   - name: ssprodimagepull
 
 ---
 
@@ -49,7 +48,6 @@ roleRef:
    - name: bluemix-default-secret
    - name: bluemix-default-secret-regional
    - name: bluemix-default-secret-international
-   - name: ssprodimagepull
 
 ---
 # xref: https://github.com/kubernetes-csi/external-provisioner/blob/master/deploy/kubernetes/rbac.yaml

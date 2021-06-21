@@ -8,12 +8,8 @@ spec:
       containers:
         - name: csi-provisioner
           image: icr.io/ext/k8scsi/csi-provisioner:v1.6.0
-        - name: csi-attacher
-          image: icr.io/ext/k8scsi/csi-attacher:v2.2.0
         - name: liveness-probe
           image: icr.io/ext/k8scsi/livenessprobe:v1.1.0
         - name: iks-vpc-file-driver
           imagePullPolicy: Always
           image: (( concat "{{ DOCKER_REGISTRY }}/armada-master/ibm-vpc-file-csi-driver:" $RELEASE_TAG ))
-        - name: storage-secret-sidecar
-          image: icr.io/obs/armada-storage-secret:v1.0.0
