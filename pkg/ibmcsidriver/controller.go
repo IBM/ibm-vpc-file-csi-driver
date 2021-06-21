@@ -20,8 +20,6 @@
 package ibmcsidriver
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -171,6 +169,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 		return nil, commonError.GetCSIError(ctxLogger, commonError.FailedPrecondition, requestID, err)
 	}
 
+	//Volume ID is in format volumeID:volumeAccessPointID, to assit the deletion of volume access point
 	tokens := strings.Split(volumeID, ":")
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-DeleteVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID", tokens))
@@ -195,11 +194,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 				vpcIDList = append(vpcIDList, volAccessPoint.VPC.ID)
 			}
 		}
-
-		errorMsg := fmt.Sprintf("Volume has more than one Access Points.Try to delete the additional access points which are not created as part of the CSI volume request and then retry deleting the volume if it still exists. Please go through the list of VPCs = %v. ", vpcIDList)
-		ctxLogger.Error(errorMsg, zap.Reflect("Volume Details", existingVol))
-		err = errors.New(errorMsg)
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		return nil, commonError.GetCSIError(ctxLogger, commonError.MultipleVolAccessPointFound, requestID, nil, vpcIDList)
 	}
 
 	//If volume exists no need to check for access point existence as library takes care of the same
