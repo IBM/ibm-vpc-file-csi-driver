@@ -33,13 +33,13 @@ import (
 	"path/filepath"
 	"time"
 
-	cloudProvider "github.com/IBM/ibm-csi-common/pkg/ibmcloudprovider"
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	"github.com/IBM/ibm-csi-common/pkg/watcher"
 	csiConfig "github.com/IBM/ibm-vpc-file-csi-driver/config"
 	driver "github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
