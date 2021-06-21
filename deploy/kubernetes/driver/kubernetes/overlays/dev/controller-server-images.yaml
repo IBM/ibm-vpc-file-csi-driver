@@ -14,5 +14,4 @@ spec:
           image: quay.io/k8scsi/livenessprobe:v1.1.0
         - name: iks-vpc-file-driver
           imagePullPolicy: Always
-          image: icr.io/ibm/ibm-vpc-file-csi-driver:v3.0.4
-          
+          image: icr.io/ibm/ibm-vpc-file-csi-driver:v3.0.4        
