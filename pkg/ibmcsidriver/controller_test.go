@@ -60,7 +60,7 @@ var (
 				Mount: &csi.VolumeCapability_MountVolume{FsType: "nfs"},
 			},
 			AccessMode: &csi.VolumeCapability_AccessMode{
-				Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
+				Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_SINGLE_WRITER,
 			},
 		},
 	}
