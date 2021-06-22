@@ -268,6 +268,13 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 
+	//Volume ID is in format volumeID:volumeAccessPointID
+	tokens := strings.Split(volumeID, ":")
+	if len(tokens) != 2 {
+		ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities...", zap.Reflect("Volume ID is not in format volumeID:accesspointID", tokens))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+	}
+
 	// Check if Requested Volume exists
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
 	if err != nil {
@@ -275,7 +282,7 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 	}
 
 	// Get volume details by using volume ID, it should exists with provider
-	_, err = session.GetVolume(volumeID)
+	_, err = session.GetVolume(tokens[0])
 	if err != nil {
 		if providerError.RetrivalFailed == providerError.GetErrorType(err) {
 			return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, volumeID)
@@ -401,4 +408,13 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 
 	ctxLogger.Info("CSIControllerServer-ControllerExpandVolume", zap.Reflect("Request", requestID))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ControllerExpandVolume")
+}
+
+// ControllerGetVolume ...
+func (csiCS *CSIControllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	// populate requestID in the context
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ControllerGetVolume")
 }
