@@ -4,8 +4,6 @@
 ibm-vpc-file-csi-driver is a CSI plugin for creating and mounting VPC File storage.
 It includes both Controller and Node service
 
-
-
 # Supported orchestration platforms
 
 The following table details orchestration platforms suitable for deployment of the IBM® VPC file storage CSI driver.
