@@ -577,7 +577,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 	}{
 		{
 			name: "Success validate volume capabilities",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
 			},
 			expResponse: &csi.ValidateVolumeCapabilitiesResponse{
@@ -590,7 +590,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		},
 		{
 			name: "Passing nil volume capabilities",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
 				VolumeCapabilities: nil,
 			},
 			expResponse:       nil,
@@ -607,8 +607,17 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 			libGetVolumeError: nil,
 		},
 		{
+			name: "Passing invalid volume ID",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid",
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+			},
+			expResponse:       nil,
+			expErrCode:        codes.Internal,
+			libGetVolumeError: nil,
+		},
+		{
 			name: "Get volume failed",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volume-not-found-ID",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volume-not-found-ID:accessPointID",
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
 			},
 			expResponse: nil,
@@ -621,7 +630,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		},
 		{
 			name: "Internal error while getting volume details",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
 			},
 			expResponse: nil,
@@ -944,7 +953,7 @@ func TestControllerExpandVolume(t *testing.T) {
 		expErrCode  codes.Code
 	}{
 		{
-			name:        "Expand volume unsupportedfailed",
+			name:        "Expand volume unsupported failed",
 			req:         &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid", CapacityRange: stdCapRange},
 			expResponse: nil,
 			expErrCode:  codes.Unimplemented,
@@ -963,6 +972,41 @@ func TestControllerExpandVolume(t *testing.T) {
 
 		// Call CSI CreateVolume
 		_, err := icDriver.cs.ControllerExpandVolume(context.Background(), tc.req)
+		if tc.expErrCode != codes.OK {
+			t.Logf("Error code")
+			assert.NotNil(t, err)
+		}
+	}
+}
+
+func TestControllerGetVolume(t *testing.T) {
+	// test cases
+	testCases := []struct {
+		name        string
+		req         *csi.ControllerGetVolumeRequest
+		expResponse *csi.ControllerGetVolumeResponse
+		expErrCode  codes.Code
+	}{
+		{
+			name:        "Get volume unsupported failed",
+			req:         &csi.ControllerGetVolumeRequest{},
+			expResponse: nil,
+			expErrCode:  codes.Unimplemented,
+		},
+	}
+
+	// Creating test logger
+	_, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Logf("test case: %s", tc.name)
+		// Setup new driver each time so no interference
+		icDriver := initIBMCSIDriver(t)
+
+		// Call CSI CreateVolume
+		_, err := icDriver.cs.ControllerGetVolume(context.Background(), tc.req)
 		if tc.expErrCode != codes.OK {
 			t.Logf("Error code")
 			assert.NotNil(t, err)
