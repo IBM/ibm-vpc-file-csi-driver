@@ -22,11 +22,11 @@ package sanity
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -36,7 +36,7 @@ import (
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
-	sanity "github.com/kubernetes-csi/csi-test/v3/pkg/sanity"
+	sanity "github.com/kubernetes-csi/csi-test/v4/pkg/sanity"
 
 	cloudProvider "github.com/IBM/ibm-csi-common/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibm-csi-common/pkg/metadata"
@@ -105,6 +105,14 @@ func TestSanity(t *testing.T) {
 		IDGen:                    &providerIDGenerator{},
 		TestVolumeParametersFile: os.Getenv("SANITY_PARAMS_FILE"),
 		TestVolumeSize:           10737418240, // i.e 10 GB
+		CreateTargetDir: func(targetPath string) (string, error) {
+			targetPath = path.Join(TempDir, targetPath)
+			return targetPath, createTargetDir(targetPath)
+		},
+		CreateStagingDir: func(stagePath string) (string, error) {
+			stagePath = path.Join(TempDir, stagePath)
+			return stagePath, createTargetDir(stagePath)
+		},
 	}
 	sanity.Test(t, config)
 }
@@ -115,11 +123,11 @@ type providerIDGenerator struct {
 }
 
 func (v providerIDGenerator) GenerateUniqueValidVolumeID() string {
-	return fmt.Sprintf("vol-uuid-test-vol-%s", uuid.New().String()[:10])
+	return fmt.Sprintf("vol-uuid-test-vol-%s:access-point-1", uuid.New().String()[:10])
 }
 
 func (v providerIDGenerator) GenerateInvalidVolumeID() string {
-	return "invalid-vol-id"
+	return "invalid-vol-id:access-point-1"
 }
 
 func (v providerIDGenerator) GenerateUniqueValidNodeID() string {
@@ -169,19 +177,6 @@ func (su *MockStatSanity) FSInfo(path string) (int64, int64, int64, int64, int64
 	return 1, 1, 1, 1, 1, 1, nil
 }
 
-// DeviceInfo ...
-func (su *MockStatSanity) DeviceInfo(path string) (int64, error) {
-	return 1, nil
-}
-
-// IsBlockDevice ..
-func (su *MockStatSanity) IsBlockDevice(devicePath string) (bool, error) {
-	if !strings.Contains(devicePath, TargetPath) {
-		return false, errors.New("not a valid path")
-	}
-	return true, nil
-}
-
 func (su *MockStatSanity) IsDevicePathNotExist(devicePath string) bool {
 	// return true if not matched
 	return !strings.Contains(devicePath, TargetPath)
@@ -223,20 +218,26 @@ type fakeVolume struct {
 	*provider.Volume
 }
 
+type fakeVolumeAccessPointResponse struct {
+	*provider.VolumeAccessPointResponse
+}
+
 type fakeProviderSession struct {
 	provider.DefaultVolumeProvider
-	volumes      map[string]*fakeVolume
-	pub          map[string]string
-	providerName provider.VolumeProvider
-	providerType provider.VolumeType
+	volumes            map[string]*fakeVolume
+	volumeAccessPoints map[string]*fakeVolumeAccessPointResponse
+	pub                map[string]string
+	providerName       provider.VolumeProvider
+	providerType       provider.VolumeType
 }
 
 func newFakeProviderSession() *fakeProviderSession {
 	return &fakeProviderSession{
-		volumes:      make(map[string]*fakeVolume),
-		pub:          make(map[string]string),
-		providerName: csiConfig.CSIProviderName,
-		providerType: csiConfig.CSIProviderVolumeType,
+		volumes:            make(map[string]*fakeVolume),
+		volumeAccessPoints: make(map[string]*fakeVolumeAccessPointResponse),
+		pub:                make(map[string]string),
+		providerName:       csiConfig.CSIProviderName,
+		providerType:       csiConfig.CSIProviderVolumeType,
 	}
 }
 
@@ -284,6 +285,43 @@ func (c *fakeProviderSession) CreateVolume(volumeRequest provider.Volume) (*prov
 	return fakeVolume.Volume, nil
 }
 
+// Create the volume Acesss Point with authorization by passing required information in the volume access point object
+func (c *fakeProviderSession) CreateVolumeAccessPoint(volumeAccesspointReq provider.VolumeAccessPointRequest) (*provider.VolumeAccessPointResponse, error) {
+
+	if len(volumeAccesspointReq.VolumeID) == 0 {
+		return nil, errors.New("no volume ID passed")
+	}
+
+	fakeVolumeAccessPointResponse := &fakeVolumeAccessPointResponse{
+		VolumeAccessPointResponse: &provider.VolumeAccessPointResponse{
+			VolumeID:      volumeAccesspointReq.VolumeID,
+			AccessPointID: "access-point-1",
+			Status:        "Stable",
+			MountPath:     "nsfserver:/abc/xyz",
+			CreatedAt:     &time.Time{},
+		},
+	}
+	c.volumeAccessPoints[volumeAccesspointReq.VolumeID] = fakeVolumeAccessPointResponse
+	return fakeVolumeAccessPointResponse.VolumeAccessPointResponse, nil
+}
+
+//WaitForAttachVolume waits for the volume to be attached to the host
+//Return error if wait is timed out OR there is other error
+func (c *fakeProviderSession) WaitForCreateVolumeAccessPoint(volumeAccesspointReq provider.VolumeAccessPointRequest) (*provider.VolumeAccessPointResponse, error) {
+
+	if len(volumeAccesspointReq.VolumeID) == 0 {
+		return nil, errors.New("no volume ID passed")
+	}
+
+	return &provider.VolumeAccessPointResponse{
+		VolumeID:      volumeAccesspointReq.VolumeID,
+		AccessPointID: "access-point-1",
+		Status:        "Stable",
+		MountPath:     "nsfserver:/abc/xyz",
+		CreatedAt:     &time.Time{},
+	}, nil
+}
+
 func (c *fakeProviderSession) UpdateVolume(volumeRequest provider.Volume) error {
 	return nil
 }
@@ -308,26 +346,6 @@ func (c *fakeProviderSession) DeleteVolume(vol *provider.Volume) error {
 	}
 
 	return erroMsg
-}
-
-// Expand the volume
-func (c *fakeProviderSession) ExpandVolume(expandVolumeRequest provider.ExpandVolumeRequest) (int64, error) {
-	volumeID := expandVolumeRequest.VolumeID
-	capacity := expandVolumeRequest.Capacity
-	if len(volumeID) == 0 {
-		return -1, errors.New("no Volume id passed")
-	}
-
-	if capacity == -1 {
-		return -1, errors.New("no capacity passed")
-	}
-
-	for _, f := range c.volumes {
-		if f.Volume.VolumeID == volumeID {
-			return capacity, nil
-		}
-	}
-	return -1, errors.New("no volume found")
 }
 
 // Get the volume by using ID  //
@@ -404,57 +422,6 @@ func (c *fakeProviderSession) AuthorizeVolume(volumeAuthorization provider.Volum
 	return nil
 }
 
-func (c *fakeProviderSession) AttachVolume(attachRequest provider.VolumeAttachmentRequest) (*provider.VolumeAttachmentResponse, error) {
-	if len(attachRequest.InstanceID) == 0 {
-		return nil, errors.New("instance does not passed")
-	}
-
-	if strings.Contains(attachRequest.InstanceID, FakeNodeID) {
-		return nil, providerError.Message{
-			Code:        "AttachFailed",
-			Description: "Volume attachment fail due to instance not exist",
-			Type:        providerError.NodeNotFound,
-		}
-	}
-
-	attachmentDetails := &provider.VolumeAttachmentResponse{
-		VolumeAttachmentRequest: provider.VolumeAttachmentRequest{
-			VolumeID:            attachRequest.VolumeID,
-			InstanceID:          attachRequest.InstanceID,
-			VPCVolumeAttachment: &provider.VolumeAttachment{DevicePath: "/tmp/csi/target/vol1"},
-		},
-	}
-	return attachmentDetails, nil
-}
-
-//Detach detaches the volume/ fileset from the server
-//Its non bloking call and does not wait to complete the detachment
-func (c *fakeProviderSession) DetachVolume(detachRequest provider.VolumeAttachmentRequest) (*http.Response, error) {
-	return nil, nil
-}
-
-//WaitForAttachVolume waits for the volume to be attached to the host
-//Return error if wait is timed out OR there is other error
-func (c *fakeProviderSession) WaitForAttachVolume(attachRequest provider.VolumeAttachmentRequest) (*provider.VolumeAttachmentResponse, error) {
-	if len(attachRequest.InstanceID) == 0 {
-		return nil, errors.New("no instance ID passed")
-	}
-
-	return &provider.VolumeAttachmentResponse{
-		VolumeAttachmentRequest: provider.VolumeAttachmentRequest{
-			VolumeID:            attachRequest.VolumeID,
-			InstanceID:          attachRequest.InstanceID,
-			VPCVolumeAttachment: &provider.VolumeAttachment{DevicePath: "/tmp/csi/target1/vol"},
-		},
-	}, nil
-}
-
-//WaitForDetachVolume waits for the volume to be detached from the host
-//Return error if wait is timed out OR there is other error
-func (c *fakeProviderSession) WaitForDetachVolume(detachRequest provider.VolumeAttachmentRequest) error {
-	return nil
-}
-
 //GetAttachAttachment retirves the current status of given volume attach request
 func (c *fakeProviderSession) GetVolumeAttachment(attachRequest provider.VolumeAttachmentRequest) (*provider.VolumeAttachmentResponse, error) {
 	return nil, nil
@@ -493,4 +460,18 @@ func (c *fakeProviderSession) ListSnapshots() ([]*provider.Snapshot, error) {
 //List all the  snapshots for a given volume
 func (c *fakeProviderSession) ListAllSnapshots(volumeID string) ([]*provider.Snapshot, error) {
 	return nil, nil
+}
+
+func createTargetDir(targetPath string) error {
+	fileInfo, err := os.Stat(targetPath)
+	if err != nil && os.IsNotExist(err) {
+		return os.MkdirAll(targetPath, 0755) //nolint
+	} else if err != nil {
+		return err
+	}
+	if !fileInfo.IsDir() {
+		return fmt.Errorf("target location %s is not a directory", targetPath)
+	}
+
+	return nil
 }

@@ -6,18 +6,17 @@ require (
 	github.com/IBM/ibm-csi-common v1.0.0-beta3.0.20210621063557-6a7a173b91d8
 	github.com/IBM/ibmcloud-volume-file-vpc v0.0.0-20210621043048-4c1c521ba3eb
 	github.com/IBM/ibmcloud-volume-interface v1.0.1-0.20210521060243-49282e5e5cec
-	github.com/container-storage-interface/spec v1.2.0
+	github.com/container-storage-interface/spec v1.3.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/google/uuid v1.1.2
-	github.com/kubernetes-csi/csi-test/v3 v3.0.0
+	github.com/kubernetes-csi/csi-test/v4 v4.2.0
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
-	github.com/onsi/gomega v1.10.3 // indirect
 	github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0 // indirect
 	github.com/prometheus/client_golang v1.7.1
 	github.com/stretchr/testify v1.6.1
 	go.uber.org/zap v1.15.0
-	golang.org/x/net v0.0.0-20201026091529-146b70c837a4
-	golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f
+	golang.org/x/net v0.0.0-20201209123823-ac852fbbde11
+	golang.org/x/sys v0.0.0-20201207223542-d4d67f95c62d
 	golang.org/x/tools v0.0.0-20201023174141-c8cfbd0f21e6 // indirect
 	google.golang.org/grpc v1.38.0
 	gopkg.in/check.v1 v1.0.0-20200902074654-038fdea0a05b // indirect
