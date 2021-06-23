@@ -27,6 +27,7 @@ import (
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	fileVpcError "github.com/IBM/ibmcloud-volume-file-vpc/common/messages"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
@@ -194,7 +195,8 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 				vpcIDList = append(vpcIDList, volAccessPoint.VPC.ID)
 			}
 		}
-		return nil, commonError.GetCSIError(ctxLogger, commonError.MultipleVolAccessPointFound, requestID, nil, vpcIDList)
+		err := fileVpcError.GetUserError(fileVpcError.MultipleVolAccessPointFound, nil, vpcIDList)
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
 	//If volume exists no need to check for access point existence as library takes care of the same
