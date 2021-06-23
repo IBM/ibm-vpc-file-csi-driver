@@ -5,11 +5,10 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7 h1:eHgfQl6IeSmzWUyiSi13CvoFYsovoyqWlpHX0pa9J54=
 github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7/go.mod h1:RiUvKuHKTBmBApDMUQzBL14pQUGKcx/IioKQPIcRQjs=
+github.com/IBM/ibm-csi-common v1.0.0-beta3 h1:G/AiqlYomVCHvI3YuVLxC3K1Zv+R9ONN3GyAlOEMAeY=
 github.com/IBM/ibm-csi-common v1.0.0-beta3/go.mod h1:4zi8m/dSBHfngNI0i/4Vk8Ma1g73aNUMxIHlwAC42HY=
-github.com/IBM/ibm-csi-common v1.0.0-beta3.0.20210621063557-6a7a173b91d8 h1:f0tp1ja2vk+KaQANbNSQDRRY+GQ5md6DuEYKkT23Xiw=
-github.com/IBM/ibm-csi-common v1.0.0-beta3.0.20210621063557-6a7a173b91d8/go.mod h1:4zi8m/dSBHfngNI0i/4Vk8Ma1g73aNUMxIHlwAC42HY=
-github.com/IBM/ibmcloud-volume-file-vpc v0.0.0-20210621043048-4c1c521ba3eb h1:jkEjTSBsBhusDUYbEqBsM3XCwY0+X59+tsb1jpvb9F8=
-github.com/IBM/ibmcloud-volume-file-vpc v0.0.0-20210621043048-4c1c521ba3eb/go.mod h1:ZBeCDuRx4riHIU49XIixfnRzIXPebVtPYHcpsaIpaKM=
+github.com/IBM/ibmcloud-volume-file-vpc v0.0.0-20210623110527-a237937ee5c3 h1:ov5IrQplJtiZBh7VFeULMCb0aM4mP0qhLBNDdiZoZ+4=
+github.com/IBM/ibmcloud-volume-file-vpc v0.0.0-20210623110527-a237937ee5c3/go.mod h1:ZBeCDuRx4riHIU49XIixfnRzIXPebVtPYHcpsaIpaKM=
 github.com/IBM/ibmcloud-volume-interface v1.0.0-beta7/go.mod h1:2LxqkERml3eBxfRkQniuiRmKkAnl5tfC0ttlP2gupJM=
 github.com/IBM/ibmcloud-volume-interface v1.0.1-0.20210521060243-49282e5e5cec h1:AVjB10aJmDhbZPjUxBZ7wAz75VHdSQ7oLm+QrBH/rZs=
 github.com/IBM/ibmcloud-volume-interface v1.0.1-0.20210521060243-49282e5e5cec/go.mod h1:2LxqkERml3eBxfRkQniuiRmKkAnl5tfC0ttlP2gupJM=
