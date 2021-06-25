@@ -27,7 +27,6 @@ import (
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	fileVPCError "github.com/IBM/ibmcloud-volume-file-vpc/common/messages"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
@@ -184,19 +183,6 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	if existingVol == nil && err == nil {
 		ctxLogger.Info("Volume not found. Returning success without deletion...")
 		return &csi.DeleteVolumeResponse{}, nil
-	}
-
-	//TBD Do we really have to handle volume with multiple access points per VPC/Subnet
-	//If there are more than one access point as of now we will be aborting delete
-	if existingVol.VolumeAccessPoints != nil && len(*existingVol.VolumeAccessPoints) > 1 {
-		var vpcIDList = []string{}
-		for _, volAccessPoint := range *existingVol.VolumeAccessPoints {
-			if volAccessPoint.VPC != nil {
-				vpcIDList = append(vpcIDList, volAccessPoint.VPC.ID)
-			}
-		}
-		err := fileVPCError.GetUserError(fileVPCError.MultipleVolAccessPointFound, nil, vpcIDList)
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
 	//If volume exists no need to check for access point existence as library takes care of the same
