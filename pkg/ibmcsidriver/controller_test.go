@@ -477,36 +477,6 @@ func TestDeleteVolume(t *testing.T) {
 			expectedWaitDeleteVAPErrorResponse: providerError.Message{Code: "DeleteVolumeAccessPointFailed", Description: "Volume access Point deletion failed", Type: providerError.DeleteVolumeAccessPointFailed},
 		},
 		{
-			name:        "Failed volume delete with multiple access point exists for volume",
-			req:         &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
-			expResponse: nil,
-			expErrCode:  codes.Internal,
-			libVolumeResponse: &provider.Volume{VolumeID: "testVolumeId", Az: "myzone", Region: "myregion", VPCVolume: provider.VPCVolume{
-				Href:                "",
-				ResourceGroup:       &provider.ResourceGroup{},
-				VolumeEncryptionKey: &provider.VolumeEncryptionKey{},
-				Profile:             &provider.Profile{},
-				CRN:                 "",
-				VPCBlockVolume:      provider.VPCBlockVolume{},
-				VPCFileVolume: provider.VPCFileVolume{
-					VolumeAccessPoints: &[]provider.VolumeAccessPoint{
-						{
-							ID: "testVolumeAccessPointId",
-							VPC: &provider.VPC{
-								ID: "1234",
-							},
-						},
-						{
-							ID: "testVolumeAccessPointId",
-							VPC: &provider.VPC{
-								ID: "1234",
-							},
-						},
-					},
-				},
-			}},
-		},
-		{
 			name:        "Success volume delete in case volume not found",
 			req:         &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
 			expResponse: &csi.DeleteVolumeResponse{},
