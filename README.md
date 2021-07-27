@@ -1,29 +1,65 @@
-
 # ibm-vpc-file-csi-driver
 
-ibm-vpc-file-csi-driver is a CSI plugin for creating and mounting VPC File storage.
-It includes both Controller and Node service
+[![Build Status](https://app.travis-ci.com/IBM/ibm-vpc-file-csi-driver.svg?branch=master)](https://app.travis-ci.com/IBM/ibm-vpc-file-csi-driver)
+[![code-coverage](https://github.com/IBM/ibm-vpc-file-csi-driver/blob/gh-pages/coverage/testbadge/badge.svg)](https://github.com/IBM/ibm-vpc-file-csi-driver/blob/gh-pages/coverage/testbadge/cover.html)
+
+ibm-vpc-file-csi-driver is a CSI plugin for creating and mounting VPC file storage on IBM VPC infrastructure based openshift or kubernetes cluster
 
 # Supported orchestration platforms
 
-The following table details orchestration platforms suitable for deployment of the IBM® VPC file storage CSI driver.
+The following table details orchestration platforms suitable for deployment of the IBM VPC file storage CSI driver.
 
 |Orchestration platform|Version|Architecture|
 |----------------------|-------|------------|
-|Kubernetes|1.20|x86|
 |Kubernetes|1.21|x86|
+|Kubernetes|1.20|x86|
 |Kubernetes|1.19|x86|
 |Red Hat® OpenShift®|4.7|x86|
 |Red Hat OpenShift|4.6|x86|
 
 # Prerequisites
 
-To use the File Storage for VPC driver, complete the following tasks:
-This conversation was marked as resolved by sameshai
- Show conversation
+To use the file Storage for IBM VPC driver, complete the following tasks:
 
-1. Create a cluster based on VPC infrastructure
-2. Create Image pull secret in your cluster
+1. Create a cluster based on IBM VPC infrastructure
+
+# Build the driver
+
+For building the driver `docker` and `GO` should be installed
+
+1. On your local machine, install [`docker`](https://docs.docker.com/install/) and [`Go`](https://golang.org/doc/install).
+2. GO version should be >=1.16
+3. Set the [`GOPATH` environment variable](https://github.com/golang/go/wiki/SettingGOPATH).
+4. Build the driver image
+
+   ## Clone the repo or your forked repo
+
+   ```
+   $ mkdir -p $GOPATH/src/github.com/IBM
+   $ cd $GOPATH/src/github.com/IBM/
+   $ git clone https://github.com/IBM/ibm-vpc-file-csi-driver.git
+   $ cd ibm-vpc-file-csi-driver
+   ```
+   ## Build project and runs testcases
+
+   ```
+   $ make
+   ```
+   ## Build container image for the driver
+
+   ```
+   $ make buildimage
+   ```
+
+   ## Push image to registry
+
+   Image should be pushed to any registry from which the worker nodes have access to pull
+
+   You can push the driver image to [docker.io](https://hub.docker.com/)  registry or [IBM public registry](https://cloud.ibm.com/docs/Registry?topic=Registry-registry_overview#registry_regions_local) under your namespace.
+
+   For pushing to IBM registry:
+
+   Create an image pull secret in your cluster
 
    1. Review and retrieve the following values for your image pull secret.
 
@@ -37,53 +73,26 @@ This conversation was marked as resolved by sameshai
 
 
       ```
-    
+
        kubectl create secret docker-registry icr-io-secret --docker-server=icr.io --docker-username=iamapikey --docker-password=-<iam-api-key> --docker-email=iamapikey -n kube-system
+
       ```
-      
-# Build the driver
 
-For building the driver `docker` and `GO` should be installed
-
-1. On your local machine, install [`docker`](https://docs.docker.com/install/) and [`Go`](https://golang.org/doc/install).
-2. Set the [`GOPATH` environment variable](https://github.com/golang/go/wiki/SettingGOPATH).
-3. Build the driver image
-
-   clone the repo or your forked repo
-   ```
-   $ mkdir -p $GOPATH/src/github.com/IBM
-   $ mkdir -p $GOPATH/bin
-   $ cd $GOPATH/src/github.com/IBM/
-   $ git clone https://github.com/IBM/ibm-vpc-file-csi-driver.git
-   $ cd ibm-vpc-file-csi-driver
-   ```
-   build project and runs testcases
-   ```
-   $ make
-   ```
-   build container image for the driver
-   ```
-   $ make buildimage
-   ```
-
-   Push image to registry
-
-   Image should be pushed to any registry from which the worker nodes have access to pull
-
-   1. You can push the driver image to [docker.io](https://hub.docker.com/)  registry or [IBM public registry](https://cloud.ibm.com/docs/Registry?topic=Registry-registry_overview#registry_regions_local) under your namespace.
 
 # Deploy CSI driver on your cluster
 
+- Install `kustomize` tool. The instructions are available [here](https://kubectl.docs.kubernetes.io/installation/kustomize/)
 - Export cluster config
 - Deploy CSI plugin on your cluster
-  - Update the image tag
+  - You can use any overlays available under `deploy/kubernetes/driver/kubernetes/overlays/` and edit the image tag
+  - Example using `stage` overlay to update the image tag
      - Change `iks-vpc-file-driver` image name in `deploy/kubernetes/driver/kubernetes/overlays/stage/controller-server-images.yaml`
      - Change `iks-vpc-file-driver` image name in `deploy/kubernetes/driver/kubernetes/overlays/stage/node-server-images.yaml`
-  - Install `kustomize` tool. The instructions are available [here](https://kubectl.docs.kubernetes.io/installation/kustomize/)
   - Deploy plugin
     - `sh deploy/kubernetes/driver/kubernetes/deploy-vpc-file-driver.sh stage`
 
 ## Testing
+
 - Create storage classes
   - `ls deploy/kubernetes/storageclass/ | xargs -I classfile kubectl apply -f deploy/kubernetes/storageclass/classfile`
 - Create PVC
@@ -91,6 +100,9 @@ For building the driver `docker` and `GO` should be installed
 - .Create POD with volume
   - `kubectl create -f examples/kubernetes/validPOD.yaml`
 
+# E2E Tests
+
+  Please refer [ this](https://github.com/IBM/ibm-csi-common/tree/master/tests/e2e) repository for e2e tests.
 
 # How to contribute
 
@@ -107,6 +119,8 @@ Pull requests are very welcome! Make sure your patches are well tested. Ideally 
 4. Push to the branch (git push origin my-new-feature)
 
 5. Create new Pull Request
+
+6. Add the test results in the PR
 
 
 # Licensing
