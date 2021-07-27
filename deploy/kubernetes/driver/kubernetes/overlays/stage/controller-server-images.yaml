@@ -14,4 +14,4 @@ spec:
           imagePullPolicy: Always
           image: us.icr.io/sameshai/ibm-vpc-file-csi-driver:latest
         - name: storage-secret-sidecar
-          image: us.icr.io/sameshai/armada-storage-secret-sidecar:v1.0.0
+          image: icr.io/obs/armada-storage-secret:v1.0.4
