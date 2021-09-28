@@ -17,6 +17,7 @@ LABEL build-date=${build_date}
 LABEL jenkins-build-number=${jenkins_build_number}
 LABEL razee.io/source-url="${REPO_SOURCE_URL}"
 LABEL razee.io/build-url="${BUILD_URL}"
+LABEL compliance.owner="ibm-armada-storage"
 
 #RUN apk update && apk --no-cache add ca-certificates nfs-utils rpcbind
 RUN microdnf update && microdnf install -y ca-certificates
