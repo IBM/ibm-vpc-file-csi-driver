@@ -74,18 +74,6 @@ const (
 	// MinimumCoresWithMaximumAttachableVolumes is the minimum cores required to have maximum number of attachable volumes, currently 4 as per the docs.
 	MinimumCoresWithMaximumAttachableVolumes = 4
 
-	// FSTypeExt2 represents the ext2 filesystem type
-	FSTypeExt2 = "ext2"
-
-	// FSTypeExt3 represents the ext3 filesystem type
-	FSTypeExt3 = "ext3"
-
-	// FSTypeExt4 represents the ext4 filesystem type
-	FSTypeExt4 = "ext4"
-
-	// FSTypeXfs represents te xfs filesystem type
-	FSTypeXfs = "xfs"
-
 	// default file system type to be used when it is not provided
 	defaultFsType = "nfs"
 )
@@ -150,9 +138,6 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	options := mnt.MountFlags
 	// find  FS type
 	fsType := defaultFsType
-	if mnt.FsType != "" {
-		fsType = mnt.FsType
-	}
 
 	var nodePublishResponse *csi.NodePublishVolumeResponse
 	var mountErr error

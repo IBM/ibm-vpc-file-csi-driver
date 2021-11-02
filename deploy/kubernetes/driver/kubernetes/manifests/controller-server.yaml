@@ -69,7 +69,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: VPC_ID
-              value: "r006-7491f5ef-0194-455e-a5e1-1b1fef5d647b"
+              value: $(VPC_ID)
           resources:
             limits:
               cpu: 500m

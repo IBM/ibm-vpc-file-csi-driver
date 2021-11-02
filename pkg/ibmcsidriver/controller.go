@@ -46,9 +46,6 @@ const (
 	// PublishInfoVolumeID ...
 	PublishInfoVolumeID = "volume-id"
 
-	// PublishInfoNodeID ...
-	PublishInfoNodeID = "node-id"
-
 	// PublishInfoRequestID ...
 	PublishInfoRequestID = "request-id"
 )

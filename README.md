@@ -1,21 +1,13 @@
 # ibm-vpc-file-csi-driver
 
-[![Build Status](https://prow.k8s.io/badge.svg?jobs=pull-ibm-vpc-file-csi-driver-build)](https://prow.k8s.io)
-[![Coverage Status](https://coveralls.io/repos/github/kubernetes-sigs/ibm-vpc-file-csi-driver/badge.svg?branch=master)](https://coveralls.io/github/kubernetes-sigs/ibm-vpc-file-csi-driver?branch=master)
-
-[`IBM VPC file`](https://cloud.ibm.com/docs/openshift?topic=openshift-vpc-file) Container Storage Interface (CSI) Driver provides a [`CSI`](https://github.com/container-storage-interface/spec/blob/master/spec.md) interface used by Container Orchestrators to manage the lifecycle of IBM VPC file Data volumes.
-
 # Supported orchestration platforms
 
 The following are the supported orchestration platforms suitable for deployment for IBM VPC file CSI Driver.
 
 |Orchestration platform|Version|Architecture|
 |----------------------|-------|------------|
-|Red Hat® OpenShift®|4.7|x86|
-|Red Hat® OpenShift®|4.8|x86|
-|Kubernetes| 1.19|x86|
-|Kubernetes| 1.20|x86|
-|Kubernetes| 1.21|x86|
+|Red Hat® OpenShift®|-|x86|
+|Kubernetes|-|x86|
 
 # Prerequisites
 
@@ -26,27 +18,11 @@ Following are the prerequisites to use the IBM VPC file CSI Driver:
 3. Install and configure `ibmcloud is` CLI or get the required worker/node details by using [`IBM Cloud Console`](https://cloud.ibm.com)
 4. Cluster's worker node should have following labels, if not please apply labels before deploying IBM VPC file CSI Driver.
 ```
-"ibm-cloud.kubernetes.io/worker-id"
 "failure-domain.beta.kubernetes.io/region"
 "failure-domain.beta.kubernetes.io/zone"
 "topology.kubernetes.io/region"
 "topology.kubernetes.io/zone"
 ```
-
-## Apply worker labels
-
-Please use [`apply-required-setup.sh`](https://github.com/kubernetes-sigs/ibm-vpc-file-csi-driver/blob/master/scripts/apply-required-setup.sh) script for all the nodes in the cluster which will need couple of inputs like 
-
-`instanceID`:  That you can get from `ibmcloud is ins` 
-
-`node-name`: this is as per node name in the kubernetes node check by using `kubectl get nodes`
-
-`region-of-instanceID`:  region of the instanceID, this you can get the by using `ibmcloud is in <instanceID>`
-
-`zone-of-instanceID`: Zone of the instanceID, this you can get the by using `ibmcloud is in <instanceID>`
-
-Example :- ./apply-required-setup.sh <node-name> <instanceID> <region-of-instanceID> <zone-of-instanceID>
-
 # Build the driver
 
 For building the driver `docker` and `GO` should be installed on the system
@@ -59,9 +35,9 @@ For building the driver `docker` and `GO` should be installed on the system
    ## Clone the repo or your forked repo
 
    ```
-   $ mkdir -p $GOPATH/src/github.com/kubernetes-sigs
-   $ cd $GOPATH/src/github.com/kubernetes-sigs/
-   $ git clone https://github.com/kubernetes-sigs/ibm-vpc-file-csi-driver.git
+   $ mkdir -p $GOPATH/src/github.com/IBM
+   $ cd $GOPATH/src/github.com/IBM/
+   $ git clone https://github.com/IBM/ibm-vpc-file-csi-driver.git
    $ cd ibm-vpc-file-csi-driver
    ```
    ## Build project and runs testcases
@@ -104,7 +80,6 @@ For building the driver `docker` and `GO` should be installed on the system
 
 
 # Deploy CSI driver on your cluster
-- Edit [slclient_Gen2.toml](https://github.com/kubernetes-sigs/ibm-vpc-file-csi-driver/blob/master/deploy/kubernetes/driver/kubernetes/slclient_Gen2.toml) for your cluster.
 
 IBM VPC endpoints which supports Gen2 is documented [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc)
 - Install `kustomize` tool. The instructions are available [here](https://kubectl.docs.kubernetes.io/installation/kustomize/)
@@ -129,11 +104,11 @@ IBM VPC endpoints which supports Gen2 is documented [here](https://cloud.ibm.com
 
 # E2E Tests
 
-  Please refer [ this](https://github.com/IBM/ibm-csi-common/tree/master/tests/e2e) repository for e2e tests.
+TBD
 
 # How to contribute
 
-If you have any questions or issues you can create a new issue [ here ](https://github.com/kubernetes-sigs/ibm-vpc-file-csi-driver/issues/new).
+If you have any questions or issues you can create a new issue [ here ](https://github.com/IBM/ibm-vpc-file-csi-driver/issues/new).
 
 Pull requests are very welcome! Make sure your patches are well tested. Ideally create a topic branch for every separate change you make. For example:
 

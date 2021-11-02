@@ -12,4 +12,6 @@ spec:
           image: quay.io/k8scsi/livenessprobe:v2.0.0
         - name: iks-vpc-file-driver
           imagePullPolicy: Always
-          image: icr.io/ibm/ibm-vpc-file-csi-driver:v1.0.0
+          image: us.icr.io/sameshai/ibm-vpc-file-csi-driver:latest
+        - name: storage-secret-sidecar
+          image: icr.io/obs/armada-storage-secret:v1.1.2

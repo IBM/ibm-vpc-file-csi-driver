@@ -118,7 +118,7 @@ const (
 )
 
 // SupportedFS the supported FS types
-var SupportedFS = []string{"ext2", "ext3", "ext4", "nfs"}
+var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
 var SupportedProfile = []string{"tier-5iops", "tier-3iops", "tier-10iops"}

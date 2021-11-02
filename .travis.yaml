@@ -27,3 +27,4 @@ script:
   - make fmt
   - make test
   - make ut-coverage
+  - make buildimage

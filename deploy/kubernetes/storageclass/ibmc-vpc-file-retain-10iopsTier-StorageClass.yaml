@@ -11,7 +11,6 @@ parameters:
   profile: "tier-10iops"              # The VPC Storage profile used.
   # iopsPerGB: "10"                   # The IOPS per Gigabyte that is supported for this profile. This is just for the user info.
   sizeRange: "[10-4800]GiB"           # The size range in GiB that is supported. The user will specify a size on the PVC
-  csi.storage.k8s.io/fstype: "nfs"   # ext4 is the default filesytem used. The user can override this default
   billingType: "hourly"               # The default billing policy used. The uer can override this default
   encrypted: "false"                  # By default, all PVC using this class will only be provider managed encrypted. The user can override this default
   encryptionKey: ""                   # If encrypted is true, then a user must specify the encryption key used associated KP instance
