@@ -30,6 +30,8 @@ import (
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Capacity vs IOPS range for Custom Class
@@ -115,6 +117,8 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) {
 	var encrypt = "undef"
 	var err error
+	var uid int
+	var gid int
 	volume := &provider.Volume{}
 	volume.Name = &req.Name
 	for key, value := range req.GetParameters() {
@@ -192,6 +196,30 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				volume.Iops = &iops
 			}
 
+		case UID:
+			uid, err = strconv.Atoi(value)
+			if err != nil {
+				err = status.Errorf(codes.InvalidArgument, "Failed to parse invalid %v: %v", uid, err)
+			}
+			if uid < 0 {
+				err = status.Errorf(codes.InvalidArgument, "%v must be greater or equal than 0", uid)
+			}
+			// volume.VPCVolume.InitialOwner = &provider.InitialOwner{
+			// 	UserID: int64(uid),
+			// }
+
+		case GID:
+			gid, err = strconv.Atoi(value)
+			if err != nil {
+				err = status.Errorf(codes.InvalidArgument, "Failed to parse invalid %v: %v", gid, err)
+			}
+			if gid < 0 {
+				err = status.Errorf(codes.InvalidArgument, "%v must be greater or equal than 0", gid)
+			}
+			// volume.VPCVolume.InitialOwner = &provider.InitialOwner{
+			// 	GroupID: int64(gid),
+			// }
+
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
@@ -200,6 +228,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			return volume, err
 		}
 	}
+	// Add initialOnwer if UID/GID is given as parameter.
+	if uid != 0 && gid != 0 {
+		logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
+		volume.InitialOwner = &provider.InitialOwner{
+			GroupID: int64(gid),
+			UserID:  int64(uid),
+		}
+	}
+
 	// If encripted is set to false
 	if encrypt == FalseStr {
 		volume.VPCVolume.VolumeEncryptionKey = nil
