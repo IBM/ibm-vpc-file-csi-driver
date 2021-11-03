@@ -419,15 +419,42 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 	if existingVol != nil {
 		existingVol.Region = vol.Region
 	}
+
 	return existingVol, err
 }
 
+// createVolumeAccessPoint ...
+func createVolumeAccessPoint(session provider.Session, volumeAccesspointReq provider.VolumeAccessPointRequest, ctxLogger *zap.Logger) (*provider.VolumeAccessPointResponse, error) {
+	ctxLogger.Info("Creating VolumeAccessPoint...")
+	response, err := session.CreateVolumeAccessPoint(volumeAccesspointReq)
+	if err != nil {
+		return nil, err
+	}
+
+	ctxLogger.Info("Volume Access Point Created", zap.Reflect("Volume Access Point", response))
+
+	//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
+	volumeAccesspointReq.AccessPointID = response.AccessPointID
+
+	ctxLogger.Info("Waiting for CreateVolumeAccessPoint...")
+
+	response, err = session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
+	if err != nil {
+		//retry gap is constant in the common lib i.e 10 seconds and number of retries are 4*Retry configure in the driver
+		return nil, err
+	}
+
+	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", response.AccessPointID))
+
+	return response, nil
+}
+
 // createCSIVolumeResponse ...
-func createCSIVolumeResponse(vol provider.Volume, capBytes int64, zones []string, clusterID string) *csi.CreateVolumeResponse {
+func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string) *csi.CreateVolumeResponse {
 	labels := map[string]string{}
 
 	// Update labels for PV objects
-	labels[VolumeIDLabel] = vol.VolumeID
+	labels[VolumeIDLabel] = vol.VolumeID + ":" + volAccessPointResponse.AccessPointID
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
 	labels[Tag] = strings.Join(vol.Tags, ",")
@@ -444,32 +471,19 @@ func createCSIVolumeResponse(vol provider.Volume, capBytes int64, zones []string
 		},
 	}
 
+	labels[NFSServerPath] = volAccessPointResponse.MountPath
+
 	// Create csi volume response
+	//Volume ID is in format volumeID:volumeAccessPointID, to assit the deletion of access point in delete volume
 	volResp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			CapacityBytes:      capBytes,
-			VolumeId:           vol.VolumeID,
+			VolumeId:           vol.VolumeID + ":" + volAccessPointResponse.AccessPointID,
 			VolumeContext:      labels,
 			AccessibleTopology: []*csi.Topology{topology},
 		},
 	}
 	return volResp
-}
-
-func createControllerPublishVolumeResponse(volumeAttachmentResponse provider.VolumeAttachmentResponse, extraPublishInfo map[string]string) *csi.ControllerPublishVolumeResponse {
-	publishContext := map[string]string{
-		PublishInfoVolumeID:   volumeAttachmentResponse.VolumeID,
-		PublishInfoNodeID:     volumeAttachmentResponse.InstanceID,
-		PublishInfoStatus:     volumeAttachmentResponse.Status,
-		PublishInfoDevicePath: volumeAttachmentResponse.VPCVolumeAttachment.DevicePath,
-	}
-	// append extraPublishInfo
-	for k, v := range extraPublishInfo {
-		publishContext[k] = v
-	}
-	return &csi.ControllerPublishVolumeResponse{
-		PublishContext: publishContext,
-	}
 }
 
 func pickTargetTopologyParams(top *csi.TopologyRequirement) (map[string]string, error) {

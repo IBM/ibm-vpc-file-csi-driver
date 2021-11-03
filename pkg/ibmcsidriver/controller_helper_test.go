@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"testing"
 
-	cloudProvider "github.com/IBM/ibm-csi-common/pkg/ibmcloudprovider"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -167,7 +167,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			testCaseName: "Valid create volume request-success",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-				Parameters: map[string]string{Profile: "general-purpose",
+				Parameters: map[string]string{Profile: "tier-3iops",
 					Zone:               "testzone",
 					Region:             "us-south-test",
 					Tag:                "test-tag",
@@ -183,10 +183,8 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{Name: &volumeName,
 				Capacity: &volumeSize,
-				VPCVolume: provider.VPCVolume{VPCBlockVolume: provider.VPCBlockVolume{
-					Tags: []string{createdByIBM},
-				},
-					Profile:       &provider.Profile{Name: "general-purpose"},
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "tier-3iops"},
 					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
 				},
 				Region: "us-south-test",
@@ -195,6 +193,65 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 			expectedStatus: true,
 			expectedError:  nil,
+		},
+		{
+			testCaseName: "Valid create volume request with no zone in request but preferred toplogy-success",
+			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				Parameters: map[string]string{Profile: "tier-3iops",
+					Region:             "us-south-test",
+					Tag:                "test-tag",
+					ResourceGroup:      "myresourcegroups",
+					Encrypted:          "false",
+					EncryptionKey:      "key",
+					ClassVersion:       "",
+					SizeRangeSupported: "",
+					SizeIopsRange:      "",
+					Generation:         "generation",
+					IOPS:               noIops,
+				},
+				AccessibilityRequirements: &csi.TopologyRequirement{
+					Preferred: []*csi.Topology{{
+						Segments: map[string]string{
+							utils.NodeRegionLabel: "us-south-test",
+							utils.NodeZoneLabel:   "testzone",
+						},
+					}},
+				},
+			},
+			expectedVolume: &provider.Volume{Name: &volumeName,
+				Capacity: &volumeSize,
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "tier-3iops"},
+					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+				},
+				Region: "us-south-test",
+				Iops:   &noIops,
+				Az:     "testzone",
+			},
+			expectedStatus: true,
+			expectedError:  nil,
+		},
+		{
+			testCaseName: "Invalid Valid create volume request with no zone in request and preferred toplogy- failure",
+			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				Parameters: map[string]string{Profile: "tier-3iops",
+					Region:             "us-south-test",
+					Tag:                "test-tag",
+					ResourceGroup:      "myresourcegroups",
+					Encrypted:          "false",
+					EncryptionKey:      "key",
+					ClassVersion:       "",
+					SizeRangeSupported: "",
+					SizeIopsRange:      "",
+					Generation:         "generation",
+					IOPS:               noIops,
+				},
+			},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("unable to fetch zone information: 'could not get zones from preferred topology: preferred topologies specified but no segments'"),
 		},
 		{
 			testCaseName:   "Wrong profile name",
@@ -276,7 +333,7 @@ func TestGetVolumeParameters(t *testing.T) {
 		{
 			testCaseName: "Invalid capacity range",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 1073741824 * 30, LimitBytes: utils.MinimumVolumeSizeInBytes},
-				Parameters: map[string]string{Profile: "10iops-tier",
+				Parameters: map[string]string{Profile: "tier-10iops",
 					IOPS: "10",
 				},
 			},
@@ -288,7 +345,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			testCaseName: "Override parameter with secrets-wrong secret parameter",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-				Parameters:         map[string]string{Profile: "general-purpose"},
+				Parameters:         map[string]string{Profile: "tier-3iops"},
 				Secrets:            map[string]string{"NotSupportedSecretParam": "value"},
 			},
 			expectedVolume: &provider.Volume{},
@@ -299,7 +356,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			testCaseName: "Empty volume capabilities",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
 				VolumeCapabilities: nil,
-				Parameters:         map[string]string{Profile: "general-purpose"},
+				Parameters:         map[string]string{Profile: "tier-3iops"},
 			},
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
@@ -317,18 +374,14 @@ func TestGetVolumeParameters(t *testing.T) {
 			DebugTrace: true,
 		},
 		VPC: &config.VPCProviderConfig{
-			Enabled:              true,
-			VPCBlockProviderName: "vpc-classic",
-			EndpointURL:          "TestEndpointURL",
-			VPCTimeout:           "30s",
-			MaxRetryAttempt:      5,
-			MaxRetryGap:          10,
-			APIVersion:           "TestAPIVersion",
-			ResourceGroupID:      "10000000",
-		},
-		IKS: &config.IKSConfig{
-			Enabled:              true,
-			IKSBlockProviderName: "iks-file",
+			Enabled:         true,
+			VPCVolumeType:   "vpc-share",
+			EndpointURL:     "TestEndpointURL",
+			VPCTimeout:      "30s",
+			MaxRetryAttempt: 5,
+			MaxRetryGap:     10,
+			APIVersion:      "TestAPIVersion",
+			ResourceGroupID: "10000000",
 		},
 	}
 
@@ -404,7 +457,7 @@ func TestOverrideParams(t *testing.T) {
 			testCaseName: "Valid overwrite-success",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
-				Parameters: map[string]string{Profile: "general-purpose",
+				Parameters: map[string]string{Profile: "tier-3iops",
 					Zone:          "testzone",
 					Region:        "us-south-test",
 					Tag:           "test",
@@ -425,10 +478,8 @@ func TestOverrideParams(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{Name: &volumeName,
 				Capacity: &volumeSize,
-				VPCVolume: provider.VPCVolume{VPCBlockVolume: provider.VPCBlockVolume{
-					Tags: []string{createdByIBM},
-				},
-					Profile:       &provider.Profile{Name: "general-purpose"},
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "tier-3iops"},
 					ResourceGroup: &provider.ResourceGroup{ID: "secret-rg"},
 				},
 				Region: "secret-us-south-test",
@@ -522,9 +573,7 @@ func TestOverrideParams(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{Name: &volumeName,
 				Capacity: &volumeSize,
-				VPCVolume: provider.VPCVolume{VPCBlockVolume: provider.VPCBlockVolume{
-					Tags: []string{createdByIBM},
-				},
+				VPCVolume: provider.VPCVolume{
 					Profile:       &provider.Profile{Name: "custom"},
 					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
 				},
@@ -576,18 +625,14 @@ func TestOverrideParams(t *testing.T) {
 			DebugTrace: true,
 		},
 		VPC: &config.VPCProviderConfig{
-			Enabled:              true,
-			VPCBlockProviderName: "vpc-classic",
-			EndpointURL:          "TestEndpointURL",
-			VPCTimeout:           "30s",
-			MaxRetryAttempt:      5,
-			MaxRetryGap:          10,
-			APIVersion:           "TestAPIVersion",
-			ResourceGroupID:      "10000000",
-		},
-		IKS: &config.IKSConfig{
-			Enabled:              true,
-			IKSBlockProviderName: "iks-file",
+			Enabled:         true,
+			VPCVolumeType:   "vpc-share",
+			EndpointURL:     "TestEndpointURL",
+			VPCTimeout:      "30s",
+			MaxRetryAttempt: 5,
+			MaxRetryGap:     10,
+			APIVersion:      "TestAPIVersion",
+			ResourceGroupID: "10000000",
 		},
 	}
 
@@ -628,6 +673,7 @@ func TestCheckIfVolumeExists(t *testing.T) {
 
 func TestCreateCSIVolumeResponse(t *testing.T) {
 	volumeID := "volID"
+	volumeAPID := "volAPID"
 	threeIops := "3"
 	testCases := []struct {
 		testCaseName   string
@@ -641,10 +687,8 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 		{
 			testCaseName: "Valid volume response",
 			requestVol: provider.Volume{VolumeID: volumeID,
-				VPCVolume: provider.VPCVolume{VPCBlockVolume: provider.VPCBlockVolume{
-					Tags: []string{createdByIBM},
-				},
-					Profile:       &provider.Profile{Name: "general-purpose"},
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "tier-3iops"},
 					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
 				},
 				Region: "us-south-test",
@@ -657,8 +701,8 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 			expectedVolume: &csi.CreateVolumeResponse{
 				Volume: &csi.Volume{
 					CapacityBytes: 20,
-					VolumeId:      volumeID,
-					VolumeContext: map[string]string{VolumeIDLabel: volumeID, IOPSLabel: threeIops, utils.NodeRegionLabel: "us-south-test", utils.NodeZoneLabel: "testzone"},
+					VolumeId:      volumeID + ":" + volumeAPID,
+					VolumeContext: map[string]string{VolumeIDLabel: volumeID + ":" + volumeAPID, IOPSLabel: threeIops, utils.NodeRegionLabel: "us-south-test", utils.NodeZoneLabel: "testzone"},
 					AccessibleTopology: []*csi.Topology{{
 						Segments: map[string]string{
 							utils.NodeRegionLabel: "us-south-test",
@@ -674,59 +718,8 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			actualCSIVolume := createCSIVolumeResponse(testcase.requestVol, testcase.requestCap, testcase.requestZones, testcase.clusterID)
+			actualCSIVolume := createCSIVolumeResponse(testcase.requestVol, provider.VolumeAccessPointResponse{AccessPointID: volumeAPID}, testcase.requestCap, testcase.requestZones, testcase.clusterID)
 			assert.Equal(t, testcase.expectedStatus, isCSIResponseSame(testcase.expectedVolume, actualCSIVolume))
-		})
-	}
-}
-
-func isControllerPublishVolume(expected *csi.ControllerPublishVolumeResponse, actual *csi.ControllerPublishVolumeResponse) bool {
-	if expected == nil && actual == nil {
-		return true
-	}
-
-	if expected == nil || actual == nil {
-		return false
-	}
-
-	return expected.PublishContext[PublishInfoVolumeID] == actual.PublishContext[PublishInfoVolumeID]
-}
-
-func TestCreateControllerPublishVolumeResponse(t *testing.T) {
-	testCases := []struct {
-		testCaseName              string
-		requestVolAttResponse     provider.VolumeAttachmentResponse
-		extraPublishInfo          map[string]string
-		expectedCtlPubVolResponse *csi.ControllerPublishVolumeResponse
-		expectedStatus            bool
-	}{
-		{
-			testCaseName: "Valid controller volume response",
-			requestVolAttResponse: provider.VolumeAttachmentResponse{
-				Status: "available",
-				VolumeAttachmentRequest: provider.VolumeAttachmentRequest{
-					VolumeID:            "volumeID",
-					InstanceID:          "instanceID",
-					VPCVolumeAttachment: &provider.VolumeAttachment{DevicePath: "/dev/xbv"},
-				},
-			},
-			extraPublishInfo: map[string]string{},
-			expectedCtlPubVolResponse: &csi.ControllerPublishVolumeResponse{
-				PublishContext: map[string]string{
-					PublishInfoVolumeID:   "volumeID",
-					PublishInfoNodeID:     "instanceID",
-					PublishInfoStatus:     "available",
-					PublishInfoDevicePath: "/dev/xbv",
-				},
-			},
-			expectedStatus: true,
-		},
-	}
-
-	for _, testcase := range testCases {
-		t.Run(testcase.testCaseName, func(t *testing.T) {
-			actualCtlPubVol := createControllerPublishVolumeResponse(testcase.requestVolAttResponse, testcase.extraPublishInfo)
-			assert.Equal(t, testcase.expectedStatus, isControllerPublishVolume(testcase.expectedCtlPubVolResponse, actualCtlPubVol))
 		})
 	}
 }

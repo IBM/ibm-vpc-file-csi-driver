@@ -22,10 +22,10 @@ package ibmcsidriver
 import (
 	"fmt"
 
-	cloudProvider "github.com/IBM/ibm-csi-common/pkg/ibmcloudprovider"
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	nodeMetadata "github.com/IBM/ibm-csi-common/pkg/metadata"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
 	"k8s.io/kubernetes/pkg/util/mount"
@@ -78,25 +78,27 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	// Adding Capabilities Todo: Review Access Modes Below
 	vcam := []csi.VolumeCapability_AccessMode_Mode{
 		csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+		csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
 	}
 
 	_ = icDriver.AddVolumeCapabilityAccessModes(vcam)
 	csc := []csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+		//csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
 		// csi.ControllerServiceCapability_RPC_GET_CAPACITY,
 		// csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 		// csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
 		// csi.ControllerServiceCapability_RPC_PUBLISH_READONLY,
-		csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
+		//csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 	}
 	_ = icDriver.AddControllerServiceCapabilities(csc)
 
 	ns := []csi.NodeServiceCapability_RPC_Type{
-		csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
+		//csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 		csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
-		csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
+		//csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
 	}
 	_ = icDriver.AddNodeServiceCapabilities(ns)
 

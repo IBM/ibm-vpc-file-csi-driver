@@ -36,9 +36,9 @@ spec:
                 command: ["/bin/sh", "-c", "rm -rf /registration/vpc.file.csi.ibm.io /registration/vpc.file.csi.ibm.io-reg.sock"]
           env:
             - name: ADDRESS
-              value: /csi/csi.sock
+              value: /csi/csi-vpc-file.sock
             - name: DRIVER_REGISTRATION_SOCK
-              value: /var/lib/kubelet/csi-plugins/vpc.file.csi.ibm.io/csi.sock
+              value: /var/lib/kubelet/csi-plugins/vpc.file.csi.ibm.io/csi-vpc-file.sock
             - name: KUBE_NODE_NAME
               valueFrom:
                 fieldRef:
@@ -64,7 +64,7 @@ spec:
           imagePullPolicy: Always
           args:
             - "--v=5"
-            - "--endpoint=unix:/csi/csi.sock"
+            - "--endpoint=unix:/csi/csi-vpc-file.sock"
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
@@ -121,7 +121,7 @@ spec:
             runAsUser: 0
             privileged: false
           args:
-            - --csi-address=/csi/csi.sock
+            - --csi-address=/csi/csi-vpc-file.sock
           resources:
             limits:
               cpu: 50m

@@ -16,10 +16,9 @@
 
 EXE_DRIVER_NAME=ibm-vpc-file-csi-driver
 DRIVER_NAME=vpcFileDriver
-IMAGE = contsto2/${EXE_DRIVER_NAME}
+IMAGE = ${EXE_DRIVER_NAME}
 GOPACKAGES=$(shell go list ./... | grep -v /vendor/ | grep -v /cmd | grep -v /tests)
 VERSION := latest
-PROXY_IMAGE_URL:="registry.ng.bluemix.net"
 
 GIT_COMMIT_SHA="$(shell git rev-parse HEAD 2>/dev/null)"
 GIT_REMOTE_URL="$(shell git config --get remote.origin.url 2>/dev/null)"
@@ -87,7 +86,6 @@ buildimage: build-systemutil
         --build-arg jenkins_build_number=${BUILD_NUMBER} \
         --build-arg REPO_SOURCE_URL=${REPO_SOURCE_URL} \
         --build-arg BUILD_URL=${BUILD_URL} \
-        --build-arg PROXY_IMAGE_URL=${PROXY_IMAGE_URL} \
 	-t $(IMAGE):$(VERSION)-$(ARCH) -f Dockerfile .
 ifeq ($(ARCH), amd64)
 	docker tag $(IMAGE):$(VERSION)-$(ARCH) $(IMAGE):$(VERSION)
