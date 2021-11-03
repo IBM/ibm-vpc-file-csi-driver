@@ -30,19 +30,20 @@ import (
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	nodeMetadata "github.com/IBM/ibm-csi-common/pkg/metadata"
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
+	"github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
-	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume/util/fs"
+	mount "k8s.io/mount-utils"
 )
 
 // CSINodeServer ...
 type CSINodeServer struct {
 	Driver   *IBMCSIDriver
-	Mounter  mount.Interface
+	Mounter  mountmanager.Mounter
 	Metadata nodeMetadata.NodeMetadata
 	Stats    StatsUtils
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
@@ -61,7 +62,7 @@ type VolumeStatUtils struct {
 
 //FSInfo ...
 func (su *VolumeStatUtils) FSInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
-	return fs.FsInfo(path)
+	return fs.Info(path)
 }
 
 const (
