@@ -228,6 +228,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			return volume, err
 		}
 	}
+
 	// Add initialOnwer if UID/GID is given as parameter.
 	if uid != 0 && gid != 0 {
 		logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
