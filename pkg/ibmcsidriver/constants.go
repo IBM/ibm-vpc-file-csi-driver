@@ -115,6 +115,12 @@ const (
 
 	// Generation ... just for backward compatibility
 	Generation = "generation"
+
+	// UID
+	UID = "uid"
+
+	// GID
+	GID = "gid"
 )
 
 // SupportedFS the supported FS types
