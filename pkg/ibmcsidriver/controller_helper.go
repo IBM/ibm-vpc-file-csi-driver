@@ -227,35 +227,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		return volume, err
 	}
 
-	// Check if the provided fstype is supported one
-	volumeCapabilities := req.GetVolumeCapabilities()
-	if volumeCapabilities == nil {
-		err = fmt.Errorf("volume capabilities are empty")
-		logger.Error("overrideParams", zap.NamedError("invalid parameter", err))
-		return volume, err
-	}
-
-	for _, vcap := range volumeCapabilities {
-		mnt := vcap.GetMount()
-		if mnt == nil {
-			continue
-		}
-		if len(mnt.FsType) == 0 {
-			volume.VolumeType = provider.VolumeType(defaultFsType)
-		} else {
-			if utils.ListContainsSubstr(SupportedFS, mnt.FsType) {
-				volume.VolumeType = provider.VolumeType(mnt.FsType)
-			} else {
-				err = fmt.Errorf("unsupported fstype <%s>. Supported types: %v", mnt.FsType, SupportedFS)
-			}
-		}
-		break
-	}
-	if err != nil {
-		logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
-		return volume, err
-	}
-
 	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name != CustomProfile {
 		// Specify IOPS only for custom class
 		volume.Iops = nil
