@@ -7,9 +7,11 @@ spec:
     spec:
       containers:
         - name: csi-provisioner
-          image: quay.io/k8scsi/csi-provisioner:v1.6.0
+          image: icr.io/ext/k8scsi/csi-provisioner:v1.6.0
         - name: liveness-probe
-          image: quay.io/k8scsi/livenessprobe:v2.0.0
+          image: icr.io/ext/k8scsi/livenessprobe:v2.0.0
         - name: iks-vpc-file-driver
           imagePullPolicy: Always
-          image: (( concat "{{ DOCKER_REGISTRY }}/armada-master/ibm-vpc-file-csi-driver:" $RELEASE_TAG ))
+          image: icr.io/sameshai/ibm-vpc-file-csi-driver:latest
+        - name: storage-secret-sidecar
+          image: icr.io/obs/armada-storage-secret:v1.1.0
