@@ -179,6 +179,8 @@ func TestGetVolumeParameters(t *testing.T) {
 					SizeIopsRange:      "",
 					Generation:         "generation",
 					IOPS:               noIops,
+					UID:                "2020",
+					GID:                "12345",
 				},
 			},
 			expectedVolume: &provider.Volume{Name: &volumeName,
@@ -186,6 +188,12 @@ func TestGetVolumeParameters(t *testing.T) {
 				VPCVolume: provider.VPCVolume{
 					Profile:       &provider.Profile{Name: "tier-3iops"},
 					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						InitialOwner: &provider.InitialOwner{
+							GroupID: 2020,
+							UserID:  12345,
+						},
+					},
 				},
 				Region: "us-south-test",
 				Iops:   &noIops,
@@ -269,6 +277,20 @@ func TestGetVolumeParameters(t *testing.T) {
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
 			expectedError:  fmt.Errorf("%s:<%v> exceeds %d chars", Zone, exceededZoneName, ZoneNameMaxLen),
+		},
+		{
+			testCaseName:   "Invalid uid",
+			request:        &csi.CreateVolumeRequest{Parameters: map[string]string{UID: "-12345"}},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("-12345 must be greater or equal than 0"),
+		},
+		{
+			testCaseName:   "Invalid gid",
+			request:        &csi.CreateVolumeRequest{Parameters: map[string]string{GID: "-12345"}},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("-12345 must be greater or equal than 0"),
 		},
 		{
 			testCaseName: "Max length exceeded for region name",

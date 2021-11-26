@@ -223,12 +223,11 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	// Add initialOnwer if UID/GID is given as parameter.
-	if uid != 0 && gid != 0 {
-		logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
-		volume.InitialOwner = &provider.InitialOwner{
-			GroupID: int64(gid),
-			UserID:  int64(uid),
-		}
+	// Default will be set to 0 i.e root which even if not set will be defaulted to 0 by the VPC RIAAS
+	logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
+	volume.InitialOwner = &provider.InitialOwner{
+		GroupID: int64(gid),
+		UserID:  int64(uid),
 	}
 
 	// Get the requested capacity from the request
@@ -250,6 +249,14 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	// volume.Capacity should be set before calling overrideParams
 	err = overrideParams(logger, req, config, volume)
 	if err != nil {
+		return volume, err
+	}
+
+	// Check if the provided fstype is supported one
+	volumeCapabilities := req.GetVolumeCapabilities()
+	if volumeCapabilities == nil {
+		err = fmt.Errorf("volume capabilities are empty")
+		logger.Error("overrideParams", zap.NamedError("invalid parameter", err))
 		return volume, err
 	}
 

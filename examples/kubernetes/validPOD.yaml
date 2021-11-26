@@ -5,7 +5,7 @@ metadata:
   labels:
     app: testpodrwo
 spec:
-  replicas: 2
+  replicas: 2 
   selector:
     matchLabels:
       app: testpodrwo
