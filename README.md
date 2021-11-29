@@ -12,6 +12,7 @@ The following are the supported orchestration platforms suitable for deployment 
 |Kubernetes| 1.19|x86|
 |Kubernetes| 1.20|x86|
 |Kubernetes| 1.21|x86|
+|Kubernetes| 1.22|x86|
 
 # Prerequisites
 
