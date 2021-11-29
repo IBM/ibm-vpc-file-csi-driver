@@ -140,3 +140,22 @@ Pull requests are very welcome! Make sure your patches are well tested. Ideally 
 5. Create new Pull Request
 
 6. Add the test results in the PR
+
+# Supported features
+
+1. Dynamic PVC/PV creation and deletion and creation with ReadWriteMany capability
+2. Deployment creation and deletion which will mount/unmount the file storage volumes.
+3. ReplicationController creation and deletion which will mount/unmount the file storage volumes.
+4. StatefulSet creation and deletion which will mount/unmount the file storage volumes.
+5. Defining custom storage class by providing gid/uid will allow non-root users access to file storage volumes.
+6. Static PVC/PV creation and deletion with ReadWriteMany capability.
+
+# Unsupported features
+
+1. Volume tagging
+2. Volume expansion and snapshot
+3. User provided encryption i.e KeyProtect
+
+
+# For more details on support of CLI and VPC IAAS layer please refer below documentation
+https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-vpc-about
