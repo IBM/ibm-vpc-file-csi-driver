@@ -143,7 +143,7 @@ Pull requests are very welcome! Make sure your patches are well tested. Ideally 
 
 # Supported features
 
-1. Dynamic PVC/PV creation and deletion and creation with ReadWriteMany capability
+1. Dynamic PVC/PV creation and deletion with ReadWriteMany capability
 2. Deployment creation and deletion which will mount/unmount the file storage volumes.
 3. ReplicationController creation and deletion which will mount/unmount the file storage volumes.
 4. StatefulSet creation and deletion which will mount/unmount the file storage volumes.
