@@ -224,10 +224,12 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	// Add initialOnwer if UID/GID is given as parameter.
 	// Default will be set to 0 i.e root which even if not set will be defaulted to 0 by the VPC RIAAS
-	logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
-	volume.InitialOwner = &provider.InitialOwner{
-		GroupID: int64(gid),
-		UserID:  int64(uid),
+	if uid != 0 || gid != 0 {
+		logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
+		volume.InitialOwner = &provider.InitialOwner{
+			GroupID: int64(gid),
+			UserID:  int64(uid),
+		}
 	}
 
 	// Get the requested capacity from the request

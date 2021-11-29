@@ -72,7 +72,7 @@ For building the driver `docker` and `GO` should be installed on the system
 
    3. Run - ibmcloud cr login
 
-   4. Run - ibmcloud ks cluster config --cluster \<cluster-name\> admin
+   4. Run - ibmcloud ks cluster config --cluster \<cluster-name\> --admin
 
    5. Review and retrieve the following values for your image pull secret.
 
