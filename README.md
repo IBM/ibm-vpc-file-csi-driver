@@ -6,8 +6,13 @@ The following are the supported orchestration platforms suitable for deployment 
 
 |Orchestration platform|Version|Architecture|
 |----------------------|-------|------------|
-|Red Hat® OpenShift®|-|x86|
-|Kubernetes|-|x86|
+|Red Hat® OpenShift®|4.6|x86|
+|Red Hat® OpenShift®|4.7|x86|
+|Red Hat® OpenShift®|4.8|x86|
+|Kubernetes| 1.19|x86|
+|Kubernetes| 1.20|x86|
+|Kubernetes| 1.21|x86|
+|Kubernetes| 1.22|x86|
 
 # Prerequisites
 
@@ -61,7 +66,15 @@ For building the driver `docker` and `GO` should be installed on the system
 
    Create an image pull secret in your cluster
 
-   1. Review and retrieve the following values for your image pull secret.
+   1. ibmcloud login to the target region
+
+   2. Run - ibmcloud cr region-set global
+
+   3. Run - ibmcloud cr login
+
+   4. Run - ibmcloud ks cluster config --cluster \<cluster-name\> --admin
+
+   5. Review and retrieve the following values for your image pull secret.
 
       `<docker-username>` - Enter the string: `iamapikey`.
 
@@ -69,7 +82,7 @@ For building the driver `docker` and `GO` should be installed on the system
 
       `<docker-email>` - Enter the string: iamapikey.
 
-   2. Run the following command to create the image pull secret in your cluster. Note that your secret must be named icr-io-secret
+   6. Run the following command to create the image pull secret in your cluster. Note that your secret must be named icr-io-secret
 
 
       ```
@@ -77,7 +90,6 @@ For building the driver `docker` and `GO` should be installed on the system
        kubectl create secret docker-registry icr-io-secret --docker-server=icr.io --docker-username=iamapikey --docker-password=-<iam-api-key> --docker-email=iamapikey -n kube-system
 
       ```
-
 
 # Deploy CSI driver on your cluster
 
@@ -102,6 +114,11 @@ IBM VPC endpoints which supports Gen2 is documented [here](https://cloud.ibm.com
 - Create POD with volume
   - `kubectl create -f examples/kubernetes/validPOD.yaml`
 
+# Delete CSI driver from your cluster
+
+  - Delete plugin
+    - `bash deploy/kubernetes/driver/kubernetes/delete-vpc-csi-driver.sh stage`
+
 # E2E Tests
 
 TBD
@@ -123,3 +140,22 @@ Pull requests are very welcome! Make sure your patches are well tested. Ideally 
 5. Create new Pull Request
 
 6. Add the test results in the PR
+
+# Supported features
+
+1. Dynamic PVC/PV creation and deletion with ReadWriteMany capability
+2. Deployment creation and deletion which will mount/unmount the file storage volumes.
+3. ReplicationController creation and deletion which will mount/unmount the file storage volumes.
+4. StatefulSet creation and deletion which will mount/unmount the file storage volumes.
+5. Defining custom storage class by providing gid/uid will allow non-root users access to file storage volumes.
+6. Static PVC/PV creation and deletion with ReadWriteMany capability.
+
+# Unsupported features
+
+1. Volume tagging
+2. Volume expansion and snapshot
+3. User provided encryption i.e KeyProtect
+
+
+# For more details on support of CLI and VPC IAAS layer please refer below documentation
+https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-vpc-about

@@ -13,4 +13,4 @@ data:
   VPC_RETRY_INTERVAL: "60" # This is max retry Gap in seconds even considering for exponential retry
   VPC_API_VERSION: "2021-04-20"
   VPC_API_GENERATION: "1"
-  VPC_ID: "r006-7491f5ef-0194-455e-a5e1-1b1fef5d647b"
+  IKS_ENABLED: "True"

@@ -115,6 +115,8 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) {
 	var encrypt = "undef"
 	var err error
+	var uid int
+	var gid int
 	volume := &provider.Volume{}
 	volume.Name = &req.Name
 	for key, value := range req.GetParameters() {
@@ -191,7 +193,22 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				iops := value
 				volume.Iops = &iops
 			}
-
+		case UID:
+			uid, err = strconv.Atoi(value)
+			if err != nil {
+				err = fmt.Errorf("Failed to parse invalid %v: %v", uid, err)
+			}
+			if uid < 0 {
+				err = fmt.Errorf("%v must be greater or equal than 0", uid)
+			}
+		case GID:
+			gid, err = strconv.Atoi(value)
+			if err != nil {
+				err = fmt.Errorf("Failed to parse invalid %v: %v", gid, err)
+			}
+			if gid < 0 {
+				err = fmt.Errorf("%v must be greater or equal than 0", gid)
+			}
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
@@ -203,6 +220,16 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	// If encripted is set to false
 	if encrypt == FalseStr {
 		volume.VPCVolume.VolumeEncryptionKey = nil
+	}
+
+	// Add initialOnwer if UID/GID is given as parameter.
+	// Default will be set to 0 i.e root which even if not set will be defaulted to 0 by the VPC RIAAS
+	if uid != 0 || gid != 0 {
+		logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
+		volume.InitialOwner = &provider.InitialOwner{
+			GroupID: int64(gid),
+			UserID:  int64(uid),
+		}
 	}
 
 	// Get the requested capacity from the request
@@ -232,27 +259,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	if volumeCapabilities == nil {
 		err = fmt.Errorf("volume capabilities are empty")
 		logger.Error("overrideParams", zap.NamedError("invalid parameter", err))
-		return volume, err
-	}
-
-	for _, vcap := range volumeCapabilities {
-		mnt := vcap.GetMount()
-		if mnt == nil {
-			continue
-		}
-		if len(mnt.FsType) == 0 {
-			volume.VolumeType = provider.VolumeType(defaultFsType)
-		} else {
-			if utils.ListContainsSubstr(SupportedFS, mnt.FsType) {
-				volume.VolumeType = provider.VolumeType(mnt.FsType)
-			} else {
-				err = fmt.Errorf("unsupported fstype <%s>. Supported types: %v", mnt.FsType, SupportedFS)
-			}
-		}
-		break
-	}
-	if err != nil {
-		logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 		return volume, err
 	}
 

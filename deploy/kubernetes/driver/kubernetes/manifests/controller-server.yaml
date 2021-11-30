@@ -56,10 +56,15 @@ spec:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--lock_enabled=false"
+            - "--sidecarEndpoint=$(SIDECAREP)"
           envFrom:
           - configMapRef:
               name: ibm-vpc-file-csi-configmap
+          - configMapRef:
+              name: ibm-cloud-provider-data
           env:
+            - name: SIDECAREP
+              value: "/sidecardir/providerfile.sock"
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -69,7 +74,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: VPC_ID
-              value: $(VPC_ID)
+              value: $(vpc_id)
           resources:
             limits:
               cpu: 500m
@@ -98,6 +103,8 @@ spec:
             - name: cluster-info
               readOnly: true
               mountPath: /etc/storage_ibmc/cluster_info
+            - name: socket-dir
+              mountPath: /sidecardir
         - name: liveness-probe
           image: MUSTPATCHWITHKUSTOMIZE
           securityContext:
@@ -115,6 +122,22 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
+        - name: storage-secret-sidecar
+          image: MUSTPATCHWITHKUSTOMIZE
+          imagePullPolicy: Always
+          args:
+            - "--endpoint=$(ENDPOINT)"
+          env:
+            - name: ENDPOINT
+              value: "unix:/sidecardir/providerfile.sock"
+            - name: SECRET_CONFIG_PATH
+              value: /etc/storage_ibmc/cluster_info
+          volumeMounts:
+            - mountPath: /sidecardir
+              name: socket-dir
+            - mountPath: /etc/storage_ibmc/cluster_info
+              name: cluster-info
+              readOnly: true
       volumes:
         - name: socket-dir
           emptyDir: {}
