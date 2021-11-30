@@ -8,7 +8,7 @@ spec:
       containers:
         - name: iks-vpc-file-node-driver
           imagePullPolicy: Always
-          image: icr.io/sameshai/ibm-vpc-file-csi-driver:latest
+          image: (( concat "{{ DOCKER_REGISTRY }}/armada-master/ibm-vpc-file-csi-driver:" $RELEASE_TAG ))
         - name: csi-driver-registrar
           image: icr.io/ext/sig-storage/csi-node-driver-registrar:v2.2.0
         - name: liveness-probe
