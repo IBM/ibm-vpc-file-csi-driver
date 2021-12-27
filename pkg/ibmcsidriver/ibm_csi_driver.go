@@ -29,7 +29,6 @@ import (
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
-	//mount "k8s.io/mount-utils"
 )
 
 // IBMCSIDriver ...
