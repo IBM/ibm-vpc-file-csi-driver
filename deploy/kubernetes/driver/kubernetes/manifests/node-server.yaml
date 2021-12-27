@@ -146,10 +146,13 @@ spec:
             - name: ENDPOINT
               value: "unix:/sidecardir/providerfile.sock"
             - name: SECRET_CONFIG_PATH
-              value: /etc/storage_ibmc/cluster_info
+              value: /etc/storage_ibmc
           volumeMounts:
             - mountPath: /sidecardir
               name: secret-sidecar-sock-dir
+            - mountPath: /etc/storage_ibmc
+              name: customer-auth
+              readOnly: true
             - mountPath: /etc/storage_ibmc/cluster_info
               name: cluster-info
               readOnly: true
