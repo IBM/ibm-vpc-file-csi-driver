@@ -392,7 +392,36 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 
 	ctxLogger.Info("CSIControllerServer-ControllerExpandVolume", zap.Reflect("Request", requestID))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ControllerExpandVolume")
+	volumeID := req.GetVolumeId()
+	capacity := req.GetCapacityRange().GetRequiredBytes()
+	if len(volumeID) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
+	}
+
+	// get the session
+	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.FailedPrecondition, requestID, err)
+	}
+	requestedVolume := &provider.Volume{}
+	requestedVolume.VolumeID = volumeID
+	volDetail, err := checkIfVolumeExists(session, *requestedVolume, ctxLogger)
+	// Volume not found
+	if volDetail == nil && err == nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeID)
+	} else if err != nil { // In case of other errors apart from volume not  found
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	}
+
+	volumeExpansionReq := provider.ExpandVolumeRequest{
+		VolumeID: volumeID,
+		Capacity: capacity,
+	}
+	_, err = session.ExpandVolume(volumeExpansionReq)
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	}
+	return &csi.ControllerExpandVolumeResponse{CapacityBytes: capacity, NodeExpansionRequired: true}, nil
 }
 
 // ControllerGetVolume ...

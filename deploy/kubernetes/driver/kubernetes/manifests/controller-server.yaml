@@ -46,6 +46,29 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
+         - name: csi-resizer
+          image: MUSTPATCHWITHKUSTOMIZE
+          imagePullPolicy: Always
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--timeout=600s"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
         - name: iks-vpc-file-driver
           image: MUSTPATCHWITHKUSTOMIZE
           imagePullPolicy: Always
