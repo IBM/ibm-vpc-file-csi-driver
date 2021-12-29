@@ -46,7 +46,7 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-         - name: csi-resizer
+        - name: csi-resizer
           image: MUSTPATCHWITHKUSTOMIZE
           imagePullPolicy: Always
           securityContext:
