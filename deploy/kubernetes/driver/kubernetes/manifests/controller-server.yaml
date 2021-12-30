@@ -58,7 +58,7 @@ spec:
             - "--timeout=600s"
           env:
             - name: ADDRESS
-              value: /csi/csi.sock
+              value: /csi/csi-vpc-file.sock
           resources:
             limits:
               cpu: 100m
