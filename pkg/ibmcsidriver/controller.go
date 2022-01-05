@@ -404,8 +404,17 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 		return nil, commonError.GetCSIError(ctxLogger, commonError.FailedPrecondition, requestID, err)
 	}
 	requestedVolume := &provider.Volume{}
-	requestedVolume.VolumeID = volumeID
+
+	//Volume ID is in format volumeID:volumeAccessPointID, to assit the deletion of volume access point
+	tokens := strings.Split(volumeID, ":")
+	if len(tokens) != 2 {
+		ctxLogger.Info("CSIControllerServer-ExpandVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID", tokens))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+	}
+
+	requestedVolume.VolumeID = tokens[0]
 	volDetail, err := checkIfVolumeExists(session, *requestedVolume, ctxLogger)
+
 	// Volume not found
 	if volDetail == nil && err == nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeID)
@@ -414,7 +423,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	}
 
 	volumeExpansionReq := provider.ExpandVolumeRequest{
-		VolumeID: volumeID,
+		VolumeID: requestedVolume.VolumeID,
 		Capacity: capacity,
 	}
 	_, err = session.ExpandVolume(volumeExpansionReq)
