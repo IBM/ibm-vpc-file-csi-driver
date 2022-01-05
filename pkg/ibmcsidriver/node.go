@@ -56,6 +56,15 @@ type StatsUtils interface {
 	IsDevicePathNotExist(devicePath string) bool
 }
 
+// MountUtils ...
+type MountUtils interface {
+	Resize(mounter mountmanager.Mounter, devicePath string, deviceMountPath string) (bool, error)
+}
+
+// VolumeMountUtils ...
+type VolumeMountUtils struct {
+}
+
 // VolumeStatUtils ...
 type VolumeStatUtils struct {
 }
@@ -80,6 +89,11 @@ const (
 )
 
 var _ csi.NodeServer = &CSINodeServer{}
+var mountmgr MountUtils
+
+func init() {
+	mountmgr = &VolumeMountUtils{}
+}
 
 // NodePublishVolume ...
 func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -292,7 +306,37 @@ func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.Nod
 func (csiNS *CSINodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeExpandVolume", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "NodeExpandVolume")
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
+	}
+
+	volumePath := req.GetVolumePath()
+	if len(volumePath) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumePath, requestID, nil)
+	}
+	notMounted, err := csiNS.Mounter.IsLikelyNotMountPoint(volumePath)
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, volumePath)
+	}
+
+	if notMounted {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumePathNotMounted, requestID, nil, volumePath)
+	}
+
+	devicePath, _, err := mount.GetDeviceNameFromMount(csiNS.Mounter, volumePath)
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.GetDeviceInfoFailed, requestID, err, volumePath)
+	}
+
+	if devicePath == "" {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyDevicePath, requestID, err)
+	}
+
+	if _, err := mountmgr.Resize(csiNS.Mounter, devicePath, volumePath); err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.FileSystemResizeFailed, requestID, err)
+	}
+	return &csi.NodeExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes}, nil
 }
 
 // IsDevicePathNotExist ...
@@ -305,4 +349,13 @@ func (su *VolumeStatUtils) IsDevicePathNotExist(devicePath string) bool {
 		}
 	}
 	return false
+}
+
+// Resize expands the fs
+func (volMountUtils *VolumeMountUtils) Resize(mounter mountmanager.Mounter, devicePath string, deviceMountPath string) (bool, error) {
+	r := mount.NewResizeFs(mounter.NewSafeFormatAndMount().Exec)
+	if _, err := r.Resize(devicePath, deviceMountPath); err != nil {
+		return false, err
+	}
+	return true, nil
 }
