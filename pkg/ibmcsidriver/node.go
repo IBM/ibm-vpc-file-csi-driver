@@ -311,29 +311,30 @@ func (csiNS *CSINodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeE
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 
-	volumePath := req.GetVolumePath()
-	if len(volumePath) == 0 {
+	deviceMountPath := req.GetVolumePath()
+	if len(deviceMountPath) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumePath, requestID, nil)
 	}
-	notMounted, err := csiNS.Mounter.IsLikelyNotMountPoint(volumePath)
+
+	notMounted, err := csiNS.Mounter.IsLikelyNotMountPoint(deviceMountPath)
 	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, volumePath)
+		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, deviceMountPath)
 	}
 
 	if notMounted {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumePathNotMounted, requestID, nil, volumePath)
+		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumePathNotMounted, requestID, nil, deviceMountPath)
 	}
 
-	devicePath, _, err := mount.GetDeviceNameFromMount(csiNS.Mounter, volumePath)
+	devicePath, _, err := mount.GetDeviceNameFromMount(csiNS.Mounter, deviceMountPath)
 	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.GetDeviceInfoFailed, requestID, err, volumePath)
+		return nil, commonError.GetCSIError(ctxLogger, commonError.GetDeviceInfoFailed, requestID, err, deviceMountPath)
 	}
 
 	if devicePath == "" {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyDevicePath, requestID, err)
 	}
 
-	if _, err := mountmgr.Resize(csiNS.Mounter, devicePath, volumePath); err != nil {
+	if _, err := mountmgr.Resize(csiNS.Mounter, devicePath, deviceMountPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.FileSystemResizeFailed, requestID, err)
 	}
 	return &csi.NodeExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes}, nil
