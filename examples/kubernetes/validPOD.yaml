@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: testpodrwo
+  name: testpodrwm
   labels:
-    app: testpodrwo
+    app: testpodrwm
 spec:
   replicas: 2 
   selector:
     matchLabels:
-      app: testpodrwo
+      app: testpodrwm
   template:
     metadata:
       labels:
-        app: testpodrwo
+        app: testpodrwm
     spec:
       containers:
       - image: rabbitmq #image name which should be avilable within cluster
