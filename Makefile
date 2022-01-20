@@ -55,16 +55,16 @@ deps:
 
 .PHONY: fmt
 fmt: lint
-	golangci-lint run --disable-all --enable=gofmt --timeout 600s
-	@if [ -n "$$(golangci-lint run)" ]; then echo 'Please run ${COLOR_YELLOW}make dofmt${COLOR_RESET} on your code.' && exit 1; fi
+	$(GOPATH)/bin/golangci-lint run --disable-all --enable=gofmt --timeout 600s
+	@if [ -n "$$($(GOPATH)/bin/golangci-lint run)" ]; then echo 'Please run ${COLOR_YELLOW}make dofmt${COLOR_RESET} on your code.' && exit 1; fi
 
 .PHONY: dofmt
 dofmt:
-	golangci-lint run --disable-all --enable=gofmt --fix --timeout 600s
+	$(GOPATH)/bin/golangci-lint run --disable-all --enable=gofmt --fix --timeout 600s
 
 .PHONY: lint
 lint:
-	golangci-lint run --timeout 600s
+	$(GOPATH)/bin/golangci-lint run --timeout 600s
 
 .PHONY: build
 build:
@@ -77,6 +77,11 @@ test:
 
 .PHONY: ut-coverage
 ut-coverage: deps fmt test
+
+.PHONY: coverage
+coverage:
+	go tool cover -html=cover.out -o=cover.html
+	@./scripts/calculateCoverage.sh
 
 .PHONY: buildimage
 buildimage: build-systemutil

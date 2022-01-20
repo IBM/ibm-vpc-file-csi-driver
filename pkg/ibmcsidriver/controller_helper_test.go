@@ -113,7 +113,7 @@ func TestAreVolumeCapabilitiesSupported(t *testing.T) {
 	}{
 		{
 			testCaseName:  "Supported volume capability-success",
-			volumeCap:     []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+			volumeCap:     []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			expectedValue: true,
 		},
 		{
@@ -166,7 +166,7 @@ func TestGetVolumeParameters(t *testing.T) {
 		{
 			testCaseName: "Valid create volume request-success",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{Profile: "tier-3iops",
 					Zone:               "testzone",
 					Region:             "us-south-test",
@@ -205,7 +205,7 @@ func TestGetVolumeParameters(t *testing.T) {
 		{
 			testCaseName: "Valid create volume request with no zone in request but preferred toplogy-success",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{Profile: "tier-3iops",
 					Region:             "us-south-test",
 					Tag:                "test-tag",
@@ -243,7 +243,7 @@ func TestGetVolumeParameters(t *testing.T) {
 		{
 			testCaseName: "Invalid Valid create volume request with no zone in request and preferred toplogy- failure",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{Profile: "tier-3iops",
 					Region:             "us-south-test",
 					Tag:                "test-tag",
@@ -366,7 +366,7 @@ func TestGetVolumeParameters(t *testing.T) {
 		{
 			testCaseName: "Override parameter with secrets-wrong secret parameter",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters:         map[string]string{Profile: "tier-3iops"},
 				Secrets:            map[string]string{"NotSupportedSecretParam": "value"},
 			},
@@ -478,7 +478,7 @@ func TestOverrideParams(t *testing.T) {
 		{
 			testCaseName: "Valid overwrite-success",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{Profile: "tier-3iops",
 					Zone:          "testzone",
 					Region:        "us-south-test",

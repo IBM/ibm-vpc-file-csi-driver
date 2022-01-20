@@ -30,12 +30,15 @@ spec:
             allowPrivilegeEscalation: false
           args:
             - "--v=5"
-            - "--csi-address=$(ADDRESS)"
+            - "--csi-address=$(CSI_ADDRESS)"
             - "--timeout=600s"
             - "--feature-gates=Topology=true"
           env:
-            - name: ADDRESS
-              value: /csi/csi-vpc-file.sock
+            - name: CSI_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: ibm-vpc-file-csi-configmap
+                  key:  CSI_ADDRESS
           resources:
             limits:
               cpu: 100m
@@ -79,15 +82,21 @@ spec:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--lock_enabled=false"
-            - "--sidecarEndpoint=$(SIDECAREP)"
+            - "--sidecarEndpoint=$(SIDECAR_ADDRESS)"
           envFrom:
           - configMapRef:
               name: ibm-vpc-file-csi-configmap
-          - configMapRef:
-              name: ibm-cloud-provider-data
           env:
-            - name: SIDECAREP
-              value: "/sidecardir/providerfile.sock"
+            - name: CSI_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: ibm-vpc-file-csi-configmap
+                  key:  CSI_ENDPOINT
+            - name: SIDECAR_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: ibm-vpc-file-csi-configmap
+                  key: SIDECAR_ADDRESS
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -97,7 +106,10 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: VPC_ID
-              value: $(vpc_id)
+              valueFrom:
+                configMapKeyRef:
+                  name: ibm-cloud-provider-data
+                  key: vpc_id
           resources:
             limits:
               cpu: 500m
@@ -134,7 +146,13 @@ spec:
             privileged: false
             allowPrivilegeEscalation: false
           args:
-            - --csi-address=/csi/csi-vpc-file.sock
+            - "--csi-address=$(CSI_ADDRESS)"
+          env:
+            - name: CSI_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: ibm-vpc-file-csi-configmap
+                  key:  CSI_ADDRESS
           resources:
             limits:
               cpu: 50m
@@ -149,12 +167,18 @@ spec:
           image: MUSTPATCHWITHKUSTOMIZE
           imagePullPolicy: Always
           args:
-            - "--endpoint=$(ENDPOINT)"
+            - "--endpoint=$(SIDECAR_ENDPOINT)"
           env:
-            - name: ENDPOINT
-              value: "unix:/sidecardir/providerfile.sock"
+            - name: SIDECAR_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: ibm-vpc-file-csi-configmap
+                  key: SIDECAR_ENDPOINT
             - name: SECRET_CONFIG_PATH
-              value: /etc/storage_ibmc
+              valueFrom:
+                configMapKeyRef:
+                  name: ibm-vpc-file-csi-configmap
+                  key: SECRET_CONFIG_PATH
           volumeMounts:
             - mountPath: /sidecardir
               name: socket-dir

@@ -6,6 +6,9 @@ metadata:
 data:
   SECRET_CONFIG_PATH: "/etc/storage_ibmc"
   CSI_ENDPOINT: "unix:/csi/csi-vpc-file.sock"
+  CSI_ADDRESS: "/csi/csi-vpc-file.sock"
+  SIDECAR_ENDPOINT: "unix:/sidecardir/providerfile.sock"
+  SIDECAR_ADDRESS: "/sidecardir/providerfile.sock"
   VPC_ENABLED: "True"
   VPC_VOLUME_TYPE: "vpc-share"
   VPC_API_TIMEOUT: "90s" # 1.5 minutes for API time out its not related with retry

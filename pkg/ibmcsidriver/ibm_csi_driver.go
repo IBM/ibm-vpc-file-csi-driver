@@ -77,9 +77,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 
 	// Adding Capabilities Todo: Review Access Modes Below
 	vcam := []csi.VolumeCapability_AccessMode_Mode{
-		csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 		csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
-		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
 	}
 
 	_ = icDriver.AddVolumeCapabilityAccessModes(vcam)

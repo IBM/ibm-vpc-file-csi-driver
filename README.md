@@ -9,10 +9,10 @@ The following are the supported orchestration platforms suitable for deployment 
 |Red Hat® OpenShift®|4.6|x86|
 |Red Hat® OpenShift®|4.7|x86|
 |Red Hat® OpenShift®|4.8|x86|
-|Kubernetes| 1.19|x86|
-|Kubernetes| 1.20|x86|
+|Red Hat® OpenShift®|4.9|x86|
 |Kubernetes| 1.21|x86|
 |Kubernetes| 1.22|x86|
+|Kubernetes| 1.23|x86|
 
 # Prerequisites
 
@@ -27,13 +27,16 @@ Following are the prerequisites to use the IBM VPC file CSI Driver:
 "failure-domain.beta.kubernetes.io/zone"
 "topology.kubernetes.io/region"
 "topology.kubernetes.io/zone"
+"ibm-cloud.kubernetes.io/vpc-instance-id"
+"ibm-cloud.kubernetes.io/worker-id"
 ```
+
 # Build the driver
 
 For building the driver `docker` and `GO` should be installed on the system
 
 1. On your local machine, install [`docker`](https://docs.docker.com/install/) and [`Go`](https://golang.org/doc/install).
-2. GO version should be >=1.16
+2. GO version should be >=1.18
 3. Set the [`GOPATH` environment variable](https://github.com/golang/go/wiki/SettingGOPATH).
 4. Build the driver image
 
@@ -50,6 +53,7 @@ For building the driver `docker` and `GO` should be installed on the system
    ```
    $ make
    ```
+
    ## Build container image for the driver
 
    ```
@@ -60,7 +64,7 @@ For building the driver `docker` and `GO` should be installed on the system
 
    Image should be pushed to any registry from which cluster worker nodes have access to pull
 
-   You can push the driver image to [docker.io](https://hub.docker.com/)  registry or [IBM public registry](https://cloud.ibm.com/docs/Registry?topic=Registry-registry_overview#registry_regions_local) under your namespace.
+   You can push the driver image to [docker.io](https://hub.docker.com/) registry or [IBM public registry](https://cloud.ibm.com/docs/Registry?topic=Registry-registry_overview#registry_regions_local) under your namespace.
 
    For pushing to IBM registry:
 
@@ -68,11 +72,11 @@ For building the driver `docker` and `GO` should be installed on the system
 
    1. ibmcloud login to the target region
 
-   2. Run - ibmcloud cr region-set global
+   2. Run - `ibmcloud cr region-set global`
 
-   3. Run - ibmcloud cr login
+   3. Run - `ibmcloud cr login`
 
-   4. Run - ibmcloud ks cluster config --cluster \<cluster-name\> --admin
+   4. Run - `ibmcloud ks cluster config --cluster \<cluster-name\> --admin`
 
    5. Review and retrieve the following values for your image pull secret.
 
@@ -82,13 +86,10 @@ For building the driver `docker` and `GO` should be installed on the system
 
       `<docker-email>` - Enter the string: iamapikey.
 
-   6. Run the following command to create the image pull secret in your cluster. Note that your secret must be named icr-io-secret
-
+   6. Run the following command to create the image pull secret in your cluster. Note that your secret must be named `icr-io-secret`
 
       ```
-
        kubectl create secret docker-registry icr-io-secret --docker-server=icr.io --docker-username=iamapikey --docker-password=-<iam-api-key> --docker-email=iamapikey -n kube-system
-
       ```
 
 # Deploy CSI driver on your cluster
@@ -98,10 +99,10 @@ IBM VPC endpoints which supports Gen2 is documented [here](https://cloud.ibm.com
 - Export cluster config i.e configuring kubectl command
 - Deploy IBM VPC file CSI Driver on your cluster
   - You can use any overlays available under `deploy/kubernetes/driver/kubernetes/overlays/` and edit the image tag if you want to use your own build image from this source code, although defualt overalys are already using released IBM VPC file CSI Driver image 
-	
+
   - Example using `stage` overlay to update the image tag
-     - Change `iks-vpc-file-driver` image name in `deploy/kubernetes/driver/kubernetes/overlays/stage/controller-server-images.yaml`
-     - Change `iks-vpc-file-driver` image name in `deploy/kubernetes/driver/kubernetes/overlays/stage/node-server-images.yaml`
+     - Change `iks-vpc-file-driver` image name in [`deploy/kubernetes/driver/kubernetes/overlays/stage/controller-server-images.yaml`](https://github.com/IBM/ibm-vpc-file-csi-driver/blob/master/deploy/kubernetes/driver/kubernetes/overlays/stage/controller-server-images.yaml#L15)
+     - Change `iks-vpc-file-driver` image name in [`deploy/kubernetes/driver/kubernetes/overlays/stage/node-server-images.yaml`](https://github.com/IBM/ibm-vpc-file-csi-driver/blob/master/deploy/kubernetes/driver/kubernetes/overlays/stage/node-server-images.yaml#L11)
   - Deploy plugin
     - `bash deploy/kubernetes/driver/kubernetes/deploy-vpc-file-driver.sh stage`
 
@@ -125,7 +126,7 @@ TBD
 
 # How to contribute
 
-If you have any questions or issues you can create a new issue [ here ](https://github.com/IBM/ibm-vpc-file-csi-driver/issues/new).
+If you have any questions or issues you can create a new issue [here](https://github.com/IBM/ibm-vpc-file-csi-driver/issues/new).
 
 Pull requests are very welcome! Make sure your patches are well tested. Ideally create a topic branch for every separate change you make. For example:
 
