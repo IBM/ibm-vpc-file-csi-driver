@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
@@ -44,6 +45,19 @@ const defaultVolumePath = "/var/volpath"
 const notBlockDevice = "/for/notblocktest"
 
 type MockStatUtils struct {
+}
+
+type MockMountUtils struct {
+}
+
+// Resize expands the fs
+func (mu *MockMountUtils) Resize(mounter mountmanager.Mounter, devicePath string, deviceMountPath string) (bool, error) {
+	if strings.Contains(deviceMountPath, "fake-") {
+		return false, fmt.Errorf("failed to resize fs")
+	} else if strings.Contains(deviceMountPath, "valid-") {
+		return true, nil
+	}
+	return false, fmt.Errorf("failed to resize fs")
 }
 
 func (su *MockStatUtils) FSInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
@@ -376,20 +390,56 @@ func TestNodeExpandVolume(t *testing.T) {
 	testCases := []struct {
 		name       string
 		req        *csi.NodeExpandVolumeRequest
+		res        *csi.NodeExpandVolumeResponse
 		expErrCode codes.Code
 	}{
 		{
-			name:       "Unsupported node expand volume",
-			req:        &csi.NodeExpandVolumeRequest{},
-			expErrCode: codes.Unimplemented,
+			name: "Empty volumePath",
+			req: &csi.NodeExpandVolumeRequest{
+				VolumeId:   defaultVolumeID,
+				VolumePath: "",
+			},
+			res:        nil,
+			expErrCode: codes.InvalidArgument,
+		},
+		{
+			name: "Invalid volumePath",
+			req: &csi.NodeExpandVolumeRequest{
+				VolumeId:   defaultVolumeID,
+				VolumePath: "/invalid-volPath",
+			},
+			res:        nil,
+			expErrCode: codes.NotFound,
+		},
+		{
+			name: "valid volumePath",
+			req: &csi.NodeExpandVolumeRequest{
+				VolumeId:   defaultVolumeID,
+				VolumePath: "valid-vol-path",
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 20 * 1024 * 1024 * 1024,
+				},
+			},
+			res:        &csi.NodeExpandVolumeResponse{CapacityBytes: stdCapRange.RequiredBytes},
+			expErrCode: codes.OK,
+		},
+		{
+			name: "volumePath not mounted",
+			req: &csi.NodeExpandVolumeRequest{
+				VolumeId:   defaultVolumeID,
+				VolumePath: "fake-volPath",
+			},
+			res:        nil,
+			expErrCode: codes.NotFound,
 		},
 	}
 	icDriver := initIBMCSIDriver(t)
 	_ = os.MkdirAll("valid-vol-path", os.FileMode(0755))
-	_ = icDriver.ns.Mounter.Mount("valid-devicePath", "valid-vol-path", "ext4", []string{})
+	_ = icDriver.ns.Mounter.Mount("valid-devicePath", "valid-vol-path", "nfs", []string{"hard", "nfsvers=4.0", "sec=sys"})
+	mountmgr = &MockMountUtils{}
 	for _, tc := range testCases {
 		t.Logf("Test case: %s", tc.name)
-		_, err := icDriver.ns.NodeExpandVolume(context.Background(), tc.req)
+		response, err := icDriver.ns.NodeExpandVolume(context.Background(), tc.req)
 		if err != nil {
 			serverError, ok := status.FromError(err)
 			if !ok {
@@ -397,6 +447,9 @@ func TestNodeExpandVolume(t *testing.T) {
 			}
 			if serverError.Code() != tc.expErrCode {
 				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
+			if response != tc.res {
+				t.Fatalf("Expected response: %v, got: %v.", tc.res, response)
 			}
 			continue
 		}
