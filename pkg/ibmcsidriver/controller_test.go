@@ -876,7 +876,7 @@ func TestControllerGetCapabilities(t *testing.T) {
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME}}},
 					//{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME}}},
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_LIST_VOLUMES}}},
-					//{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_EXPAND_VOLUME}}},
+					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_EXPAND_VOLUME}}},
 					// &csi.ControllerServiceCapability{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_GET_CAPACITY}}},
 					// &csi.ControllerServiceCapability{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT}}},
 					// &csi.ControllerServiceCapability{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS}}},
@@ -916,22 +916,66 @@ func TestControllerGetCapabilities(t *testing.T) {
 }
 func TestControllerExpandVolume(t *testing.T) {
 	// test cases
+	cap := 20
+	volName := "test-name"
+	iopsStr := ""
+	//test cases
 	testCases := []struct {
-		name        string
-		req         *csi.ControllerExpandVolumeRequest
-		expResponse *csi.ControllerExpandVolumeResponse
-		expErrCode  codes.Code
+		name                 string
+		req                  *csi.ControllerExpandVolumeRequest
+		expResponse          *csi.ControllerExpandVolumeResponse
+		expErrCode           codes.Code
+		libExpandResponse    *http.Response
+		libVolumeResponse    *provider.Volume
+		libExpandResponseErr error
+		libVolumeError       error
 	}{
 		{
-			name:        "Expand volume unsupported failed",
-			req:         &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid", CapacityRange: stdCapRange},
-			expResponse: nil,
-			expErrCode:  codes.Unimplemented,
+			name:                 "Success controller expand volume",
+			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: stdCapRange},
+			expResponse:          &csi.ControllerExpandVolumeResponse{CapacityBytes: stdCapRange.RequiredBytes, NodeExpansionRequired: true},
+			expErrCode:           codes.OK,
+			libExpandResponse:    &http.Response{StatusCode: http.StatusOK},
+			libVolumeResponse:    &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "volumeid", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			libExpandResponseErr: nil,
+			libVolumeError:       nil,
+		},
+		{
+			name:                 "Nil capacity",
+			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: nil},
+			expResponse:          nil,
+			expErrCode:           codes.InvalidArgument,
+			libExpandResponse:    nil,
+			libVolumeResponse:    nil,
+			libExpandResponseErr: nil,
+			libVolumeError:       nil,
+		},
+		{
+			name:                 "Nil volume ID",
+			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "", CapacityRange: stdCapRange},
+			expResponse:          nil,
+			expErrCode:           codes.InvalidArgument,
+			libExpandResponse:    nil,
+			libVolumeResponse:    nil,
+			libExpandResponseErr: nil,
+			libVolumeError:       nil,
+		},
+		{
+			name:              "Expand volume failed",
+			req:               &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: stdCapRange},
+			expResponse:       nil,
+			expErrCode:        codes.Internal,
+			libExpandResponse: nil,
+			libVolumeResponse: &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "volumeid", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			libExpandResponseErr: providerError.Message{
+				Code: "FailedToPlaceOrder",
+			},
+			libVolumeError: providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume expansion failed", Type: providerError.Unauthenticated},
 		},
 	}
 
 	// Creating test logger
-	_, teardown := cloudProvider.GetTestLogger(t)
+	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
 
 	// Run test cases
@@ -940,12 +984,24 @@ func TestControllerExpandVolume(t *testing.T) {
 		// Setup new driver each time so no interference
 		icDriver := initIBMCSIDriver(t)
 
-		// Call CSI CreateVolume
-		_, err := icDriver.cs.ControllerExpandVolume(context.Background(), tc.req)
+		// Set the response for CreateVolume
+		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
+		assert.Nil(t, err)
+		fakeStructSession, ok := fakeSession.(*fake.FakeSession)
+		assert.Equal(t, true, ok)
+		if tc.req.CapacityRange != nil {
+			fakeStructSession.ExpandVolumeReturns(tc.req.CapacityRange.RequiredBytes, tc.libVolumeError)
+		}
+		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeError)
+		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
+
+		// Call CSI ExpandVolume
+		response, err := icDriver.cs.ControllerExpandVolume(context.Background(), tc.req)
 		if tc.expErrCode != codes.OK {
 			t.Logf("Error code")
 			assert.NotNil(t, err)
 		}
+		assert.Equal(t, tc.expResponse, response)
 	}
 }
 

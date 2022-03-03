@@ -15,3 +15,5 @@ spec:
           image: icr.io/obs/storage/ibm-vpc-file-csi-driver:v1.0.0-beta1
         - name: storage-secret-sidecar
           image: icr.io/obs/armada-storage-secret:v1.1.4
+        - name: csi-resizer
+          image: quay.io/k8scsi/csi-resizer:v1.2.0
