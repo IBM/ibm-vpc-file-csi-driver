@@ -94,7 +94,7 @@ For building the driver `docker` and `GO` should be installed on the system
 # Deploy CSI driver on your cluster
 
 - Create deployment
-  - `kubectl apply -f examples/kubernetes/deployment.yaml`
+  - `kubectl create -f examples/kubernetes/deployment.yaml`
 
 ## Testing
 
