@@ -93,22 +93,11 @@ For building the driver `docker` and `GO` should be installed on the system
 
 # Deploy CSI driver on your cluster
 
-IBM VPC endpoints which supports Gen2 is documented [here](https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc)
-- Install `kustomize` tool. The instructions are available [here](https://kubectl.docs.kubernetes.io/installation/kustomize/)
-- Export cluster config i.e configuring kubectl command
-- Deploy IBM VPC file CSI Driver on your cluster
-  - You can use any overlays available under `deploy/kubernetes/driver/kubernetes/overlays/` and edit the image tag if you want to use your own build image from this source code, although defualt overalys are already using released IBM VPC file CSI Driver image 
-	
-  - Example using `stage` overlay to update the image tag
-     - Change `iks-vpc-file-driver` image name in `deploy/kubernetes/driver/kubernetes/overlays/stage/controller-server-images.yaml`
-     - Change `iks-vpc-file-driver` image name in `deploy/kubernetes/driver/kubernetes/overlays/stage/node-server-images.yaml`
-  - Deploy plugin
-    - `bash deploy/kubernetes/driver/kubernetes/deploy-vpc-file-driver.sh stage`
+- Create deployment
+  - `kubectl apply -f examples/kubernetes/deployment.yaml`
 
 ## Testing
 
-- Create storage classes
-  - `ls deploy/kubernetes/storageclass/ | xargs -I classfile kubectl apply -f deploy/kubernetes/storageclass/classfile`
 - Create PVC
   - `kubectl create -f examples/kubernetes/validPVC.yaml`
 - Create POD with volume
@@ -117,7 +106,7 @@ IBM VPC endpoints which supports Gen2 is documented [here](https://cloud.ibm.com
 # Delete CSI driver from your cluster
 
   - Delete plugin
-    - `bash deploy/kubernetes/driver/kubernetes/delete-vpc-csi-driver.sh stage`
+    - ``kubectl delete -f examples/kubernetes/deployment.yaml``
 
 # E2E Tests
 
@@ -146,6 +135,7 @@ Pull requests are very welcome! Make sure your patches are well tested. Ideally 
 1. Dynamic PVC/PV creation and deletion with ReadWriteMany capability
 2. POD creation and deletion which will mount/unmount the file storage volumes.
 3. Defining custom storage class by providing gid/uid will allow non-root users access to file storage volumes.
+4. Volume Expansion
 
 
 # For more details on support of CLI and VPC IAAS layer please refer below documentation

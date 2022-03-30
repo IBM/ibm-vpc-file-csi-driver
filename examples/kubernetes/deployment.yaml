@@ -1,0 +1,853 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  data:
+    CSI_ENDPOINT: unix:/csi/csi-vpc-file.sock
+    IKS_ENABLED: "True"
+    SECRET_CONFIG_PATH: /etc/storage_ibmc
+    VPC_API_GENERATION: "1"
+    VPC_API_TIMEOUT: 90s
+    VPC_API_VERSION: "2022-01-27"
+    VPC_ENABLED: "True"
+    VPC_RETRY_ATTEMPT: "10"
+    VPC_RETRY_INTERVAL: "60"
+  kind: ConfigMap
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: ibm-vpc-file-csi-configmap
+    namespace: kube-system
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: ibm-vpc-file-node-sa
+    namespace: kube-system
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: vpc-file-driver-registrar-role
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - events
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+  - apiGroups:
+    - ""
+    resources:
+    - nodes
+    verbs:
+    - get
+    - list
+    - watch
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: vpc-file-driver-registrar-binding
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: vpc-file-driver-registrar-role
+  subjects:
+  - kind: ServiceAccount
+    name: ibm-vpc-file-node-sa
+    namespace: kube-system
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: vpc-file-external-resizer-role
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - persistentvolumes
+    verbs:
+    - get
+    - list
+    - watch
+    - update
+    - patch
+  - apiGroups:
+    - ""
+    resources:
+    - persistentvolumeclaims
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - pods
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - persistentvolumeclaims/status
+    verbs:
+    - patch
+    - update
+  - apiGroups:
+    - ""
+    resources:
+    - events
+    verbs:
+    - list
+    - watch
+    - create
+    - update
+    - patch
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: vpc-file-external-resizer-binding
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: vpc-file-external-resizer-role
+  subjects:
+  - kind: ServiceAccount
+    name: ibm-vpc-file-controller-sa
+    namespace: kube-system
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: ibm-vpc-file-controller-sa
+    namespace: kube-system
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: vpc-file-provisioner-role
+  rules:
+  - apiGroups:
+    - ""
+    resources:
+    - secrets
+    verbs:
+    - get
+    - list
+  - apiGroups:
+    - ""
+    resources:
+    - persistentvolumes
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - delete
+  - apiGroups:
+    - ""
+    resources:
+    - persistentvolumeclaims
+    verbs:
+    - get
+    - list
+    - watch
+    - update
+  - apiGroups:
+    - storage.k8s.io
+    resources:
+    - storageclasses
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - events
+    verbs:
+    - list
+    - watch
+    - create
+    - update
+    - patch
+  - apiGroups:
+    - storage.k8s.io
+    resources:
+    - csinodes
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - nodes
+    verbs:
+    - get
+    - list
+    - watch
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: vpc-file-provisioner-binding
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: vpc-file-provisioner-role
+  subjects:
+  - kind: ServiceAccount
+    name: ibm-vpc-file-controller-sa
+    namespace: kube-system
+- apiVersion: storage.k8s.io/v1
+  kind: CSIDriver
+  metadata:
+    name: vpc.file.csi.ibm.io
+  spec:
+    attachRequired: false
+    podInfoOnMount: true
+    volumeLifecycleModes:
+    - Persistent
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: ibm-vpc-file-csi-node
+    namespace: kube-system
+  spec:
+    selector:
+      matchLabels:
+        app: ibm-vpc-file-csi-driver
+    template:
+      metadata:
+        labels:
+          app: ibm-vpc-file-csi-driver
+      spec:
+        containers:
+        - args:
+          - --v=5
+          - --csi-address=$(ADDRESS)
+          - --kubelet-registration-path=$(DRIVER_REGISTRATION_SOCK)
+          env:
+          - name: ADDRESS
+            value: /csi/csi-vpc-file.sock
+          - name: DRIVER_REGISTRATION_SOCK
+            value: /var/lib/kubelet/csi-plugins/vpc.file.csi.ibm.io/csi-vpc-file.sock
+          - name: KUBE_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          image: k8s.gcr.io/sig-storage/csi-node-driver-registrar:v2.4.0
+          imagePullPolicy: Always
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - rm -rf /registration/vpc.file.csi.ibm.io /registration/vpc.file.csi.ibm.io-reg.sock
+          name: csi-driver-registrar
+          resources:
+            limits:
+              cpu: 40m
+              memory: 80Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          securityContext:
+            privileged: false
+            runAsNonRoot: false
+            runAsUser: 0
+          volumeMounts:
+          - mountPath: /csi
+            name: plugin-dir
+          - mountPath: /registration
+            name: registration-dir
+        - args:
+          - --v=5
+          - --endpoint=unix:/csi/csi-vpc-file.sock
+          - --sidecarEndpoint=$(SIDECAREP)
+          env:
+          - name: SIDECAREP
+            value: /sidecardir/providerfile.sock
+          - name: KUBE_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          envFrom:
+          - configMapRef:
+              name: ibm-vpc-file-csi-configmap
+          image: icr.io/obs/storage/ibm-vpc-file-csi-driver:v1.0.0-beta1
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          name: iks-vpc-file-node-driver
+          ports:
+          - containerPort: 9808
+            name: healthz
+            protocol: TCP
+          resources:
+            limits:
+              cpu: 120m
+              memory: 300Mi
+            requests:
+              cpu: 30m
+              memory: 75Mi
+          securityContext:
+            privileged: true
+            runAsNonRoot: false
+            runAsUser: 0
+          volumeMounts:
+          - mountPath: /sidecardir
+            name: secret-sidecar-sock-dir
+          - mountPath: /var/data/kubelet
+            mountPropagation: Bidirectional
+            name: kubelet-data-dir
+          - mountPath: /csi
+            name: plugin-dir
+          - mountPath: /dev
+            name: device-dir
+          - mountPath: /etc/udev
+            name: etcudevpath
+          - mountPath: /run/udev
+            name: runudevpath
+          - mountPath: /lib/udev
+            name: libudevpath
+          - mountPath: /sys
+            name: syspath
+          - mountPath: /etc/storage_ibmc
+            name: customer-auth
+            readOnly: true
+          - mountPath: /etc/storage_ibmc/cluster_info
+            name: cluster-info
+            readOnly: true
+        - args:
+          - --csi-address=/csi/csi-vpc-file.sock
+          image: k8s.gcr.io/sig-storage/livenessprobe:v2.5.0
+          name: liveness-probe
+          resources:
+            limits:
+              cpu: 20m
+              memory: 40Mi
+            requests:
+              cpu: 5m
+              memory: 10Mi
+          securityContext:
+            privileged: false
+            runAsNonRoot: false
+            runAsUser: 0
+          volumeMounts:
+          - mountPath: /csi
+            name: plugin-dir
+        - args:
+          - --endpoint=$(ENDPOINT)
+          env:
+          - name: ENDPOINT
+            value: unix:/sidecardir/providerfile.sock
+          - name: SECRET_CONFIG_PATH
+            value: /etc/storage_ibmc
+          image: icr.io/obs/armada-storage-secret:v1.1.7
+          imagePullPolicy: Always
+          name: storage-secret-sidecar
+          resources:
+            limits:
+              cpu: 12m
+              memory: 20Mi
+            requests:
+              cpu: 3m
+              memory: 5Mi
+          volumeMounts:
+          - mountPath: /sidecardir
+            name: secret-sidecar-sock-dir
+          - mountPath: /etc/storage_ibmc/cluster_info
+            name: cluster-info
+            readOnly: true
+          - mountPath: /etc/storage_ibmc
+            name: customer-auth
+            readOnly: true
+        serviceAccountName: ibm-vpc-file-node-sa
+        tolerations:
+        - operator: Exists
+        volumes:
+        - emptyDir: {}
+          name: secret-sidecar-sock-dir
+        - hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: Directory
+          name: registration-dir
+        - hostPath:
+            path: /var/data/kubelet
+            type: Directory
+          name: kubelet-data-dir
+        - hostPath:
+            path: /var/lib/kubelet/csi-plugins/vpc.file.csi.ibm.io/
+            type: DirectoryOrCreate
+          name: plugin-dir
+        - hostPath:
+            path: /dev
+            type: Directory
+          name: device-dir
+        - hostPath:
+            path: /etc/udev
+            type: Directory
+          name: etcudevpath
+        - hostPath:
+            path: /run/udev
+            type: Directory
+          name: runudevpath
+        - hostPath:
+            path: /lib/udev
+            type: Directory
+          name: libudevpath
+        - hostPath:
+            path: /sys
+            type: Directory
+          name: syspath
+        - name: customer-auth
+          secret:
+            secretName: storage-secret-store
+        - configMap:
+            name: cluster-info
+          name: cluster-info
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+    name: ibm-vpc-file-csi-controller
+    namespace: kube-system
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: ibm-vpc-file-csi-driver
+    serviceName: ibm-vpc-file-service
+    template:
+      metadata:
+        labels:
+          app: ibm-vpc-file-csi-driver
+      spec:
+        containers:
+        - args:
+          - --v=5
+          - --csi-address=$(ADDRESS)
+          - --timeout=600s
+          - --feature-gates=Topology=true
+          env:
+          - name: ADDRESS
+            value: /csi/csi-vpc-file.sock
+          image: k8s.gcr.io/sig-storage/csi-provisioner:v3.1.0
+          imagePullPolicy: Always
+          name: csi-provisioner
+          resources:
+            limits:
+              cpu: 80m
+              memory: 160Mi
+            requests:
+              cpu: 20m
+              memory: 40Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+          volumeMounts:
+          - mountPath: /csi
+            name: socket-dir
+        - args:
+          - "--v=5"
+          - "--csi-address=$(ADDRESS)"
+          - "--timeout=600s"
+          env:
+          - name: ADDRESS
+            value: /csi/csi-vpc-file.sock
+          image: k8s.gcr.io/sig-storage/csi-resizer:v1.2.0
+          imagePullPolicy: Always
+          name: csi-resizer
+          resources:
+            limits:
+              cpu: 100m
+              memory: 100Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+          volumeMounts:
+          - mountPath: /csi
+            name: socket-dir
+        - args:
+          - --csi-address=/csi/csi-vpc-file.sock
+          image: k8s.gcr.io/sig-storage/livenessprobe:v2.5.0
+          name: liveness-probe
+          resources:
+            limits:
+              cpu: 20m
+              memory: 40Mi
+            requests:
+              cpu: 5m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+          volumeMounts:
+          - mountPath: /csi
+            name: socket-dir
+        - args:
+          - --v=5
+          - --endpoint=$(CSI_ENDPOINT)
+          - --lock_enabled=false
+          - --sidecarEndpoint=$(SIDECAREP)
+          env:
+          - name: SIDECAREP
+            value: /csi/providerfile.sock
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: VPC_ID
+            valueFrom:
+              configMapKeyRef:
+                name: ibm-cloud-provider-data
+                key: vpc_id
+          envFrom:
+          - configMapRef:
+              name: ibm-vpc-file-csi-configmap
+          image: icr.io/obs/storage/ibm-vpc-file-csi-driver:v1.0.0-beta1
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          name: iks-vpc-file-driver
+          ports:
+          - containerPort: 9808
+            name: healthz
+            protocol: TCP
+          resources:
+            limits:
+              cpu: 300m
+              memory: 600Mi
+            requests:
+              cpu: 75m
+              memory: 150Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+          volumeMounts:
+          - mountPath: /csi
+            name: socket-dir
+          - mountPath: /etc/storage_ibmc
+            name: customer-auth
+            readOnly: true
+          - mountPath: /etc/storage_ibmc/cluster_info
+            name: cluster-info
+            readOnly: true
+        - args:
+          - --endpoint=$(ENDPOINT)
+          env:
+          - name: ENDPOINT
+            value: unix:/sidecardir/providerfile.sock
+          - name: SECRET_CONFIG_PATH
+            value: /etc/storage_ibmc
+          image: icr.io/obs/armada-storage-secret:v1.1.7
+          imagePullPolicy: Always
+          name: storage-secret-sidecar
+          resources:
+            limits:
+              cpu: 12m
+              memory: 20Mi
+            requests:
+              cpu: 3m
+              memory: 5Mi
+          volumeMounts:
+          - mountPath: /sidecardir
+            name: socket-dir
+          - mountPath: /etc/storage_ibmc/cluster_info
+            name: cluster-info
+            readOnly: true
+          - mountPath: /etc/storage_ibmc
+            name: customer-auth
+            readOnly: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 2121
+        serviceAccountName: ibm-vpc-file-controller-sa
+        volumes:
+        - emptyDir: {}
+          name: socket-dir
+        - name: customer-auth
+          secret:
+            secretName: storage-secret-store
+        - configMap:
+            name: cluster-info
+          name: cluster-info
+    volumeClaimTemplates: []
+- apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: EnsureExists
+      app: ibm-vpc-file-csi-driver
+      razee/force-apply: "true"
+    name: ibmc-vpc-file-10iops-tier
+  mountOptions:
+  - hard
+  - nfsvers=4.0
+  - sec=sys
+  parameters:
+    billingType: hourly
+    classVersion: "1"
+    encrypted: "false"
+    encryptionKey: ""
+    profile: tier-10iops
+    region: ""
+    resourceGroup: ""
+    tags: ""
+    zone: ""
+  provisioner: vpc.file.csi.ibm.io
+  reclaimPolicy: Delete
+  allowVolumeExpansion: true
+- apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+      razee/force-apply: "true"
+    name: ibmc-vpc-file-5iops-tier
+  mountOptions:
+  - hard
+  - nfsvers=4.0
+  - sec=sys
+  parameters:
+    billingType: hourly
+    classVersion: "1"
+    encrypted: "false"
+    encryptionKey: ""
+    profile: tier-5iops
+    region: ""
+    resourceGroup: ""
+    tags: ""
+    zone: ""
+  provisioner: vpc.file.csi.ibm.io
+  reclaimPolicy: Delete
+  allowVolumeExpansion: true
+- apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+      razee/force-apply: "true"
+    name: ibmc-vpc-file-3iops-tier
+  mountOptions:
+  - hard
+  - nfsvers=4.0
+  - sec=sys
+  parameters:
+    billingType: hourly
+    classVersion: "1"
+    encrypted: "false"
+    encryptionKey: ""
+    profile: tier-3iops
+    region: ""
+    resourceGroup: ""
+    tags: ""
+    zone: ""
+  provisioner: vpc.file.csi.ibm.io
+  reclaimPolicy: Delete
+  allowVolumeExpansion: true
+- apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+      razee/force-apply: "true"
+    name: ibmc-vpc-file-retain-10iops-tier
+  mountOptions:
+  - hard
+  - nfsvers=4.0
+  - sec=sys
+  parameters:
+    billingType: hourly
+    classVersion: "1"
+    encrypted: "false"
+    encryptionKey: ""
+    profile: tier-10iops
+    region: ""
+    resourceGroup: ""
+    tags: ""
+    zone: ""
+  provisioner: vpc.file.csi.ibm.io
+  reclaimPolicy: Retain
+  allowVolumeExpansion: true
+- apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+      razee/force-apply: "true"
+    name: ibmc-vpc-file-retain-5iops-tier
+  mountOptions:
+  - hard
+  - nfsvers=4.0
+  - sec=sys
+  parameters:
+    billingType: hourly
+    classVersion: "1"
+    encrypted: "false"
+    encryptionKey: ""
+    profile: tier-5iops
+    region: ""
+    resourceGroup: ""
+    tags: ""
+    zone: ""
+  provisioner: vpc.file.csi.ibm.io
+  reclaimPolicy: Retain
+  allowVolumeExpansion: true
+- apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    annotations:
+      razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+      razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+      version: 1.0.0_44_dev-test-02
+    labels:
+      addonmanager.kubernetes.io/mode: Reconcile
+      app: ibm-vpc-file-csi-driver
+      razee/force-apply: "true"
+    name: ibmc-vpc-file-retain-3iops-tier
+  mountOptions:
+  - hard
+  - nfsvers=4.0
+  - sec=sys
+  parameters:
+    billingType: hourly
+    classVersion: "1"
+    encrypted: "false"
+    encryptionKey: ""
+    profile: tier-3iops
+    region: ""
+    resourceGroup: ""
+    tags: ""
+    zone: ""
+  provisioner: vpc.file.csi.ibm.io
+  reclaimPolicy: Retain
+  allowVolumeExpansion: true
+kind: List
+metadata:
+  annotations:
+    razee.io/build-url: https://travis.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/builds/62407542
+    razee.io/source-url: https://github.ibm.com/alchemy-containers/addon-vpc-file-csi-driver/commit/5bc761f3b21205772393ed2cb0e8dfb2de18c898
+    version: 1.0.0_44_dev-test-02
+  name: ibm-vpc-file-csi-driver
+  namespace: kube-system
