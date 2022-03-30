@@ -135,7 +135,7 @@ Pull requests are very welcome! Make sure your patches are well tested. Ideally 
 1. Dynamic PVC/PV creation and deletion with ReadWriteMany capability
 2. POD creation and deletion which will mount/unmount the file storage volumes.
 3. Defining custom storage class by providing gid/uid will allow non-root users access to file storage volumes.
-4. Volume Expansion
+4. Online Volume Expansion (Volume should be mounted)
 
 
 # For more details on support of CLI and VPC IAAS layer please refer below documentation
