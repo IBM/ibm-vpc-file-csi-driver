@@ -42,7 +42,7 @@ For building the driver `docker` and `GO` should be installed on the system
    ```
    $ mkdir -p $GOPATH/src/github.com/IBM
    $ cd $GOPATH/src/github.com/IBM/
-   $ git clone https://github.com/IBM/ibm-vpc-file-csi-driver.git
+   $ git clone -b readme https://github.com/IBM/ibm-vpc-file-csi-driver.git
    $ cd ibm-vpc-file-csi-driver
    ```
    ## Build project and runs testcases
