@@ -31,7 +31,7 @@ BUILD_NUMBER?=unknown
 GO111MODULE_FLAG?=on
 export GO111MODULE=$(GO111MODULE_FLAG)
 
-export LINT_VERSION="1.27.0"
+export LINT_VERSION="1.46.2"
 
 COLOR_YELLOW=\033[0;33m
 COLOR_RESET=\033[0m
@@ -48,6 +48,7 @@ deps:
 	#glide install --strip-vendor
 	go mod download
 	go get github.com/pierrre/gotestcover
+	go install github.com/pierrre/gotestcover
 	@if ! which golangci-lint >/dev/null || [[ "$$(golangci-lint --version)" != *${LINT_VERSION}* ]]; then \
 		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v${LINT_VERSION}; \
 	fi
