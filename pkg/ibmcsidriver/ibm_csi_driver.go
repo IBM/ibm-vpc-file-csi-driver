@@ -75,7 +75,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	icDriver.name = name
 	icDriver.vendorVersion = vendorVersion
 
-	// Adding Capabilities Todo: Review Access Modes Below
+	// Adding Capabilities
 	vcam := []csi.VolumeCapability_AccessMode_Mode{
 		csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
 	}

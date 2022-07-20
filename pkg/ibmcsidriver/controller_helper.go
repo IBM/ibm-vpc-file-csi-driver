@@ -196,7 +196,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case UID:
 			uid, err = strconv.Atoi(value)
 			if err != nil {
-				err = fmt.Errorf("Failed to parse invalid %v: %v", uid, err)
+				err = fmt.Errorf("failed to parse invalid %v: %v", uid, err)
 			}
 			if uid < 0 {
 				err = fmt.Errorf("%v must be greater or equal than 0", uid)
@@ -204,7 +204,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case GID:
 			gid, err = strconv.Atoi(value)
 			if err != nil {
-				err = fmt.Errorf("Failed to parse invalid %v: %v", gid, err)
+				err = fmt.Errorf("failed to parse invalid %v: %v", gid, err)
 			}
 			if gid < 0 {
 				err = fmt.Errorf("%v must be greater or equal than 0", gid)

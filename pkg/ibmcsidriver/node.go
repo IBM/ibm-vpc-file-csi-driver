@@ -260,7 +260,7 @@ func (csiNS *CSINodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInf
 func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
 	var resp *csi.NodeGetVolumeStatsResponse
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodeGetVolumeStats... ", zap.Reflect("Request", *req)) //nolint:staticcheck
+	ctxLogger.Info("CSINodeServer-NodeGetVolumeStats... ", zap.Reflect("Request", req))
 	metrics.UpdateDurationFromStart(ctxLogger, "NodeGetVolumeStats", time.Now())
 	if req == nil || req.VolumeId == "" { //nolint
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
