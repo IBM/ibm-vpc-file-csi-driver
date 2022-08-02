@@ -14,9 +14,10 @@ parameters:
   encrypted: "false"                # By default, all PVC using this class will only be provider managed encrypted. The user can override this default
   encryptionKey: ""                 # If encrypted is true, then a user must specify the encryption key used associated KP instance
   resourceGroup: ""                 # Use resource group if specified here. else use the one mentioned in storage-secrete-store
-  region: ""
   zone: ""                          # By default, the storage vpc driver will select a zone. The user can override this default
   tags: ""                          # A list of tags "a, b, c" that will be created when the volume is created. This can be overidden by user
   classVersion: "1"
+  UID: ""                           # The initial user identifier for the file share.
+  GID: ""                           # The initial group identifier for the file share.
 reclaimPolicy: "Delete"
 allowVolumeExpansion: true
