@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/IBM/ibm-csi-common v1.0.0-beta9.0.20220120112721-3a790c87ff75
-	github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta3
+	github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta3.0.20220808120024-ac2ef47d2e35
 	github.com/IBM/ibmcloud-volume-interface v1.0.0-beta9
 	github.com/container-storage-interface/spec v1.3.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
@@ -23,7 +23,6 @@ require (
 require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7 // indirect
-	github.com/IBM/ibmcloud-volume-vpc v1.0.0-beta15 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

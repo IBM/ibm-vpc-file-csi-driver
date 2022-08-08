@@ -42,17 +42,13 @@ github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym
 github.com/GoogleCloudPlatform/k8s-cloud-provider v0.0.0-20200415212048-7901bc822317/go.mod h1:DF8FZRxMHMGv/vP2lQP6h+dYzzjpuRn24VeRiYn3qjQ=
 github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7 h1:eHgfQl6IeSmzWUyiSi13CvoFYsovoyqWlpHX0pa9J54=
 github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7/go.mod h1:RiUvKuHKTBmBApDMUQzBL14pQUGKcx/IioKQPIcRQjs=
-github.com/IBM/ibm-csi-common v1.0.0-beta15/go.mod h1:PeSXn0la1H7hKalfIwgeldFQ7I5d9h6j6pPId3qxlb8=
 github.com/IBM/ibm-csi-common v1.0.0-beta9.0.20220120112721-3a790c87ff75 h1:f4dPdFkgX5qIAgTesfl72KuShCj4pI72rrY53nldRAQ=
 github.com/IBM/ibm-csi-common v1.0.0-beta9.0.20220120112721-3a790c87ff75/go.mod h1:t1KQ24caG5Hhot550dOU/bcVHEUe9OQWhgpIGH05AL0=
-github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta3 h1:wv9OsTjFgyyOVXE2zfAfu9U4Tn+0itGWJyIqK4dSxqs=
-github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta3/go.mod h1:fZbt/pCBffo0gAwx5Dbrk7N4wv8HVXgJjZXc6oO6oVo=
-github.com/IBM/ibmcloud-volume-interface v1.0.0-beta10/go.mod h1:BWj2o0UmOSI1rGcObFYmpQgX0zHuhm51W5o+Js8BHcE=
+github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta3.0.20220808120024-ac2ef47d2e35 h1:cOGiaikII1YrFaxjdj+MZlA/ekGp+DbmJzts6fnf9nY=
+github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta3.0.20220808120024-ac2ef47d2e35/go.mod h1:TzczUCa1agdbKf6tu4zIUsJ1/8rktIquHF0IgyRJxio=
 github.com/IBM/ibmcloud-volume-interface v1.0.0-beta9 h1:MZ8IH//+p35IWLYhRRUpmHyvyIsXbpahd8Ye2yj27Kc=
 github.com/IBM/ibmcloud-volume-interface v1.0.0-beta9/go.mod h1:9uP4Q8Y5S2439Elw7BwEsjas2Rhl1ca2hJ9QcH5eUI8=
 github.com/IBM/ibmcloud-volume-vpc v1.0.0-beta13/go.mod h1:mYFepXXfNGH6joYmR6sxDATsdY4yX28fjjuRt7shaQo=
-github.com/IBM/ibmcloud-volume-vpc v1.0.0-beta15 h1:NdosO0H9xyKv0jWpWaSOiYcUSaqik0PYUItF+CMxt+w=
-github.com/IBM/ibmcloud-volume-vpc v1.0.0-beta15/go.mod h1:fuu1hf3mJJwm0Txtb5MDIfjhzH3OP3fMq44+aUQ14EY=
 github.com/JeffAshton/win_pdh v0.0.0-20161109143554-76bb4ee9f0ab/go.mod h1:3VYc5hodBMJ5+l/7J4xAyMeuM2PNuepvHlGs8yilUCA=
 github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd/go.mod h1:64YHyfSL2R96J44Nlwm39UHepQbyR5q10x7iYa1ks2E=
 github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5/go.mod h1:tTuCMEN+UleMWgg9dVx4Hu52b1bJo+59jBh3ajtinzw=
@@ -252,7 +248,6 @@ github.com/go-ozzo/ozzo-validation v3.5.0+incompatible/go.mod h1:gsEKFIVnabGBt6m
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
 github.com/gobuffalo/here v0.6.0/go.mod h1:wAG085dHOYqUpf+Ap+WOdrPTp5IYcDAs/x7PLa8Y5fM=
 github.com/godbus/dbus/v5 v5.0.3/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
-github.com/gofrs/uuid v4.2.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
 github.com/gogo/protobuf v1.1.1/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
 github.com/gogo/protobuf v1.2.1/go.mod h1:hp+jE20tsWTFYpLwKvXlhS1hjn+gTNwPg2I6zVXpSg4=
 github.com/gogo/protobuf v1.2.2-0.20190723190241-65acae22fc9d/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=

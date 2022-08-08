@@ -22,9 +22,9 @@ package ibmcsidriver
 import (
 	"testing"
 
-	cloudProvider "github.com/IBM/ibm-csi-common/pkg/ibmcloudprovider"
-	nodeMetadata "github.com/IBM/ibm-csi-common/pkg/metadata"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	"github.com/stretchr/testify/assert"
 )
 
