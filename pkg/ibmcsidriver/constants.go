@@ -57,7 +57,7 @@ const (
 	Tag = "tags"
 
 	// CustomProfile ...
-	CustomProfile = "custom"
+	CustomProfile = "custom-iops"
 
 	// ClassVersion ...
 	ClassVersion = "classVersion"
