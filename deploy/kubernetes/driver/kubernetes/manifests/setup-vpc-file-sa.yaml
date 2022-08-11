@@ -1,13 +1,10 @@
 ##### Node Service Account, Roles, RoleBindings
- apiVersion: v1
- kind: ServiceAccount
- metadata:
+apiVersion: v1
+kind: ServiceAccount
+metadata:
    name: ibm-vpc-file-node-sa
- imagePullSecrets:
-   - name: bluemix-default-secret
-   - name: bluemix-default-secret-regional
-   - name: bluemix-default-secret-international
-   - name: icr-io-secret
+#imagePullSecrets:
+#   - name: <Add your image pull secret name here if using image fromm private namespace>
 
 ---
 
@@ -41,15 +38,12 @@ roleRef:
 
 ---
 ##### Controller Service Account, Roles, Rolebindings
- apiVersion: v1
- kind: ServiceAccount
- metadata:
-   name: ibm-vpc-file-controller-sa
- imagePullSecrets:
-   - name: bluemix-default-secret
-   - name: bluemix-default-secret-regional
-   - name: bluemix-default-secret-international
-   - name: icr-io-secret
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ibm-vpc-file-controller-sa
+#imagePullSecrets:
+#   - name: <Add your image pull secret name here if using image fromm private namespace>
 
 ---
 # xref: https://github.com/kubernetes-csi/external-provisioner/blob/master/deploy/kubernetes/rbac.yaml

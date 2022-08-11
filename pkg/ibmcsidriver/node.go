@@ -28,10 +28,10 @@ import (
 	"time"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
-	nodeMetadata "github.com/IBM/ibm-csi-common/pkg/metadata"
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -195,14 +195,14 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 func (csiNS *CSINodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeStageVolume", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "NodeStageVolume")
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeStageVolume")
 }
 
 // NodeUnstageVolume ...
 func (csiNS *CSINodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeUnstageVolume", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "NodeUnstageVolume")
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeUnstageVolume")
 }
 
 // NodeGetCapabilities ...
@@ -224,7 +224,7 @@ func (csiNS *CSINodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInf
 	var maxVolumesPerNode int64 = DefaultVolumesPerNode
 
 	// Check if node metadata service initialized properly
-	if csiNS.Metadata == nil {
+	if csiNS.Metadata == nil { //nolint
 		metadata, err := nodeMetadata.NewNodeMetadata(os.Getenv("KUBE_NODE_NAME"), ctxLogger)
 		if err != nil {
 			ctxLogger.Error("Failed to initialize node metadata", zap.Error(err))
@@ -260,7 +260,7 @@ func (csiNS *CSINodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInf
 func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
 	var resp *csi.NodeGetVolumeStatsResponse
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodeGetVolumeStats... ", zap.Reflect("Request", *req)) //nolint:staticcheck
+	ctxLogger.Info("CSINodeServer-NodeGetVolumeStats... ", zap.Reflect("Request", req))
 	metrics.UpdateDurationFromStart(ctxLogger, "NodeGetVolumeStats", time.Now())
 	if req == nil || req.VolumeId == "" { //nolint
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)

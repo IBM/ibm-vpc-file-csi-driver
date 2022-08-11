@@ -35,7 +35,7 @@ import (
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 
-	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider/fake"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -50,7 +50,7 @@ var (
 				Mount: &csi.VolumeCapability_MountVolume{FsType: "nfs"},
 			},
 			AccessMode: &csi.VolumeCapability_AccessMode{
-				Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+				Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
 			},
 		},
 	}
@@ -548,11 +548,11 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		{
 			name: "Success validate volume capabilities",
 			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			},
 			expResponse: &csi.ValidateVolumeCapabilitiesResponse{
 				Confirmed: &csi.ValidateVolumeCapabilitiesResponse_Confirmed{
-					VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+					VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				},
 			},
 			expErrCode:        codes.OK,
@@ -570,7 +570,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		{
 			name: "Passing nil volume ID",
 			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "",
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			},
 			expResponse:       nil,
 			expErrCode:        codes.InvalidArgument,
@@ -579,7 +579,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		{
 			name: "Passing invalid volume ID",
 			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid",
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			},
 			expResponse:       nil,
 			expErrCode:        codes.Internal,
@@ -588,7 +588,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		{
 			name: "Get volume failed",
 			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volume-not-found-ID:accessPointID",
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			},
 			expResponse: nil,
 			expErrCode:  codes.NotFound,
@@ -601,7 +601,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		{
 			name: "Internal error while getting volume details",
 			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			},
 			expResponse: nil,
 			expErrCode:  codes.Internal,
