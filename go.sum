@@ -46,9 +46,8 @@ github.com/IBM/ibm-csi-common v1.0.0-beta18 h1:0+XC1WQ6PkhWYTWrd9CGS20BHr2TuySii
 github.com/IBM/ibm-csi-common v1.0.0-beta18/go.mod h1:PeSXn0la1H7hKalfIwgeldFQ7I5d9h6j6pPId3qxlb8=
 github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta4 h1:8Op60SUtJBjr1/6WrVFvBF893RTmbvqJmemnGSvz2hA=
 github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta4/go.mod h1:TzczUCa1agdbKf6tu4zIUsJ1/8rktIquHF0IgyRJxio=
+github.com/IBM/ibmcloud-volume-interface v1.0.0-beta10 h1:m3OO2Xd7NDWovxwa8KLsdUsP95NkKpMJ8YWBS1pa0Ew=
 github.com/IBM/ibmcloud-volume-interface v1.0.0-beta10/go.mod h1:BWj2o0UmOSI1rGcObFYmpQgX0zHuhm51W5o+Js8BHcE=
-github.com/IBM/ibmcloud-volume-interface v1.0.0-beta9 h1:MZ8IH//+p35IWLYhRRUpmHyvyIsXbpahd8Ye2yj27Kc=
-github.com/IBM/ibmcloud-volume-interface v1.0.0-beta9/go.mod h1:9uP4Q8Y5S2439Elw7BwEsjas2Rhl1ca2hJ9QcH5eUI8=
 github.com/IBM/ibmcloud-volume-vpc v1.0.0-beta15/go.mod h1:fuu1hf3mJJwm0Txtb5MDIfjhzH3OP3fMq44+aUQ14EY=
 github.com/JeffAshton/win_pdh v0.0.0-20161109143554-76bb4ee9f0ab/go.mod h1:3VYc5hodBMJ5+l/7J4xAyMeuM2PNuepvHlGs8yilUCA=
 github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd/go.mod h1:64YHyfSL2R96J44Nlwm39UHepQbyR5q10x7iYa1ks2E=
@@ -146,7 +145,6 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/daviddengcn/go-colortext v0.0.0-20160507010035-511bcaf42ccd/go.mod h1:dv4zxwHi5C/8AeI+4gX4dCWOIvNi7I6JCSX0HvlKPgE=
-github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZmtrrCbhqsmaPHjLKYnJCaQ=
 github.com/dgryski/go-sip13 v0.0.0-20181026042036-e10d5fee7954/go.mod h1:vAd38F8PWV+bWy6jNmig1y/TA+kYO4g3RSRF0IAv0no=
 github.com/dnaeon/go-vcr v1.0.1/go.mod h1:aBB1+wY4s93YsC3HHjMBMrwTj2R9FHDzUr9KyGc8n1E=

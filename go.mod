@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/IBM/ibm-csi-common v1.0.0-beta18
 	github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta4
-	github.com/IBM/ibmcloud-volume-interface v1.0.0-beta9
+	github.com/IBM/ibmcloud-volume-interface v1.0.0-beta10
 	github.com/container-storage-interface/spec v1.3.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/google/uuid v1.1.2
@@ -26,7 +26,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-logr/logr v0.4.0 // indirect
