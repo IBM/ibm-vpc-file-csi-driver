@@ -1,0 +1,45 @@
+language: go
+
+go:
+- "1.18"
+- tip
+
+group: bluezone
+
+matrix:
+  fast_finish: true
+  allow_failures:
+  - go: tip
+
+cache:
+  bundler: true
+
+sudo: true
+
+before_install:
+- openssl aes-256-cbc -K $encrypted_7937b810c182_key -iv $encrypted_7937b810c182_iv
+  - in ./e2e/confgig/secret.txt.enc -out secret.txt -d || true
+- sudo add-apt-repository ppa:masterminds/glide -y && sudo apt-get update -q
+- sudo apt-get install glide -y
+- sudo apt-get install bc
+
+before_script:
+- make deps
+- go get github.com/pierrre/gotestcover
+
+script:
+- mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
+- mkdir -p $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver
+- rsync -az . $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver
+
+- make fmt
+- travis_wait 300 make test
+- make coverage && touch "Passing" || touch "Failed"
+- make driver
+
+after_success:
+- "./scripts/calculateCoverage.sh"
+- "./scripts/publishCoverage.sh"
+
+after_failure:
+- "./scripts/handleFailure.sh"

@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -113,7 +113,7 @@ func TestAreVolumeCapabilitiesSupported(t *testing.T) {
 	}{
 		{
 			testCaseName:  "Supported volume capability-success",
-			volumeCap:     []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+			volumeCap:     []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			expectedValue: true,
 		},
 		{
@@ -166,7 +166,7 @@ func TestGetVolumeParameters(t *testing.T) {
 		{
 			testCaseName: "Valid create volume request-success",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{Profile: "tier-3iops",
 					Zone:               "testzone",
 					Region:             "us-south-test",
@@ -205,7 +205,7 @@ func TestGetVolumeParameters(t *testing.T) {
 		{
 			testCaseName: "Valid create volume request with no zone in request but preferred toplogy-success",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{Profile: "tier-3iops",
 					Region:             "us-south-test",
 					Tag:                "test-tag",
@@ -243,7 +243,7 @@ func TestGetVolumeParameters(t *testing.T) {
 		{
 			testCaseName: "Invalid Valid create volume request with no zone in request and preferred toplogy- failure",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{Profile: "tier-3iops",
 					Region:             "us-south-test",
 					Tag:                "test-tag",
@@ -366,7 +366,7 @@ func TestGetVolumeParameters(t *testing.T) {
 		{
 			testCaseName: "Override parameter with secrets-wrong secret parameter",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters:         map[string]string{Profile: "tier-3iops"},
 				Secrets:            map[string]string{"NotSupportedSecretParam": "value"},
 			},
@@ -478,7 +478,7 @@ func TestOverrideParams(t *testing.T) {
 		{
 			testCaseName: "Valid overwrite-success",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER}}},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{Profile: "tier-3iops",
 					Zone:          "testzone",
 					Region:        "us-south-test",
@@ -580,7 +580,7 @@ func TestOverrideParams(t *testing.T) {
 		{
 			testCaseName: "Valid IOPS for custom class",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				Parameters: map[string]string{Profile: "custom",
+				Parameters: map[string]string{Profile: "custom-iops",
 					Zone:          "testzone",
 					Region:        "us-south-test",
 					Tag:           "test",
@@ -596,7 +596,7 @@ func TestOverrideParams(t *testing.T) {
 			expectedVolume: &provider.Volume{Name: &volumeName,
 				Capacity: &volumeSize,
 				VPCVolume: provider.VPCVolume{
-					Profile:       &provider.Profile{Name: "custom"},
+					Profile:       &provider.Profile{Name: "custom-iops"},
 					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
 				},
 				Az:   "testzone",
@@ -608,7 +608,7 @@ func TestOverrideParams(t *testing.T) {
 		{
 			testCaseName: "Secret invalid IOPS for custom class",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				Parameters: map[string]string{Profile: "custom",
+				Parameters: map[string]string{Profile: "custom-iops",
 					Zone:          "testzone",
 					Region:        "us-south-test",
 					Tag:           "test",
@@ -623,7 +623,7 @@ func TestOverrideParams(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{Name: &volumeName,
 				Capacity:  &volumeSize,
-				VPCVolume: provider.VPCVolume{Profile: &provider.Profile{Name: "custom"}},
+				VPCVolume: provider.VPCVolume{Profile: &provider.Profile{Name: "custom-iops"}},
 			},
 			expectedStatus: false,
 			expectedError:  fmt.Errorf("%v:<%v> invalid value", IOPS, secretInvalidIops),
@@ -631,7 +631,7 @@ func TestOverrideParams(t *testing.T) {
 		{
 			testCaseName: "Nil volume as input/output",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				Parameters: map[string]string{Profile: "custom"},
+				Parameters: map[string]string{Profile: "custom-iops"},
 				Secrets: map[string]string{
 					IOPS: iops110,
 				},

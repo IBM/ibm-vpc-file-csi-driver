@@ -23,10 +23,10 @@ import (
 	"fmt"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
-	nodeMetadata "github.com/IBM/ibm-csi-common/pkg/metadata"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
 )
@@ -75,11 +75,9 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	icDriver.name = name
 	icDriver.vendorVersion = vendorVersion
 
-	// Adding Capabilities Todo: Review Access Modes Below
+	// Adding Capabilities
 	vcam := []csi.VolumeCapability_AccessMode_Mode{
-		csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
 		csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
-		csi.VolumeCapability_AccessMode_MULTI_NODE_READER_ONLY,
 	}
 
 	_ = icDriver.AddVolumeCapabilityAccessModes(vcam)

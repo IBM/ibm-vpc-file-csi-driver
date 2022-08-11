@@ -57,7 +57,7 @@ const (
 	Tag = "tags"
 
 	// CustomProfile ...
-	CustomProfile = "custom"
+	CustomProfile = "custom-iops"
 
 	// ClassVersion ...
 	ClassVersion = "classVersion"
@@ -127,4 +127,4 @@ const (
 var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
-var SupportedProfile = []string{"tier-5iops", "tier-3iops", "tier-10iops"}
+var SupportedProfile = []string{"tier-5iops", "tier-3iops", "tier-10iops", "custom-iops"}

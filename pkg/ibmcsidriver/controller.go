@@ -27,7 +27,7 @@ import (
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -43,16 +43,29 @@ type CSIControllerServer struct {
 }
 
 const (
-	// PublishInfoVolumeID ...
-	PublishInfoVolumeID = "volume-id"
-
 	// PublishInfoRequestID ...
 	PublishInfoRequestID = "request-id"
 )
 
 var _ csi.ControllerServer = &CSIControllerServer{}
 
-// CreateVolume ...
+// ControllerGetCapabilities allows kubernetes to check the supported capabilities of controller service provided by the Plugin
+func (csiCS *CSIControllerServer) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	// populate requestID in the context
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+
+	ctxLogger.Info("CSIControllerServer-ControllerGetCapabilities", zap.Reflect("Request", *req))
+	// Return the capabilities as per provider volume capabilities
+	return &csi.ControllerGetCapabilitiesResponse{
+		Capabilities: csiCS.Driver.cscap,
+	}, nil
+}
+
+/* CreateVolume is responsible for creating file share and file share-targets.
+It takes the csi createVolumeRequest as input and populates the provider volume. It then creates a provider session to invoke the CreateVolume first and
+then CreateVolumeAccessPoint call from provider-library. The function returns a csi CreateVolumeResponse if successful and error otherwise.
+*/
 func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
@@ -142,7 +155,10 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterInfo().ClusterID), nil
 }
 
-// DeleteVolume ...
+/* DeleteVolume is responsible for deleting file share-targets and file share.
+It takes the csi deleteVolumeRequest as input and creates a provider session to invoke DeleteVolumeAccessPoint first and
+then DeleteVolume call from provider-library. The function returns a csi DeleteVolumeResponse if successful and error otherwise.
+*/
 func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
@@ -217,27 +233,9 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-// ControllerPublishVolume ...
-func (csiCS *CSIControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
-	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
-
-	ctxLogger.Info("CSIControllerServer-ControllerPublishVolume", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "PublishVolume")
-}
-
-// ControllerUnpublishVolume ...
-func (csiCS *CSIControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
-	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
-
-	ctxLogger.Info("CSIControllerServer-ControllerUnpublishVolume", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "UnpublishVolume")
-}
-
-// ValidateVolumeCapabilities ...
+/* ValidateVolumeCapabilities is responsible to check if a pre-provisioned volume has all the capabilities that the CO wants.
+This RPC call SHALL return confirmed only if all the volume capabilities specified in the request are supported.
+*/
 func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
@@ -288,7 +286,7 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 	}, nil
 }
 
-// ListVolumes ...
+// ListVolumes is responsible for returning the information about all the volumes that it knows about.
 func (csiCS *CSIControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
@@ -332,60 +330,10 @@ func (csiCS *CSIControllerServer) ListVolumes(ctx context.Context, req *csi.List
 	}, nil
 }
 
-// GetCapacity ...
-func (csiCS *CSIControllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
-	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
-
-	ctxLogger.Info("CSIControllerServer-GetCapacity", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "GetCapacity")
-}
-
-// ControllerGetCapabilities implements the default GRPC callout.
-func (csiCS *CSIControllerServer) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
-	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
-
-	ctxLogger.Info("CSIControllerServer-ControllerGetCapabilities", zap.Reflect("Request", *req))
-	// Return the capabilities as per provider volume capabilities
-	return &csi.ControllerGetCapabilitiesResponse{
-		Capabilities: csiCS.Driver.cscap,
-	}, nil
-}
-
-// CreateSnapshot ...
-func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
-
-	ctxLogger.Info("CSIControllerServer-CreateSnapshot", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "CreateSnapshot")
-}
-
-// DeleteSnapshot ...
-func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
-	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
-
-	ctxLogger.Info("CSIControllerServer-DeleteSnapshot", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "DeleteSnapshot")
-}
-
-// ListSnapshots ...
-func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
-
-	ctxLogger.Info("CSIControllerServer-ListSnapshots", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ListSnapshots")
-}
-
-// ControllerExpandVolume ...
+/* ControllerExpandVolume is responsible for upsizing the file share.
+It takes ControllerExpandVolumeRequest as input and creates a provider session to invoke ExpandVolumeRequest cal
+from provider-library. The function returns a csi ControllerExpandVolumeResponse if successful and error otherwise.
+*/
 func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
@@ -431,6 +379,66 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 	return &csi.ControllerExpandVolumeResponse{CapacityBytes: capacity, NodeExpansionRequired: true}, nil
+}
+
+// ControllerPublishVolume ...
+func (csiCS *CSIControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	// populate requestID in the context
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+
+	ctxLogger.Info("CSIControllerServer-ControllerPublishVolume", zap.Reflect("Request", *req))
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "PublishVolume")
+}
+
+// ControllerUnpublishVolume ...
+func (csiCS *CSIControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	// populate requestID in the context
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+
+	ctxLogger.Info("CSIControllerServer-ControllerUnpublishVolume", zap.Reflect("Request", *req))
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "UnpublishVolume")
+}
+
+// GetCapacity ...
+func (csiCS *CSIControllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	// populate requestID in the context
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+
+	ctxLogger.Info("CSIControllerServer-GetCapacity", zap.Reflect("Request", *req))
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "GetCapacity")
+}
+
+// CreateSnapshot ...
+func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	// populate requestID in the context
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+
+	ctxLogger.Info("CSIControllerServer-CreateSnapshot", zap.Reflect("Request", *req))
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "CreateSnapshot")
+}
+
+// DeleteSnapshot ...
+func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	// populate requestID in the context
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+
+	ctxLogger.Info("CSIControllerServer-DeleteSnapshot", zap.Reflect("Request", *req))
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "DeleteSnapshot")
+}
+
+// ListSnapshots ...
+func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	// populate requestID in the context
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+
+	ctxLogger.Info("CSIControllerServer-ListSnapshots", zap.Reflect("Request", *req))
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ListSnapshots")
 }
 
 // ControllerGetVolume ...

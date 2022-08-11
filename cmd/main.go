@@ -36,10 +36,10 @@ import (
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	"github.com/IBM/ibm-csi-common/pkg/watcher"
 	csiConfig "github.com/IBM/ibm-vpc-file-csi-driver/config"
 	driver "github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver"
-	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/ibmcloudprovider"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+	"github.com/IBM/ibmcloud-volume-file-vpc/pkg/watcher"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

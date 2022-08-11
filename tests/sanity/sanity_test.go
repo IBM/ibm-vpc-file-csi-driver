@@ -38,10 +38,10 @@ import (
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
 	sanity "github.com/kubernetes-csi/csi-test/v4/pkg/sanity"
 
-	cloudProvider "github.com/IBM/ibm-csi-common/pkg/ibmcloudprovider"
-	nodeMetadata "github.com/IBM/ibm-csi-common/pkg/metadata"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 
 	csiConfig "github.com/IBM/ibm-vpc-file-csi-driver/config"
 	csiDriver "github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver"

@@ -196,7 +196,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case UID:
 			uid, err = strconv.Atoi(value)
 			if err != nil {
-				err = fmt.Errorf("Failed to parse invalid %v: %v", uid, err)
+				err = fmt.Errorf("failed to parse invalid %v: %v", uid, err)
 			}
 			if uid < 0 {
 				err = fmt.Errorf("%v must be greater or equal than 0", uid)
@@ -204,7 +204,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case GID:
 			gid, err = strconv.Atoi(value)
 			if err != nil {
-				err = fmt.Errorf("Failed to parse invalid %v: %v", gid, err)
+				err = fmt.Errorf("failed to parse invalid %v: %v", gid, err)
 			}
 			if gid < 0 {
 				err = fmt.Errorf("%v must be greater or equal than 0", gid)
@@ -360,7 +360,7 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case IOPS:
 			// Override IOPS only for custom class
-			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == "custom" {
+			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == CustomProfile {
 				var iops int
 				var check bool
 				iops, err = strconv.Atoi(value)
