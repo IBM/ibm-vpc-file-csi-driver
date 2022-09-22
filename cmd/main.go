@@ -45,11 +45,9 @@ import (
 )
 
 func init() {
-	_ = flag.Set("logtostderr", "true")
+	_ = flag.Set("logtostderr", "true") // #nosec G104: Attempt to set flags for logging to stderr only on best-effort basis. Error cannot be usefully handled.
 	logger = setUpLogger()
-	defer func() {
-		_ = logger.Sync()
-	}()
+	defer logger.Sync() //nolint: errcheck
 }
 
 var (
