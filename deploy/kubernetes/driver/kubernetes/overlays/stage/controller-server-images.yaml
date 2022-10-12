@@ -14,6 +14,6 @@ spec:
           imagePullPolicy: Always
           image: icr.io/obs/storage/ibm-vpc-file-csi-driver:v1.0.1-beta
         - name: storage-secret-sidecar
-          image: icr.io/obs/armada-storage-secret:v1.1.12
+          image: icr.io/obs/armada-storage-secret:v1.2.8
         - name: csi-resizer
           image: icr.io/ext/sig-storage/csi-resizer:v1.2.0

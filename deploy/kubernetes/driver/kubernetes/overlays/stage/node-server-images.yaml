@@ -14,4 +14,4 @@ spec:
         - name: liveness-probe
           image: icr.io/ext/sig-storage/livenessprobe:v2.3.0
         - name: storage-secret-sidecar
-          image: icr.io/obs/armada-storage-secret:v1.1.12
+          image: icr.io/obs/armada-storage-secret:v1.2.8
