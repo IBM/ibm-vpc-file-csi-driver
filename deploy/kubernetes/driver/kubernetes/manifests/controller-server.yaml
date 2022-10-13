@@ -190,6 +190,8 @@ spec:
             - mountPath: /etc/storage_ibmc/cluster_info
               name: cluster-info
               readOnly: true
+            - mountPath: /var/run/secrets/tokens
+              name: vault-token
       volumes:
         - name: socket-dir
           emptyDir: {}
