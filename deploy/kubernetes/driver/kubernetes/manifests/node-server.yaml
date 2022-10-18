@@ -165,20 +165,9 @@ spec:
                 configMapKeyRef:
                   name: ibm-vpc-file-csi-configmap
                   key: SIDECAR_ENDPOINT
-            - name: SECRET_CONFIG_PATH
-              valueFrom:
-                configMapKeyRef:
-                  name: ibm-vpc-file-csi-configmap
-                  key: SECRET_CONFIG_PATH
           volumeMounts:
             - mountPath: /sidecardir
               name: secret-sidecar-sock-dir
-            - mountPath: /etc/storage_ibmc
-              name: customer-auth
-              readOnly: true
-            - mountPath: /etc/storage_ibmc/cluster_info
-              name: cluster-info
-              readOnly: true
             - mountPath: /var/run/secrets/tokens
               name: vault-token
       volumes:
