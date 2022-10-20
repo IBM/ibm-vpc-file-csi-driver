@@ -4,8 +4,8 @@ go 1.18
 
 require (
 	github.com/IBM/ibm-csi-common v1.0.0-beta21
-	github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta4.0.20221017115907-fecca3df2dd0
-	github.com/IBM/ibmcloud-volume-interface v1.0.1-beta7.0.20221014111644-b1f895203a78
+	github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta4.0.20221020074543-cf1b6b87be7b
+	github.com/IBM/ibmcloud-volume-interface v1.0.1-beta7.0.20221020053450-49963afc9c1c
 	github.com/container-storage-interface/spec v1.3.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/google/uuid v1.1.2
@@ -24,8 +24,8 @@ require (
 	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7 // indirect
 	github.com/IBM/go-sdk-core/v5 v5.9.1 // indirect
-	github.com/IBM/secret-common-lib v1.0.4-0.20221017105240-21e98d568724 // indirect
-	github.com/IBM/secret-utils-lib v1.0.3 // indirect
+	github.com/IBM/secret-common-lib v1.0.5-0.20221020053013-f612d1ce8e88 // indirect
+	github.com/IBM/secret-utils-lib v1.0.4-0.20221019154552-1c5bd78a7cd2 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
