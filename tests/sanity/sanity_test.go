@@ -101,7 +101,7 @@ func TestSanity(t *testing.T) {
 		TargetPath:               TargetPath,
 		StagingPath:              StagePath,
 		Address:                  CSIEndpoint,
-		DialOptions:              []grpc.DialOption{grpc.WithInsecure()},
+		DialOptions:              []grpc.DialOption{grpc.WithInsecure()}, //nolint
 		IDGen:                    &providerIDGenerator{},
 		TestVolumeParametersFile: os.Getenv("SANITY_PARAMS_FILE"),
 		TestVolumeSize:           10737418240, // i.e 10 GB
@@ -440,7 +440,7 @@ func (c *fakeProviderSession) OrderSnapshot(VolumeRequest provider.Volume) error
 
 // Snapshot operations
 // Create the snapshot on the volume
-func (c *fakeProviderSession) CreateSnapshot(volume *provider.Volume, tags map[string]string) (*provider.Snapshot, error) {
+func (c *fakeProviderSession) CreateSnapshot(sourceVolumeID string, snapshotParameters provider.SnapshotParameters) (*provider.Snapshot, error) {
 	return nil, nil
 }
 
@@ -460,7 +460,7 @@ func (c *fakeProviderSession) GetSnapshotWithVolumeID(volumeID string, snapshotI
 }
 
 // Snapshot list by using tags
-func (c *fakeProviderSession) ListSnapshots() ([]*provider.Snapshot, error) {
+func (c *fakeProviderSession) ListSnapshots(limit int, start string, tags map[string]string) (*provider.SnapshotList, error) {
 	return nil, nil
 }
 

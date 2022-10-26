@@ -8,10 +8,10 @@ spec:
       containers:
         - name: iks-vpc-file-node-driver
           imagePullPolicy: Always
-          image: icr.io/obs/storage/ibm-vpc-file-csi-driver:v1.0.1-beta
+          image: icr.io/obs/storage/ibm-vpc-file-csi-driver:v1.0.6-beta
         - name: csi-driver-registrar
           image: icr.io/ext/sig-storage/csi-node-driver-registrar:v2.2.0
         - name: liveness-probe
           image: icr.io/ext/sig-storage/livenessprobe:v2.3.0
         - name: storage-secret-sidecar
-          image: icr.io/obs/armada-storage-secret:v1.1.12
+          image: icr.io/obs/armada-storage-secret:v1.2.9
