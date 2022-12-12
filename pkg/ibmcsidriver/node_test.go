@@ -435,7 +435,7 @@ func TestNodeExpandVolume(t *testing.T) {
 	}
 	icDriver := initIBMCSIDriver(t)
 	_ = os.MkdirAll("valid-vol-path", os.FileMode(0755))
-	_ = icDriver.ns.Mounter.Mount("valid-devicePath", "valid-vol-path", "nfs", []string{"hard", "nfsvers=4.0", "sec=sys"})
+	_ = icDriver.ns.Mounter.Mount("valid-devicePath", "valid-vol-path", "nfs", []string{"hard", "nfsvers=4.1", "sec=sys"})
 	mountmgr = &MockMountUtils{}
 	for _, tc := range testCases {
 		t.Logf("Test case: %s", tc.name)
