@@ -5,7 +5,7 @@ metadata:
 provisioner: vpc.file.csi.ibm.io
 mountOptions:
     - hard
-    - nfsvers=4.0
+    - nfsvers=4.1
     - sec=sys
 parameters:
   profile: "tier-5iops"               # The VPC Storage profile used. https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles#fs-tiers
