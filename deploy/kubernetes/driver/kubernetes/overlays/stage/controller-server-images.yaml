@@ -12,8 +12,8 @@ spec:
           image: icr.io/ext/sig-storage/livenessprobe:v2.3.0
         - name: iks-vpc-file-driver
           imagePullPolicy: Always
-          image: icr.io/obs/storage/ibm-vpc-file-csi-driver:v1.0.6-beta
+          image: icr.io/obs/storage/ibm-vpc-file-csi-driver:v1.0.8-beta
         - name: storage-secret-sidecar
-          image: icr.io/obs/armada-storage-secret:v1.2.9
+          image: icr.io/obs/armada-storage-secret:v1.2.14
         - name: csi-resizer
           image: icr.io/ext/sig-storage/csi-resizer:v1.2.0
