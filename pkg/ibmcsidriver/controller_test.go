@@ -22,6 +22,7 @@ package ibmcsidriver
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"strconv"
 	"testing"
@@ -185,6 +186,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 	cap := 20
 	volName := "test-name"
 	iopsStr := ""
+	os.Setenv("VPC_SUBNET_IDS", "sub-1,sub-2,sub-2")
 	// test cases
 	testCases := []struct {
 		name                          string
@@ -193,6 +195,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 		expErrCode                    codes.Code
 		libVolumeResponse             *provider.Volume
 		libVolumeAccessPointResp      *provider.VolumeAccessPointResponse
+		subnetID                      string
+		securityGroupID               string
+		subnetError                   error
+		securityGroupError            error
 		libVolumeError                error
 		libVolumeAccessPointError     error
 		libVolumeAccessPointWaitError error
@@ -221,6 +227,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 
 			libVolumeResponse:             &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
 			expErrCode:                    codes.OK,
 			libVolumeError:                nil,
 			libVolumeAccessPointError:     nil,
@@ -238,6 +248,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeAccessPointResp:      nil,
 			libVolumeResponse:             &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
 			expErrCode:                    codes.Internal,
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
 			libVolumeError:                nil,
 			libVolumeAccessPointWaitError: nil,
 			libVolumeAccessPointError:     providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume Access Point failed", Type: providerError.ProvisioningFailed},
@@ -261,6 +275,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 			libVolumeResponse:             &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
 			expErrCode:                    codes.Internal,
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
 			libVolumeError:                nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume Access Point not in stable failed", Type: providerError.ProvisioningFailed},
@@ -276,6 +294,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 			expVol:                        nil,
 			libVolumeResponse:             nil,
 			expErrCode:                    codes.InvalidArgument,
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
 			libVolumeError:                nil,
 			libVolumeAccessPointWaitError: nil,
 			libVolumeAccessPointError:     nil,
@@ -291,6 +313,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 			expVol:                        nil,
 			libVolumeResponse:             nil,
 			expErrCode:                    codes.InvalidArgument,
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
 			libVolumeError:                nil,
 			libVolumeAccessPointWaitError: nil,
 			libVolumeAccessPointError:     nil,
@@ -306,6 +332,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 			expVol:                        nil,
 			libVolumeResponse:             nil,
 			expErrCode:                    codes.InvalidArgument,
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
 			libVolumeError:                nil,
 			libVolumeAccessPointWaitError: nil,
 			libVolumeAccessPointError:     nil,
@@ -320,6 +350,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 			expErrCode:                    codes.Internal,
 			expVol:                        nil,
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
 			libVolumeResponse:             nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
@@ -335,6 +369,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 			expErrCode:                    codes.Internal,
 			expVol:                        nil,
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
 			libVolumeResponse:             nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
@@ -350,6 +388,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 			expErrCode:                codes.Internal,
 			expVol:                    nil,
+			subnetID:                  "sub-1",
+			securityGroupID:           "kube-fake-cluster-id",
+			subnetError:               nil,
+			securityGroupError:        nil,
 			libVolumeResponse:         nil,
 			libVolumeAccessPointError: nil,
 			libVolumeError:            providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.Unauthenticated},
@@ -372,6 +414,8 @@ func TestCreateVolumeArguments(t *testing.T) {
 		fakeStructSession, ok := fakeSession.(*fake.FakeSession)
 		assert.Equal(t, true, ok)
 		fakeStructSession.CreateVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
+		fakeStructSession.GetSubnetForVolumeAccessPointReturns(tc.subnetID, tc.subnetError)
+		fakeStructSession.GetSecurityGroupForVolumeAccessPointReturns(tc.securityGroupID, tc.securityGroupError)
 		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeError)
 		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
 		fakeStructSession.CreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointError)
