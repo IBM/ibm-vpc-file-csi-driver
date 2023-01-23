@@ -124,6 +124,27 @@ const (
 
 	// GID ...
 	GID = "gid"
+
+	// SecurityGroup
+	SecurityGroup = "security_group"
+
+	// VPC
+	VPC = "vpc"
+
+	// IsENIEnabled
+	IsENIEnabled = "isENIEnabled"
+
+	// SecurityGroupIDs
+	SecurityGroupIDs = "securityGroupIDs"
+
+	// PrimaryIPId
+	PrimaryIPID = "primaryIPID"
+
+	// PrimaryIPAddress
+	PrimaryIPAddress = "primaryIPAddress"
+
+	// SubnetID
+	SubnetID = "subnetID"
 )
 
 // SupportedFS the supported FS types
