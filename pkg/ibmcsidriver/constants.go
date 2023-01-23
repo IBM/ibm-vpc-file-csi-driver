@@ -121,10 +121,25 @@ const (
 
 	// GID
 	GID = "gid"
+
+	// SecurityGroupMode
+	SecurityGroupMode = "security_group"
+
+	// VPCMode
+	VPCMode = "vpc"
+
+	// IsENIRequired
+	IsENIRequired = "isENIRequired"
+
+	// IsEITRequired
+	IsEITRequired = "isEITRequired"
+
+	// SecurityGroupIds
+	SecurityGroupIds = "securityGroupIds"
 )
 
 // SupportedFS the supported FS types
 var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
-var SupportedProfile = []string{"tier-5iops", "tier-3iops", "tier-10iops", "custom-iops"}
+var SupportedProfile = []string{"tier-5iops", "tier-3iops", "tier-10iops", "custom-iops", "dp2"}

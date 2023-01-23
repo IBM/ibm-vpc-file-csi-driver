@@ -140,13 +140,31 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				volume.Region = value
 			}
 		case Tag:
-			if len(value) > TagMaxLen {
-				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, TagMaxLen)
-			}
 			if len(value) != 0 {
-				volume.VPCVolume.Tags = []string{value}
+				tagstr := strings.TrimSpace(value)
+				volume.VPCVolume.Tags = strings.Split(tagstr, ",")
 			}
+		case SecurityGroupIds:
+			if len(value) != 0 {
+				securityGroupstr := strings.TrimSpace(value)
+				securityGroupList := strings.Split(securityGroupstr, ",")
+				var securityGroups []provider.SecurityGroup
+				for _, securityGroup := range securityGroupList {
+					securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
+				}
 
+				volume.VPCVolume.SecurityGroups = &securityGroups
+			}
+		case IsENIRequired:
+			if value != TrueStr && value != FalseStr {
+				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+			} else {
+				if value == TrueStr {
+					volume.VPCVolume.AccessControlMode = SecurityGroupMode
+				} else {
+					volume.VPCVolume.AccessControlMode = VPCMode
+				}
+			}
 		case ResourceGroup:
 			if len(value) > ResourceGroupIDMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ResourceGroupIDMaxLen)
