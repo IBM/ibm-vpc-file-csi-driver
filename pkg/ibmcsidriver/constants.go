@@ -134,8 +134,11 @@ const (
 	// IsEITRequired
 	IsEITRequired = "isEITRequired"
 
-	// SecurityGroupIds
-	SecurityGroupIds = "securityGroupIds"
+	// SecurityGroupIDs
+	SecurityGroupIDs = "securityGroupIDs"
+
+	// PrimaryIPId
+	PrimaryIPID = "primaryIPID"
 )
 
 // SupportedFS the supported FS types
