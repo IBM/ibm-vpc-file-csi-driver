@@ -144,7 +144,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				tagstr := strings.TrimSpace(value)
 				volume.VPCVolume.Tags = strings.Split(tagstr, ",")
 			}
-		case SecurityGroupIds:
+		case SecurityGroupIDs:
 			if len(value) != 0 {
 				securityGroupstr := strings.TrimSpace(value)
 				securityGroupList := strings.Split(securityGroupstr, ",")
@@ -155,6 +155,10 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 				volume.VPCVolume.SecurityGroups = &securityGroups
 			}
+		case PrimaryIPID:
+			if len(value) != 0 {
+				volume.VPCVolume.PrimaryIP = value
+			}
 		case IsENIRequired:
 			if value != TrueStr && value != FalseStr {
 				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
@@ -163,6 +167,16 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 					volume.VPCVolume.AccessControlMode = SecurityGroupMode
 				} else {
 					volume.VPCVolume.AccessControlMode = VPCMode
+				}
+			}
+		case IsEITRequired:
+			if value != TrueStr && value != FalseStr {
+				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+			} else {
+				if value == TrueStr {
+					//TBD
+					//volume.VPCVolume.EncryptionInTransit = "user_managed"
+					volume.VPCVolume.PrimaryIP = ""
 				}
 			}
 		case ResourceGroup:

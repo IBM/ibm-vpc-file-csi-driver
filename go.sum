@@ -57,10 +57,10 @@ github.com/IBM/go-sdk-core/v5 v5.9.1 h1:06pXbD9Rgmqqe2HA5YAeQbB4eYRRFgIoOT+Kh3cp
 github.com/IBM/go-sdk-core/v5 v5.9.1/go.mod h1:axE2JrRq79gIJTjKPBwV6gWHswvVptBjbcvvCPIxARM=
 github.com/IBM/ibm-csi-common v1.0.0-beta21 h1:nLBcEr9+CRmWRXI3Rst7g7fbe5UCEzmzPVeDx6tqc48=
 github.com/IBM/ibm-csi-common v1.0.0-beta21/go.mod h1:RdN1YJT50yxT1BCPMF6czifMva4oXlPCJWRmVIoikNE=
-github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta5.0.20230123103332-7d802f6e6f92 h1:WcWjXROzqerqXODwXY+pfKd15KdHEqjpei+UzB4ODpQ=
-github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta5.0.20230123103332-7d802f6e6f92/go.mod h1:NwGlaWfUwRrOaPUZLZbQjxoRVnNQhb7qR9zT85uzuD4=
-github.com/IBM/ibmcloud-volume-interface v1.0.1-beta8.0.20230123081518-6bfca2781fa8 h1:hSXicrCTYx+zNZ/sQyLmyOkWak/VFpi628tfo9uTSV8=
-github.com/IBM/ibmcloud-volume-interface v1.0.1-beta8.0.20230123081518-6bfca2781fa8/go.mod h1:U30gr/DcJvI/Um4Od+DFUW36xL9VuE91wUUdu0q4IHs=
+github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta5.0.20230130063957-274db9794917 h1:F9YIvURjhTCarEfRBWNy9Csw1dmKQHKA4BWyWH+/EZk=
+github.com/IBM/ibmcloud-volume-file-vpc v1.0.0-beta5.0.20230130063957-274db9794917/go.mod h1:13KORUHXucFAFjlSaJiKQuDKd2UdqS6l1PHkkF/UcLE=
+github.com/IBM/ibmcloud-volume-interface v1.0.1-beta8.0.20230130061500-b1abd285ed9b h1:uXP17lCg9RTswFDglL60quK8WmQLw3pvGbCnPREaLEk=
+github.com/IBM/ibmcloud-volume-interface v1.0.1-beta8.0.20230130061500-b1abd285ed9b/go.mod h1:U30gr/DcJvI/Um4Od+DFUW36xL9VuE91wUUdu0q4IHs=
 github.com/IBM/secret-common-lib v1.0.5 h1:mbOZRFcGY+3FtKMmj36kleHmDyARkbURxcexdM5EJLA=
 github.com/IBM/secret-common-lib v1.0.5/go.mod h1:n6UmAAPIrCwGBf+DmUWoWeiLAfBoivYssoiH/f+f1Do=
 github.com/IBM/secret-utils-lib v1.0.4 h1:l5ohKdW3ciRkccdyMz3dWZS68+7VgK2OH72BYQScCZw=

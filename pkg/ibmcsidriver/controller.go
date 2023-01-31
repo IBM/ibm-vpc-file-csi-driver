@@ -145,6 +145,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		ResourceGroup:     requestedVolume.ResourceGroup,
 		SecurityGroups:    requestedVolume.SecurityGroups,
 		AccessControlMode: requestedVolume.AccessControlMode,
+		PrimaryIP:         requestedVolume.PrimaryIP,
 	}
 
 	//Create VolumeAccess Point
