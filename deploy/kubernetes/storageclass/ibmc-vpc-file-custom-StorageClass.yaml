@@ -17,7 +17,7 @@ parameters:
   zone: ""                          # By default, the storage vpc driver will select a zone. The user can override this default
   tags: ""                          # A list of tags "a, b, c" that will be created when the volume is created. This can be overidden by user
   classVersion: "1"
-  UID: "0"                           # The initial user identifier for the file share.
-  GID: "0"                           # The initial group identifier for the file share.
+  uid: "0"                          # The initial user identifier for the file share.
+  gid: "0"                          # The initial group identifier for the file share.
 reclaimPolicy: "Delete"
 allowVolumeExpansion: true
