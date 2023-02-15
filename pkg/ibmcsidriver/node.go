@@ -86,6 +86,9 @@ const (
 
 	// default file system type to be used when it is not provided
 	defaultFsType = "nfs"
+
+	// files system in case encryption in transit is enabled
+	eitFsType = "ibmshare"
 )
 
 var _ csi.NodeServer = &CSINodeServer{}
@@ -153,6 +156,10 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	options := mnt.MountFlags
 	// find  FS type
 	fsType := defaultFsType
+	isEITRequired := req.GetVolumeContext()[IsEITRequired]
+	if isEITRequired == TrueStr {
+		fsType = eitFsType
+	}
 
 	var nodePublishResponse *csi.NodePublishVolumeResponse
 	var mountErr error

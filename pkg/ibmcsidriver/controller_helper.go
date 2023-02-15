@@ -174,9 +174,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
 			} else {
 				if value == TrueStr {
-					//TBD
-					//volume.VPCVolume.EncryptionInTransit = "user_managed"
-					volume.VPCVolume.PrimaryIP = ""
+					volume.VPCVolume.EncryptionInTransit = "user_managed"
 				}
 			}
 		case ResourceGroup:
@@ -510,6 +508,9 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	}
 
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
+	if len(vol.VPCFileVolume.EncryptionInTransit) != 0 {
+		labels[IsEITRequired] = TrueStr
+	}
 
 	// Create csi volume response
 	//Volume ID is in format volumeID:volumeAccessPointID, to assit the deletion of access point in delete volume
