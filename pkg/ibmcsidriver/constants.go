@@ -101,10 +101,10 @@ const (
 	// ClusterIDLabel ...
 	ClusterIDLabel = "clusterID"
 
-	//NFSServerPath
+	// NFSServerPath ...
 	NFSServerPath = "nfsServerPath"
 
-	//AccessPointID
+	// AccessPointID ...
 	AccessPointID = "accessPointID"
 
 	// IOPSLabel ...
@@ -116,10 +116,10 @@ const (
 	// Generation ... just for backward compatibility
 	Generation = "generation"
 
-	// UID
+	// UID ...
 	UID = "uid"
 
-	// GID
+	// GID ...
 	GID = "gid"
 )
 

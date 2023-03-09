@@ -34,5 +34,4 @@ func TestProcessMount(t *testing.T) {
 	ops := []string{"a", "b"}
 	response, err := icDriver.ns.processMount(logger, "processMount", "/staging", "/targetpath", "ext4", ops)
 	t.Logf("Response %v, error %v", response, err)
-
 }
