@@ -480,7 +480,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
 
 	// Create csi volume response
-	//Volume ID is in format volumeID:volumeAccessPointID, to assit the deletion of access point in delete volume
+	//Volume ID is in format volumeID:volumeAccessPointID, to assist the deletion of access point in delete volume
 	volResp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			CapacityBytes:      capBytes,
