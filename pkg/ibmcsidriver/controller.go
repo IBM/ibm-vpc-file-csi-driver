@@ -62,6 +62,7 @@ func (csiCS *CSIControllerServer) ControllerGetCapabilities(ctx context.Context,
 	}, nil
 }
 
+// CreateVolume ...
 /* CreateVolume is responsible for creating file share and file share-targets.
 It takes the csi createVolumeRequest as input and populates the provider volume. It then creates a provider session to invoke the CreateVolume first and
 then CreateVolumeAccessPoint call from provider-library. The function returns a csi CreateVolumeResponse if successful and error otherwise.
@@ -155,6 +156,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterInfo().ClusterID), nil
 }
 
+// DeleteVolume ...
 /* DeleteVolume is responsible for deleting file share-targets and file share.
 It takes the csi deleteVolumeRequest as input and creates a provider session to invoke DeleteVolumeAccessPoint first and
 then DeleteVolume call from provider-library. The function returns a csi DeleteVolumeResponse if successful and error otherwise.
@@ -182,7 +184,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 		return nil, commonError.GetCSIError(ctxLogger, commonError.FailedPrecondition, requestID, err)
 	}
 
-	//Volume ID is in format volumeID:volumeAccessPointID, to assit the deletion of volume access point
+	//Volume ID is in format volumeID:volumeAccessPointID, to assist the deletion of volume access point
 	tokens := strings.Split(volumeID, ":")
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-DeleteVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID", tokens))
@@ -233,6 +235,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
+// ValidateVolumeCapabilities ...
 /* ValidateVolumeCapabilities is responsible to check if a pre-provisioned volume has all the capabilities that the CO wants.
 This RPC call SHALL return confirmed only if all the volume capabilities specified in the request are supported.
 */
@@ -330,6 +333,7 @@ func (csiCS *CSIControllerServer) ListVolumes(ctx context.Context, req *csi.List
 	}, nil
 }
 
+// ControllerExpandVolume ...
 /* ControllerExpandVolume is responsible for upsizing the file share.
 It takes ControllerExpandVolumeRequest as input and creates a provider session to invoke ExpandVolumeRequest cal
 from provider-library. The function returns a csi ControllerExpandVolumeResponse if successful and error otherwise.
@@ -353,7 +357,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	}
 	requestedVolume := &provider.Volume{}
 
-	//Volume ID is in format volumeID:volumeAccessPointID, to assit the deletion of volume access point
+	//Volume ID is in format volumeID:volumeAccessPointID, to assist the deletion of volume access point
 	tokens := strings.Split(volumeID, ":")
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-ExpandVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID", tokens))
