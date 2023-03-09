@@ -294,7 +294,6 @@ func (c *fakeProviderSession) CreateVolume(volumeRequest provider.Volume) (*prov
 
 // Create the volume Acesss Point with authorization by passing required information in the volume access point object
 func (c *fakeProviderSession) CreateVolumeAccessPoint(volumeAccesspointReq provider.VolumeAccessPointRequest) (*provider.VolumeAccessPointResponse, error) {
-
 	if len(volumeAccesspointReq.VolumeID) == 0 {
 		return nil, errors.New("no volume ID passed")
 	}
@@ -315,7 +314,6 @@ func (c *fakeProviderSession) CreateVolumeAccessPoint(volumeAccesspointReq provi
 //WaitForAttachVolume waits for the volume to be attached to the host
 //Return error if wait is timed out OR there is other error
 func (c *fakeProviderSession) WaitForCreateVolumeAccessPoint(volumeAccesspointReq provider.VolumeAccessPointRequest) (*provider.VolumeAccessPointResponse, error) {
-
 	if len(volumeAccesspointReq.VolumeID) == 0 {
 		return nil, errors.New("no volume ID passed")
 	}
