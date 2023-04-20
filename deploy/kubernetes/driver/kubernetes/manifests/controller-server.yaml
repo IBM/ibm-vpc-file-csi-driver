@@ -198,4 +198,3 @@ spec:
             - serviceAccountToken:
                 path: vault-token
                 expirationSeconds: 600
-  volumeClaimTemplates: []
