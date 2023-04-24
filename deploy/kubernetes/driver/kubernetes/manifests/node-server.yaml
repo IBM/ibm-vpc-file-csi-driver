@@ -2,10 +2,13 @@ kind: DaemonSet
 apiVersion: apps/v1
 metadata:
   name: ibm-vpc-file-csi-node
+  labels:
+    app.kubernetes.io/name: ibm-vpc-file-csi-driver
 spec:
   selector:
     matchLabels:
-      app: ibm-vpc-file-csi-driver
+      app: ibm-vpc-file-csi-node
+      app.kubernetes.io/name: ibm-vpc-file-csi-driver
   template:
     metadata:
       annotations:
@@ -13,7 +16,8 @@ spec:
         prometheus.io/port: "9080"
         prometheus.io/path: "/metrics"
       labels:
-        app: ibm-vpc-file-csi-driver
+        app: ibm-vpc-file-csi-node
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
     spec:
       serviceAccountName: ibm-vpc-file-node-sa
       tolerations:
