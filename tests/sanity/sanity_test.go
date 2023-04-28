@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-//Package sanity ...
+// Package sanity ...
 package sanity
 
 import (
@@ -39,7 +39,6 @@ import (
 	sanity "github.com/kubernetes-csi/csi-test/v4/pkg/sanity"
 
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
-	"github.com/IBM/ibm-csi-common/pkg/utils"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 
@@ -184,11 +183,10 @@ func (su *MockStatSanity) IsDevicePathNotExist(devicePath string) bool {
 
 // FakeSanityCloudProvider Provider
 type FakeSanityCloudProvider struct {
-	ProviderName     string
-	ProviderConfig   *config.Config
-	ClusterInfo      *utils.ClusterInfo
-	fakeSession      *fakeProviderSession
-	FakeUpdateAPIKey error
+	ProviderName   string
+	ProviderConfig *config.Config
+	fakeSession    *fakeProviderSession
+	ClusterID      string
 }
 
 var _ cloudProvider.CloudProviderInterface = &FakeSanityCloudProvider{}
@@ -197,8 +195,7 @@ var _ cloudProvider.CloudProviderInterface = &FakeSanityCloudProvider{}
 func NewFakeSanityCloudProvider(configPath string, logger *zap.Logger) (*FakeSanityCloudProvider, error) {
 	return &FakeSanityCloudProvider{ProviderName: "FakeSanityCloudProvider",
 		ProviderConfig: &config.Config{VPC: &config.VPCProviderConfig{VPCBlockProviderName: "VPCFakeProvider"}},
-		ClusterInfo:    &utils.ClusterInfo{}, fakeSession: newFakeProviderSession(),
-		FakeUpdateAPIKey: nil}, nil
+		ClusterID:      "", fakeSession: newFakeProviderSession()}, nil
 }
 
 // GetProviderSession ...
@@ -211,14 +208,9 @@ func (ficp *FakeSanityCloudProvider) GetConfig() *config.Config {
 	return ficp.ProviderConfig
 }
 
-// GetClusterInfo ...
-func (ficp *FakeSanityCloudProvider) GetClusterInfo() *utils.ClusterInfo {
-	return ficp.ClusterInfo
-}
-
-// UpdateAPIKey ...
-func (ficp *FakeSanityCloudProvider) UpdateAPIKey(logger *zap.Logger) error {
-	return ficp.FakeUpdateAPIKey
+// GetClusterID ...
+func (ficp *FakeSanityCloudProvider) GetClusterID() string {
+	return ficp.ClusterID
 }
 
 type fakeVolume struct {
@@ -311,8 +303,8 @@ func (c *fakeProviderSession) CreateVolumeAccessPoint(volumeAccesspointReq provi
 	return fakeVolumeAccessPointResponse.VolumeAccessPointResponse, nil
 }
 
-//WaitForAttachVolume waits for the volume to be attached to the host
-//Return error if wait is timed out OR there is other error
+// WaitForAttachVolume waits for the volume to be attached to the host
+// Return error if wait is timed out OR there is other error
 func (c *fakeProviderSession) WaitForCreateVolumeAccessPoint(volumeAccesspointReq provider.VolumeAccessPointRequest) (*provider.VolumeAccessPointResponse, error) {
 	if len(volumeAccesspointReq.VolumeID) == 0 {
 		return nil, errors.New("no volume ID passed")
@@ -427,7 +419,7 @@ func (c *fakeProviderSession) AuthorizeVolume(volumeAuthorization provider.Volum
 	return nil
 }
 
-//GetAttachAttachment retirves the current status of given volume attach request
+// GetAttachAttachment retirves the current status of given volume attach request
 func (c *fakeProviderSession) GetVolumeAttachment(attachRequest provider.VolumeAttachmentRequest) (*provider.VolumeAttachmentResponse, error) {
 	return nil, nil
 }
@@ -462,7 +454,7 @@ func (c *fakeProviderSession) ListSnapshots(limit int, start string, tags map[st
 	return nil, nil
 }
 
-//List all the  snapshots for a given volume
+// List all the  snapshots for a given volume
 func (c *fakeProviderSession) ListAllSnapshots(volumeID string) ([]*provider.Snapshot, error) {
 	return nil, nil
 }
