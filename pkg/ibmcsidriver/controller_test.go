@@ -208,7 +208,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			expVol: &csi.Volume{
 				CapacityBytes:      20 * 1024 * 1024 * 1024, // In byte
 				VolumeId:           "testVolumeId:testVolumeAccessPointId",
-				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId:testVolumeAccessPointId", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-clusterID"},
+				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId:testVolumeAccessPointId", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
 				AccessibleTopology: stdTopology,
 			},
 
