@@ -34,8 +34,8 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/utils/exec"
-	testingexec "k8s.io/utils/exec/testing"
+	//"k8s.io/utils/exec"
+	//testingexec "k8s.io/utils/exec/testing"
 )
 
 const defaultVolumeID = "csiprovidervolumeid"
@@ -540,11 +540,12 @@ func TestIsDevicePathNotExist(t *testing.T) {
 	}
 }
 
-func makeFakeCmd(fakeCmd *testingexec.FakeCmd, cmd string, args ...string) testingexec.FakeCommandAction {
-	c := cmd
-	a := args
-	return func(cmd string, args ...string) exec.Cmd {
-		command := testingexec.InitFakeCmd(fakeCmd, c, a...)
-		return command
-	}
-}
+// This can be used in case fake cmd commands need to be called.
+// func makeFakeCmd(fakeCmd *testingexec.FakeCmd, cmd string, args ...string) testingexec.FakeCommandAction {
+// 	c := cmd
+// 	a := args
+// 	return func(cmd string, args ...string) exec.Cmd {
+// 		command := testingexec.InitFakeCmd(fakeCmd, c, a...)
+// 		return command
+// 	}
+// }
