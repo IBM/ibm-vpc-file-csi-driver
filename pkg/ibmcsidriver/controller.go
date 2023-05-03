@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-//Package ibmcsidriver ...
+// Package ibmcsidriver ...
 package ibmcsidriver
 
 import (
@@ -153,7 +153,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	}
 
 	// return csi volume object
-	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterInfo().ClusterID), nil
+	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterID()), nil
 }
 
 // DeleteVolume ...

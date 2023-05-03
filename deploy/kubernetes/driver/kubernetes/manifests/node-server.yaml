@@ -19,6 +19,7 @@ spec:
         app: ibm-vpc-file-csi-node
         app.kubernetes.io/name: ibm-vpc-file-csi-driver
     spec:
+      priorityClassName: system-node-critical
       serviceAccountName: ibm-vpc-file-node-sa
       tolerations:
       - operator: Exists
@@ -34,10 +35,6 @@ spec:
             - "--v=5"
             - "--csi-address=$(CSI_ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REGISTRATION_SOCK)"
-          lifecycle:
-            preStop:
-              exec:
-                command: ["/bin/sh", "-c", "rm -rf /registration/vpc.file.csi.ibm.io /registration/vpc.file.csi.ibm.io-reg.sock"]
           env:
             - name: CSI_ADDRESS
               valueFrom:

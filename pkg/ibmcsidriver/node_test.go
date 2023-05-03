@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-//Package ibmcsidriver ...
+// Package ibmcsidriver ...
 package ibmcsidriver
 
 import (
@@ -28,13 +28,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	//"k8s.io/utils/exec"
+	//testingexec "k8s.io/utils/exec/testing"
 )
 
 const defaultVolumeID = "csiprovidervolumeid"
@@ -45,19 +46,6 @@ const defaultVolumePath = "/var/volpath"
 const notBlockDevice = "/for/notblocktest"
 
 type MockStatUtils struct {
-}
-
-type MockMountUtils struct {
-}
-
-// Resize expands the fs
-func (mu *MockMountUtils) Resize(mounter mountmanager.Mounter, devicePath string, deviceMountPath string) (bool, error) {
-	if strings.Contains(deviceMountPath, "fake-") {
-		return false, fmt.Errorf("failed to resize fs")
-	} else if strings.Contains(deviceMountPath, "valid-") {
-		return true, nil
-	}
-	return false, fmt.Errorf("failed to resize fs")
 }
 
 func (su *MockStatUtils) FSInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
@@ -436,7 +424,6 @@ func TestNodeExpandVolume(t *testing.T) {
 	icDriver := initIBMCSIDriver(t)
 	_ = os.MkdirAll("valid-vol-path", os.FileMode(0755))
 	_ = icDriver.ns.Mounter.Mount("valid-devicePath", "valid-vol-path", "nfs", []string{"hard", "nfsvers=4.1", "sec=sys"})
-	mountmgr = &MockMountUtils{}
 	for _, tc := range testCases {
 		t.Logf("Test case: %s", tc.name)
 		response, err := icDriver.ns.NodeExpandVolume(context.Background(), tc.req)
@@ -552,3 +539,13 @@ func TestIsDevicePathNotExist(t *testing.T) {
 		assert.Equal(t, tc.expResp, isBlock)
 	}
 }
+
+// This can be used in case fake cmd commands need to be called.
+// func makeFakeCmd(fakeCmd *testingexec.FakeCmd, cmd string, args ...string) testingexec.FakeCommandAction {
+// 	c := cmd
+// 	a := args
+// 	return func(cmd string, args ...string) exec.Cmd {
+// 		command := testingexec.InitFakeCmd(fakeCmd, c, a...)
+// 		return command
+// 	}
+// }

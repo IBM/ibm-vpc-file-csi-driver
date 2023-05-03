@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-//Package ibmcsidriver ...
+// Package ibmcsidriver ...
 package ibmcsidriver
 
 import (
@@ -110,7 +110,7 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 	return allSupported
 }
 
-//getVolumeParameters this function get the parameters from storage class, this also validate
+// getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
 func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) {
 	var encrypt = "undef"
@@ -384,7 +384,7 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 	}
 	// Assign ResourceGroupID from config
 	if volume.VPCVolume.ResourceGroup == nil || len(volume.VPCVolume.ResourceGroup.ID) < 1 {
-		volume.VPCVolume.ResourceGroup = &provider.ResourceGroup{ID: config.VPC.ResourceGroupID}
+		volume.VPCVolume.ResourceGroup = &provider.ResourceGroup{ID: config.VPC.G2ResourceGroupID}
 	}
 	if encrypt == FalseStr {
 		volume.VPCVolume.VolumeEncryptionKey = nil
