@@ -1,7 +1,7 @@
 language: go
 
 go:
-- "1.18"
+- "1.19"
 - tip
 
 group: bluezone
@@ -25,7 +25,7 @@ before_install:
 
 before_script:
 - make deps
-- go get github.com/pierrre/gotestcover
+- go install github.com/pierrre/gotestcover
 
 script:
 - mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"

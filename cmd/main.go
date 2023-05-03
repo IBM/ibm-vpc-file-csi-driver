@@ -16,21 +16,19 @@
  * limitations under the License.
  */
 
-//Package main ...
+// Package main ...
 package main
 
 import (
 	"flag"
 	"strings"
 
-	"github.com/IBM/ibmcloud-volume-interface/config"
 	libMetrics "github.com/IBM/ibmcloud-volume-interface/lib/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"math/rand"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
@@ -40,6 +38,7 @@ import (
 	driver "github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-file-vpc/pkg/watcher"
+	k8sUtils "github.com/IBM/secret-utils-lib/pkg/k8s_utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -51,14 +50,11 @@ func init() {
 }
 
 var (
-	endpoint       = flag.String("endpoint", "unix:/tmp/csi.sock", "CSI endpoint")
-	metricsAddress = flag.String("metrics-address", "0.0.0.0:9080", "Metrics address")
-	vendorVersion  string
-	logger         *zap.Logger
-)
-
-const (
-	configFileName = "slclient.toml"
+	endpoint             = flag.String("endpoint", "unix:/tmp/csi.sock", "CSI endpoint")
+	metricsAddress       = flag.String("metrics-address", "0.0.0.0:9080", "Metrics address")
+	vendorVersion        string
+	extraVolumeLabelsStr = flag.String("extra-labels", "", "Extra labels to tag all volumes created by driver. It is a comma separated list of key value pairs like '<key1>:<value1>,<key2>:<value2>'.")
+	logger               *zap.Logger
 )
 
 func main() {
@@ -92,8 +88,11 @@ func handle(logger *zap.Logger) {
 	logger.Info("IBM CSI driver version", zap.Reflect("DriverVersion", vendorVersion))
 	logger.Info("Controller Mutex Lock enabled", zap.Bool("LockEnabled", *utils.LockEnabled))
 	// Setup Cloud Provider
-	configPath := filepath.Join(config.GetConfPathDir(), configFileName)
-	ibmcloudProvider, err := cloudProvider.NewIBMCloudStorageProvider(configPath, logger)
+	k8sClient, err := k8sUtils.Getk8sClientSet()
+	if err != nil {
+		logger.Fatal("Failed to instantiate IKS-Storage provider", zap.Error(err))
+	}
+	ibmcloudProvider, err := cloudProvider.NewIBMCloudStorageProvider(*extraVolumeLabelsStr, &k8sClient, logger)
 	if err != nil {
 		logger.Fatal("Failed to instantiate IKS-Storage provider", zap.Error(err))
 	}

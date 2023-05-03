@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-//Package ibmcsidriver ...
+// Package ibmcsidriver ...
 package ibmcsidriver
 
 import (
@@ -69,7 +69,7 @@ type VolumeMountUtils struct {
 type VolumeStatUtils struct {
 }
 
-//FSInfo ...
+// FSInfo ...
 func (su *VolumeStatUtils) FSInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
 	return fs.Info(path)
 }
@@ -354,7 +354,7 @@ func (su *VolumeStatUtils) IsDevicePathNotExist(devicePath string) bool {
 
 // Resize expands the fs
 func (volMountUtils *VolumeMountUtils) Resize(mounter mountmanager.Mounter, devicePath string, deviceMountPath string) (bool, error) {
-	r := mount.NewResizeFs(mounter.NewSafeFormatAndMount().Exec)
+	r := mount.NewResizeFs(mounter.GetSafeFormatAndMount().Exec)
 	if _, err := r.Resize(devicePath, deviceMountPath); err != nil {
 		return false, err
 	}
