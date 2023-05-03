@@ -56,6 +56,11 @@ type StatsUtils interface {
 	IsDevicePathNotExist(devicePath string) bool
 }
 
+// MountUtils ...
+type MountUtils interface {
+	Resize(mounter mountmanager.Mounter, devicePath string, deviceMountPath string) (bool, error)
+}
+
 // VolumeMountUtils ...
 type VolumeMountUtils struct {
 }
@@ -84,6 +89,11 @@ const (
 )
 
 var _ csi.NodeServer = &CSINodeServer{}
+var mountmgr MountUtils
+
+func init() {
+	mountmgr = &VolumeMountUtils{}
+}
 
 // NodePublishVolume ...
 func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -324,7 +334,7 @@ func (csiNS *CSINodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeE
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyDevicePath, requestID, err)
 	}
 
-	if _, err := csiNS.Mounter.Resize(devicePath, deviceMountPath); err != nil {
+	if _, err := mountmgr.Resize(csiNS.Mounter, devicePath, deviceMountPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.FileSystemResizeFailed, requestID, err)
 	}
 	return &csi.NodeExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes}, nil
@@ -340,4 +350,13 @@ func (su *VolumeStatUtils) IsDevicePathNotExist(devicePath string) bool {
 		}
 	}
 	return false
+}
+
+// Resize expands the fs
+func (volMountUtils *VolumeMountUtils) Resize(mounter mountmanager.Mounter, devicePath string, deviceMountPath string) (bool, error) {
+	r := mount.NewResizeFs(mounter.GetSafeFormatAndMount().Exec)
+	if _, err := r.Resize(devicePath, deviceMountPath); err != nil {
+		return false, err
+	}
+	return true, nil
 }
