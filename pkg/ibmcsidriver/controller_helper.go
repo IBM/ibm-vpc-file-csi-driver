@@ -177,16 +177,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 					volume.VPCVolume.AccessControlMode = VPCMode
 				}
 			}
-		case IsEITRequired:
-			if value != TrueStr && value != FalseStr {
-				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
-			} else {
-				if value == TrueStr {
-					//TBD
-					//volume.VPCVolume.EncryptionInTransit = "user_managed"
-					volume.VPCVolume.PrimaryIP = ""
-				}
-			}
 		case ResourceGroup:
 			if len(value) > ResourceGroupIDMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ResourceGroupIDMaxLen)

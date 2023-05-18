@@ -131,9 +131,6 @@ const (
 	// IsENIRequired
 	IsENIRequired = "isENIRequired"
 
-	// IsEITRequired
-	IsEITRequired = "isEITRequired"
-
 	// SecurityGroupIDs
 	SecurityGroupIDs = "securityGroupIDs"
 
