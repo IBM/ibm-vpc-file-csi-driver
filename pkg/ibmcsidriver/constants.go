@@ -139,6 +139,12 @@ const (
 
 	// PrimaryIPId
 	PrimaryIPID = "primaryIPID"
+
+	// PrimaryIPAdress
+	PrimaryIPAdress = "primaryIPAdress"
+
+	// SubnetID
+	SubnetID = "subnetID"
 )
 
 // SupportedFS the supported FS types

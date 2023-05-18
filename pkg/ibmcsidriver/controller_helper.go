@@ -157,7 +157,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				volume.VPCVolume.PrimaryIP = value
+				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{ID: value}
+			}
+		case PrimaryIPAdress:
+			if len(value) != 0 {
+				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{Address: value}
+			}
+		case SubnetID:
+			if len(value) != 0 {
+				volume.VPCVolume.SubnetID =  value
 			}
 		case IsENIRequired:
 			if value != TrueStr && value != FalseStr {
