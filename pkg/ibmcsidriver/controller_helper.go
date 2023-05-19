@@ -159,7 +159,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			if len(value) != 0 {
 				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{ID: value}
 			}
-		case PrimaryIPAdress:
+		case PrimaryIPAddress:
 			if len(value) != 0 {
 				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{Address: value}
 			}
@@ -247,6 +247,14 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			return volume, err
 		}
 	}
+
+	// Validation for primaryIPAddress and primaryIPID
+	if volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.ID) > 0 && len(volume.VPCVolume.PrimaryIP.Address) > 0 {
+		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%v'", err)
+		logger.Error("getVolumeParameters", zap.NamedError("invalid parameter", err))
+		return volume, err
+	}
+
 	// If encripted is set to false
 	if encrypt == FalseStr {
 		volume.VPCVolume.VolumeEncryptionKey = nil

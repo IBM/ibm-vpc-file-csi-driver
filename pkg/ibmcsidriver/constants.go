@@ -137,8 +137,8 @@ const (
 	// PrimaryIPId
 	PrimaryIPID = "primaryIPID"
 
-	// PrimaryIPAdress
-	PrimaryIPAdress = "primaryIPAdress"
+	// PrimaryIPAddress
+	PrimaryIPAddress = "primaryIPAddress"
 
 	// SubnetID
 	SubnetID = "subnetID"

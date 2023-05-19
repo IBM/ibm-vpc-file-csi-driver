@@ -142,7 +142,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	volumeAccesspointReq := provider.VolumeAccessPointRequest{
 		VolumeID:          volumeObj.VolumeID,
 		VPCID:             os.Getenv("VPC_ID"),
-		SubnetIDList:      os.Getenv("VPC_SUBNET_IDs"),
+		SubnetIDList:      os.Getenv("VPC_SUBNET_IDS"),
 		SubnetID: 		   requestedVolume.SubnetID,
 		Zone:              requestedVolume.Az,
 		ResourceGroup:     requestedVolume.ResourceGroup,
