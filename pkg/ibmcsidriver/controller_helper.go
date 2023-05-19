@@ -156,8 +156,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case Tag:
 			if len(value) != 0 {
-				tagstr := strings.TrimSpace(value)
-				volume.VPCVolume.Tags = strings.Split(tagstr, ",")
+				volume.VPCVolume.Tags = []string{value}
 			}
 		case SecurityGroupIDs:
 			if len(value) != 0 {
