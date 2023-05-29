@@ -329,6 +329,13 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.Az = zones[utils.NodeZoneLabel]
 	}
 
+	// Validation for primaryIPAddress and primaryIPID
+	if volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.ID) > 0 && len(volume.VPCVolume.PrimaryIP.Address) > 0 {
+		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%v'", err)
+		logger.Error("getVolumeParameters", zap.NamedError("invalid parameter", err))
+		return volume, err
+	}
+
 	return volume, nil
 }
 
@@ -483,6 +490,7 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case SecurityGroupIDs:
 			if len(value) != 0 {
+<<<<<<< HEAD
 				setSecurityGroupList(volume, value)
 			}
 		case PrimaryIPID:
@@ -499,6 +507,39 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case IsENIEnabled:
 			err = setISENIEnabled(volume, key, strings.ToLower(value))
+=======
+				securityGroupstr := strings.TrimSpace(value)
+				securityGroupList := strings.Split(securityGroupstr, ",")
+				var securityGroups []provider.SecurityGroup
+				for _, securityGroup := range securityGroupList {
+					securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
+				}
+
+				volume.VPCVolume.SecurityGroups = &securityGroups
+			}
+		case PrimaryIPID:
+			if len(value) != 0 {
+				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{ID: value}
+			}
+		case PrimaryIPAddress:
+			if len(value) != 0 {
+				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{Address: value}
+			}
+		case SubnetID:
+			if len(value) != 0 {
+				volume.VPCVolume.SubnetID =  value
+			}
+		case IsENIEnabled:
+			if value != TrueStr && value != FalseStr {
+				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+			} else {
+				if value == TrueStr {
+					volume.VPCVolume.AccessControlMode = SecurityGroup
+				} else {
+					volume.VPCVolume.AccessControlMode = VPC
+				}
+			}
+>>>>>>> 6efe9c7 (Review Comments)
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
