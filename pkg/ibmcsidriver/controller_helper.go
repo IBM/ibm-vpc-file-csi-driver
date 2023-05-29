@@ -166,14 +166,14 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			if len(value) != 0 {
 				volume.VPCVolume.SubnetID =  value
 			}
-		case IsENIRequired:
+		case IsENIEnabled:
 			if value != TrueStr && value != FalseStr {
 				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
 			} else {
 				if value == TrueStr {
-					volume.VPCVolume.AccessControlMode = SecurityGroupMode
+					volume.VPCVolume.AccessControlMode = SecurityGroup
 				} else {
-					volume.VPCVolume.AccessControlMode = VPCMode
+					volume.VPCVolume.AccessControlMode = VPC
 				}
 			}
 		case ResourceGroup:
@@ -247,13 +247,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		}
 	}
 
-	// Validation for primaryIPAddress and primaryIPID
-	if volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.ID) > 0 && len(volume.VPCVolume.PrimaryIP.Address) > 0 {
-		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%v'", err)
-		logger.Error("getVolumeParameters", zap.NamedError("invalid parameter", err))
-		return volume, err
-	}
-
 	// If encripted is set to false
 	if encrypt == FalseStr {
 		volume.VPCVolume.VolumeEncryptionKey = nil
@@ -314,6 +307,13 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		}
 		volume.Region = zones[utils.NodeRegionLabel]
 		volume.Az = zones[utils.NodeZoneLabel]
+	}
+
+	// Validation for primaryIPAddress and primaryIPID
+	if volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.ID) > 0 && len(volume.VPCVolume.PrimaryIP.Address) > 0 {
+		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%v'", err)
+		logger.Error("getVolumeParameters", zap.NamedError("invalid parameter", err))
+		return volume, err
 	}
 
 	return volume, nil
@@ -409,6 +409,39 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 						logger.Info("override", zap.Any(IOPS, value))
 						volume.Iops = &iopsStr
 					}
+				}
+			}
+		case SecurityGroupIDs:
+			if len(value) != 0 {
+				securityGroupstr := strings.TrimSpace(value)
+				securityGroupList := strings.Split(securityGroupstr, ",")
+				var securityGroups []provider.SecurityGroup
+				for _, securityGroup := range securityGroupList {
+					securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
+				}
+
+				volume.VPCVolume.SecurityGroups = &securityGroups
+			}
+		case PrimaryIPID:
+			if len(value) != 0 {
+				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{ID: value}
+			}
+		case PrimaryIPAddress:
+			if len(value) != 0 {
+				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{Address: value}
+			}
+		case SubnetID:
+			if len(value) != 0 {
+				volume.VPCVolume.SubnetID =  value
+			}
+		case IsENIEnabled:
+			if value != TrueStr && value != FalseStr {
+				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+			} else {
+				if value == TrueStr {
+					volume.VPCVolume.AccessControlMode = SecurityGroup
+				} else {
+					volume.VPCVolume.AccessControlMode = VPC
 				}
 			}
 		default:

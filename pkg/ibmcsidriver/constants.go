@@ -122,14 +122,14 @@ const (
 	// GID ...
 	GID = "gid"
 
-	// SecurityGroupMode
-	SecurityGroupMode = "security_group"
+	// SecurityGroup
+	SecurityGroup = "security_group"
 
-	// VPCMode
-	VPCMode = "vpc"
+	// VPC
+	VPC = "vpc"
 
-	// IsENIRequired
-	IsENIRequired = "isENIRequired"
+	// IsENIEnabled
+	IsENIEnabled = "isENIEnabled"
 
 	// SecurityGroupIDs
 	SecurityGroupIDs = "securityGroupIDs"
