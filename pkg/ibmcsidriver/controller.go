@@ -154,7 +154,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		*/
 		subnetID := requestedVolume.SubnetID
 
-		if len(subnetID) == 0 && requestedVolume.PrimaryIP != nil && len(requestedVolume.PrimaryIP.ID) == 0 {
+		if len(subnetID) == 0 && (requestedVolume.PrimaryIP == nil || len(requestedVolume.PrimaryIP.ID) == 0) {
 			subnetReq := provider.SubnetRequest{
 				SubnetIDList:  os.Getenv("VPC_SUBNET_IDS"),
 				Zone:          requestedVolume.Az,
