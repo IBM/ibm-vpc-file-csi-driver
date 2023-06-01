@@ -142,13 +142,38 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	volumeAccesspointReq := provider.VolumeAccessPointRequest{
 		VolumeID:          volumeObj.VolumeID,
 		VPCID:             os.Getenv("VPC_ID"),
-		SubnetIDList:      os.Getenv("VPC_SUBNET_IDS"),
-		SubnetID: 		   requestedVolume.SubnetID,
-		Zone:              requestedVolume.Az,
-		ResourceGroup:     requestedVolume.ResourceGroup,
-		SecurityGroups:    requestedVolume.SecurityGroups,
 		AccessControlMode: requestedVolume.AccessControlMode,
-		PrimaryIP:         requestedVolume.PrimaryIP,
+	}
+
+	//IF ENI/VNI is enabled 
+	if requestedVolume.AccessControlMode == SecurityGroup { 
+		/* Fetch subnet if
+			1. ENI/VNI enabled 
+			2. Storage class has no subnetID
+			3. Storage class has no PrimaryIPID
+		*/
+		subnetID := requestedVolume.SubnetID
+
+		if len(subnetID) == 0 && requestedVolume.PrimaryIP != nil && len(requestedVolume.PrimaryIP.ID) == 0  {
+			subnetReq := provider.SubnetRequest {
+				SubnetIDList:      os.Getenv("VPC_SUBNET_IDS"),
+				Zone:              requestedVolume.Az,
+				ResourceGroup:     requestedVolume.ResourceGroup,
+			}
+
+			ctxLogger.Info("Getting Subnet for VolumeAccessPoint...")
+
+			subnetID, err = session.GetSubnetForVolumeAccessPoint(subnetReq)
+			if err != nil || len(subnetID) == 0 {
+				return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "GetSubnet")
+			}
+			ctxLogger.Info("Subnet fetched for VolumeAccessPoint", zap.Reflect("subnetID", subnetID))
+		}
+
+		volumeAccesspointReq.ResourceGroup = requestedVolume.ResourceGroup
+		volumeAccesspointReq.SecurityGroups = requestedVolume.SecurityGroups
+		volumeAccesspointReq.PrimaryIP = requestedVolume.PrimaryIP
+		volumeAccesspointReq.SubnetID = subnetID
 	}
 
 	//Create VolumeAccess Point
