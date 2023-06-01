@@ -145,20 +145,20 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		AccessControlMode: requestedVolume.AccessControlMode,
 	}
 
-	//IF ENI/VNI is enabled 
-	if requestedVolume.AccessControlMode == SecurityGroup { 
+	//IF ENI/VNI is enabled
+	if requestedVolume.AccessControlMode == SecurityGroup {
 		/* Fetch subnet if
-			1. ENI/VNI enabled 
-			2. Storage class has no subnetID
-			3. Storage class has no PrimaryIPID
+		1. ENI/VNI enabled
+		2. Storage class has no subnetID
+		3. Storage class has no PrimaryIPID
 		*/
 		subnetID := requestedVolume.SubnetID
 
-		if len(subnetID) == 0 && requestedVolume.PrimaryIP != nil && len(requestedVolume.PrimaryIP.ID) == 0  {
-			subnetReq := provider.SubnetRequest {
-				SubnetIDList:      os.Getenv("VPC_SUBNET_IDS"),
-				Zone:              requestedVolume.Az,
-				ResourceGroup:     requestedVolume.ResourceGroup,
+		if len(subnetID) == 0 && requestedVolume.PrimaryIP != nil && len(requestedVolume.PrimaryIP.ID) == 0 {
+			subnetReq := provider.SubnetRequest{
+				SubnetIDList:  os.Getenv("VPC_SUBNET_IDS"),
+				Zone:          requestedVolume.Az,
+				ResourceGroup: requestedVolume.ResourceGroup,
 			}
 
 			ctxLogger.Info("Getting Subnet for VolumeAccessPoint...")

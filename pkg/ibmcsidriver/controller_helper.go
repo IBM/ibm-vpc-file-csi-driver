@@ -156,15 +156,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{ID: value}
+				volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{Address: value}
+				volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
 			}
 		case SubnetID:
 			if len(value) != 0 {
-				volume.VPCVolume.SubnetID =  value
+				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
 			if value != TrueStr && value != FalseStr {
@@ -424,15 +424,15 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{ID: value}
+				volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				volume.VPCVolume.PrimaryIP =  &provider.PrimaryIP{Address: value}
+				volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
 			}
 		case SubnetID:
 			if len(value) != 0 {
-				volume.VPCVolume.SubnetID =  value
+				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
 			if value != TrueStr && value != FalseStr {
