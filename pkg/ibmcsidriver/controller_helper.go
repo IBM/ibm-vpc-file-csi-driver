@@ -140,6 +140,9 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				volume.Region = value
 			}
 		case Tag:
+			if len(value) > TagMaxLen {
+				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, TagMaxLen)
+			}
 			if len(value) != 0 {
 				volume.VPCVolume.Tags = []string{value}
 			}
@@ -156,11 +159,19 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
+				if(volume.VPCVolume.PrimaryIP == nil) {
+					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
+				} else {
+					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
+				}
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
+				if(volume.VPCVolume.PrimaryIP == nil) {
+					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
+				} else {
+					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
+				}
 			}
 		case SubnetID:
 			if len(value) != 0 {
@@ -309,13 +320,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.Az = zones[utils.NodeZoneLabel]
 	}
 
-	// Validation for primaryIPAddress and primaryIPID
-	if volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.ID) > 0 && len(volume.VPCVolume.PrimaryIP.Address) > 0 {
-		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%v'", err)
-		logger.Error("getVolumeParameters", zap.NamedError("invalid parameter", err))
-		return volume, err
-	}
-
 	return volume, nil
 }
 
@@ -424,11 +428,19 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
+				if(volume.VPCVolume.PrimaryIP == nil) {
+					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
+				} else {
+					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
+				}
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
+				if(volume.VPCVolume.PrimaryIP == nil) {
+					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
+				} else {
+					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
+				}
 			}
 		case SubnetID:
 			if len(value) != 0 {
