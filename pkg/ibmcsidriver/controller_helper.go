@@ -159,7 +159,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				if(volume.VPCVolume.PrimaryIP == nil) {
+				if volume.VPCVolume.PrimaryIP == nil {
 					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
 				} else {
 					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
@@ -167,7 +167,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				if(volume.VPCVolume.PrimaryIP == nil) {
+				if volume.VPCVolume.PrimaryIP == nil {
 					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
 				} else {
 					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
@@ -428,7 +428,7 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				if(volume.VPCVolume.PrimaryIP == nil) {
+				if volume.VPCVolume.PrimaryIP == nil {
 					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
 				} else {
 					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
@@ -436,7 +436,7 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				if(volume.VPCVolume.PrimaryIP == nil) {
+				if volume.VPCVolume.PrimaryIP == nil {
 					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
 				} else {
 					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
