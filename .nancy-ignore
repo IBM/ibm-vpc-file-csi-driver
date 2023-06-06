@@ -1,2 +1,3 @@
 CVE-2020-8561
 CVE-2021-25740
+CVE-2021-25749 #Windows workloads can run as ContainerAdministrator even when those workloads set the runAsNonRoot option to true.Fix not available in community till now.
