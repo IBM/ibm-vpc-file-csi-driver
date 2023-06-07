@@ -148,45 +148,22 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case SecurityGroupIDs:
 			if len(value) != 0 {
-				securityGroupstr := strings.TrimSpace(value)
-				securityGroupList := strings.Split(securityGroupstr, ",")
-				var securityGroups []provider.SecurityGroup
-				for _, securityGroup := range securityGroupList {
-					securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
-				}
-
-				volume.VPCVolume.SecurityGroups = &securityGroups
+				setSecurityGroupList(volume, value)
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				if volume.VPCVolume.PrimaryIP == nil {
-					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
-				} else {
-					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
-				}
+				err = setPrimaryIPID(volume, value)
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				if volume.VPCVolume.PrimaryIP == nil {
-					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
-				} else {
-					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
-				}
+				err = setPrimaryIPAddress(volume, value)
 			}
 		case SubnetID:
 			if len(value) != 0 {
 				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
-			if value != TrueStr && value != FalseStr {
-				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
-			} else {
-				if value == TrueStr {
-					volume.VPCVolume.AccessControlMode = SecurityGroup
-				} else {
-					volume.VPCVolume.AccessControlMode = VPC
-				}
-			}
+			err = setISENIEnabled(value)
 		case ResourceGroup:
 			if len(value) > ResourceGroupIDMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ResourceGroupIDMaxLen)
@@ -323,6 +300,57 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	return volume, nil
 }
 
+// setSecurityGroupList
+func setSecurityGroupList(volume *provider.Volume, value string) {
+	securityGroupstr := strings.TrimSpace(value)
+	securityGroupList := strings.Split(securityGroupstr, ",")
+	var securityGroups []provider.SecurityGroup
+	for _, securityGroup := range securityGroupList {
+		securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
+	}
+	volume.VPCVolume.SecurityGroups = &securityGroups
+}
+
+// setISENIEnabled
+func setISENIEnabled(volume *provider.Volume, value string) error {
+	var err error
+	if value != TrueStr && value != FalseStr {
+		err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+	} else {
+		if value == TrueStr {
+			volume.VPCVolume.AccessControlMode = SecurityGroup
+		} else {
+			volume.VPCVolume.AccessControlMode = VPC
+		}
+	}
+
+	return err
+}
+
+// setPrimaryIPID
+func setPrimaryIPID(volume *provider.Volume, value string) error {
+	var err error
+	if volume.VPCVolume.PrimaryIP == nil {
+		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
+	} else {
+		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
+	}
+
+	return err
+}
+
+// setPrimaryIPAddress
+func setPrimaryIPAddress(volume *provider.Volume, value string) error {
+	var err error
+	if volume.VPCVolume.PrimaryIP == nil {
+		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
+	} else {
+		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
+	}
+
+	return err
+}
+
 // Validate size and iops for custom class
 func isValidCapacityIOPS4CustomClass(size int, iops int) (bool, error) {
 	var ind = -1
@@ -417,45 +445,22 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case SecurityGroupIDs:
 			if len(value) != 0 {
-				securityGroupstr := strings.TrimSpace(value)
-				securityGroupList := strings.Split(securityGroupstr, ",")
-				var securityGroups []provider.SecurityGroup
-				for _, securityGroup := range securityGroupList {
-					securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
-				}
-
-				volume.VPCVolume.SecurityGroups = &securityGroups
+				setSecurityGroupList(volume, value)
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				if volume.VPCVolume.PrimaryIP == nil {
-					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
-				} else {
-					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
-				}
+				err = setPrimaryIPID(volume, value)
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				if volume.VPCVolume.PrimaryIP == nil {
-					volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
-				} else {
-					err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
-				}
+				err = setPrimaryIPAddress(volume, value)
 			}
 		case SubnetID:
 			if len(value) != 0 {
 				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
-			if value != TrueStr && value != FalseStr {
-				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
-			} else {
-				if value == TrueStr {
-					volume.VPCVolume.AccessControlMode = SecurityGroup
-				} else {
-					volume.VPCVolume.AccessControlMode = VPC
-				}
-			}
+			err = setISENIEnabled(value)
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
