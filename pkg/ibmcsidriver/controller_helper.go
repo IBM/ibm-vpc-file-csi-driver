@@ -152,18 +152,18 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				err = setPrimaryIPID(volume, value)
+				err = setPrimaryIPID(volume, key, value)
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				err = setPrimaryIPAddress(volume, value)
+				err = setPrimaryIPAddress(volume, key, value)
 			}
 		case SubnetID:
 			if len(value) != 0 {
 				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
-			err = setISENIEnabled(value)
+			err = setISENIEnabled(volume, key, value)
 		case ResourceGroup:
 			if len(value) > ResourceGroupIDMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ResourceGroupIDMaxLen)
@@ -312,7 +312,7 @@ func setSecurityGroupList(volume *provider.Volume, value string) {
 }
 
 // setISENIEnabled
-func setISENIEnabled(volume *provider.Volume, value string) error {
+func setISENIEnabled(volume *provider.Volume, key string, value string) error {
 	var err error
 	if value != TrueStr && value != FalseStr {
 		err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
@@ -328,7 +328,7 @@ func setISENIEnabled(volume *provider.Volume, value string) error {
 }
 
 // setPrimaryIPID
-func setPrimaryIPID(volume *provider.Volume, value string) error {
+func setPrimaryIPID(volume *provider.Volume, key string, value string) error {
 	var err error
 	if volume.VPCVolume.PrimaryIP == nil {
 		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
@@ -340,7 +340,7 @@ func setPrimaryIPID(volume *provider.Volume, value string) error {
 }
 
 // setPrimaryIPAddress
-func setPrimaryIPAddress(volume *provider.Volume, value string) error {
+func setPrimaryIPAddress(volume *provider.Volume, key string, value string) error {
 	var err error
 	if volume.VPCVolume.PrimaryIP == nil {
 		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
@@ -449,18 +449,18 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case PrimaryIPID:
 			if len(value) != 0 {
-				err = setPrimaryIPID(volume, value)
+				err = setPrimaryIPID(volume, key, value)
 			}
 		case PrimaryIPAddress:
 			if len(value) != 0 {
-				err = setPrimaryIPAddress(volume, value)
+				err = setPrimaryIPAddress(volume, key, value)
 			}
 		case SubnetID:
 			if len(value) != 0 {
 				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
-			err = setISENIEnabled(value)
+			err = setISENIEnabled(volume, key, value)
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
