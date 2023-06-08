@@ -196,8 +196,15 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		subnetID := requestedVolume.SubnetID
 
 		if len(subnetID) == 0 && (requestedVolume.PrimaryIP == nil || len(requestedVolume.PrimaryIP.ID) == 0) {
+			subnetIDList := os.Getenv("VPC_SUBNET_IDS")
+
+			//TODO define an error that user need to check for configmap
+			if len(subnetIDList) == 0 {
+				return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "GetSubnet")
+			}
+
 			subnetReq := provider.SubnetRequest{
-				SubnetIDList:  os.Getenv("VPC_SUBNET_IDS"),
+				SubnetIDList:  subnetIDList,
 				Zone:          requestedVolume.Az,
 				ResourceGroup: requestedVolume.ResourceGroup,
 			}
