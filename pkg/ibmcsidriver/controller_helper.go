@@ -285,6 +285,26 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.Iops = nil
 	}
 
+	//If ENI/VNI enabled then check for scenarios where zone and subnetId is mandatory 
+	if volume.VPCVolume.AccessControlMode == SecurityGroup {
+
+		//Zone is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined 
+		if len(strings.TrimSpace(volume.Az)) == 0 && (len(volume.VPCVolume.SubnetID) != 0  || (volume.VPCVolume.PrimaryIP != nil)) {	
+			err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided: '%v'", err)
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
+		}
+
+		//subnetID is mandatory if PrimaryIPAddress is provided
+		if  (len(volume.VPCVolume.SubnetID) == 0  && volume.VPCVolume.PrimaryIP != nil  && len(volume.VPCVolume.PrimaryIP.PrimaryIPAddress) != 0 {	
+			err = fmt.Errorf("subnetID is mandatory if PrimaryIPAddress is provided: '%v'", err)
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
+		}
+	}
+
+	//TODO port the code from VPC BLOCK to find region if zone is given
+
 	//If the zone is not provided in storage class parameters then we pick from the Topology
 	if len(strings.TrimSpace(volume.Az)) == 0 {
 		zones, err := pickTargetTopologyParams(req.GetAccessibilityRequirements())
