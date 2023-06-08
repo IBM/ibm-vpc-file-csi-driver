@@ -145,29 +145,28 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		AccessControlMode: requestedVolume.AccessControlMode,
 	}
 
-	
-	/*	
+	/*
 		//IF ENI/VNI is enabled
 
 		Case 1: User has not provided anything.
-		The VolumeAccessPoint (aka File share target) will be created with mountPath having randomIP from subnet within the same zone as used by the 
-		volume (aka File share). The zone is picked-up randomly from topology and the subnet is fetched via the CSI driver matching with the 
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having randomIP from subnet within the same zone as used by the
+		volume (aka File share). The zone is picked-up randomly from topology and the subnet is fetched via the CSI driver matching with the
 		volumeaccess point zone and cluster subnet list.In this case any random IP Address will be created and assigned to VNI in the fetched subnet range.
 
 		Case 2: User has provided the subnetId, zone but nothing else
-		The VolumeAccessPoint (aka File share target) will be created with mountPath having randomIP from subnet within the zone provided by user 
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having randomIP from subnet within the zone provided by user
 		as used by the volume (aka File share).In this case any random IP Address will be created and assigned to VNI in the user provided subnet range.
 
 		Case 3: User has provided the subnetId, zone and PrimaryIPAdrees
-		The VolumeAccessPoint (aka File share target) will be created with mountPath having PrimaryIPAdrees from subnet within the zone provided by user 
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having PrimaryIPAdrees from subnet within the zone provided by user
 		as the volume (aka File share).In this case any PrimaryIPAdrees will be created and assigned to VNI in the user provided subnet range.
 
 		Case 4: User has provided the subnetId, zone  and PrimaryIPID
-		The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within 
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within
 		the zone provided by user as used by the volume (aka File share).In this case any IP adress associated with PrimaryIPID is assigned to VNI.
 
 		Case 5: User has not provided the subnetId and provided zone, region , PrimaryIPID
-		The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within 
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within
 		the zone provided by user as used by the volume (aka File share).In this case any IP adress associated with PrimaryIPID is assigned to VNI.
 
 		Case 6: User has not provided the subnetId,zone but provided PrimaryIPID
@@ -177,17 +176,17 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
 
 		Case 8: User has not provided the subnetID but provided the zone  and PrimaryIPAddress
-		This will throw error that subnet is mandatory as CSI driver cannot predict the subnet in such scenarios as there 
+		This will throw error that subnet is mandatory as CSI driver cannot predict the subnet in such scenarios as there
 		might be multiple subnets in same zone.
 
 		Case 9: User has provided the subnetID and PrimaryIPAddres but not provided the zone.
 		This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
 
-		In all the above cases the variation possible is user can pass 0 or more securitygroupIDs that will govern the authorization. IF user does not pass 
+		In all the above cases the variation possible is user can pass 0 or more securitygroupIDs that will govern the authorization. IF user does not pass
 		any securityGroupID then default VPC security group is considerd by the VPC IAAS layer.
 
 	*/
-	
+
 	if requestedVolume.AccessControlMode == SecurityGroup {
 		/* Skip GetSubnetForVolumeAccessPoint call if user has not provided SubnetID but PrimaryIPID is provided.
 		For all rest of the following use cases if subnetId is not provided we fetch subnet
