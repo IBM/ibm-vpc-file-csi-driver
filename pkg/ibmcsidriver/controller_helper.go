@@ -296,7 +296,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		}
 
 		//subnetID is mandatory if PrimaryIPAddress is provided
-		if len(volume.VPCVolume.SubnetID) == 0 && volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.PrimaryIPAddress) != 0 {
+		if len(volume.VPCVolume.SubnetID) == 0 && volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.Address) != 0 {
 			err = fmt.Errorf("subnetID is mandatory if PrimaryIPAddress is provided: '%v'", err)
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
