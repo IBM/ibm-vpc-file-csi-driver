@@ -316,6 +316,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
 		}
+
 	}
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
