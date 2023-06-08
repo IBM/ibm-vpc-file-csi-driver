@@ -161,11 +161,11 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		The VolumeAccessPoint (aka File share target) will be created with mountPath having PrimaryIPAdrees from subnet within the zone provided by user
 		as the volume (aka File share).In this case any PrimaryIPAdrees will be created and assigned to VNI in the user provided subnet range.
 
-		Case 4: User has provided the subnetId, zone  and PrimaryIPID
+		Case 4: User has provided the subnetId, zone and PrimaryIPID
 		The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within
 		the zone provided by user as used by the volume (aka File share).In this case any IP adress associated with PrimaryIPID is assigned to VNI.
 
-		Case 5: User has not provided the subnetId and provided zone, region , PrimaryIPID
+		Case 5: User has not provided the subnetId and provided zone, PrimaryIPID
 		The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within
 		the zone provided by user as used by the volume (aka File share).In this case any IP adress associated with PrimaryIPID is assigned to VNI.
 
