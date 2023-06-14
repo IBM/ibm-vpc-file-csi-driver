@@ -127,20 +127,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		}
 	}
 
-	// Create volume if it does no exist
-	if !isVolumeExist {
-		ctxLogger.Info("Creating Volume...")
-
-		volumeObj, err = session.CreateVolume(*requestedVolume)
-		if err != nil {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "creation")
-		}
-
-		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
-	}
-
 	volumeAccesspointReq := provider.VolumeAccessPointRequest{
-		VolumeID:          volumeObj.VolumeID,
 		VPCID:             os.Getenv("VPC_ID"),
 		AccessControlMode: requestedVolume.AccessControlMode,
 	}
@@ -157,9 +144,9 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		The VolumeAccessPoint (aka File share target) will be created with mountPath having randomIP from subnet within the zone provided by user
 		as used by the volume (aka File share).In this case any random IP Address will be created and assigned to VNI in the user provided subnet range.
 
-		Case 3: User has provided the subnetId, zone and PrimaryIPAdrees
-		The VolumeAccessPoint (aka File share target) will be created with mountPath having PrimaryIPAdrees from subnet within the zone provided by user
-		as the volume (aka File share).In this case any PrimaryIPAdrees will be created and assigned to VNI in the user provided subnet range.
+		Case 3: User has provided the subnetId, zone and PrimaryIPAddress
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having PrimaryIPAddress from subnet within the zone provided by user
+		as the volume (aka File share).In this case any PrimaryIPAddress will be created and assigned to VNI in the user provided subnet range.
 
 		Case 4: User has provided the subnetId, zone and PrimaryIPID
 		The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within
@@ -175,11 +162,11 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		Case 7: User has provided the subnetId but nothing else
 		This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
 
-		Case 8: User has not provided the subnetID but provided the zone  and PrimaryIPAddress
+		Case 8: User has not provided the subnetID but provided the zone and PrimaryIPAddress
 		This will throw error that subnet is mandatory as CSI driver cannot predict the subnet in such scenarios as there
 		might be multiple subnets in same zone.
 
-		Case 9: User has provided the subnetID and PrimaryIPAddres but not provided the zone.
+		Case 9: User has provided the subnetID and PrimaryIPAddress but not provided the zone.
 		This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
 
 		In all the above cases the variation possible is user can pass 0 or more securitygroupIDs that will govern the authorization. IF user does not pass
@@ -198,9 +185,9 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		if len(subnetID) == 0 && (requestedVolume.PrimaryIP == nil || len(requestedVolume.PrimaryIP.ID) == 0) {
 			subnetIDList := os.Getenv("VPC_SUBNET_IDS")
 
-			//TODO define an error that user need to check for configmap
+			//We need to abort here as there is no use of going ahead and fetching the mataching subnet with empty list
 			if len(subnetIDList) == 0 {
-				return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "GetSubnet")
+				return nil, commonError.GetCSIError(ctxLogger, commonError.SubnetIDListNotFound, requestID, nil)
 			}
 
 			subnetReq := provider.SubnetRequest{
@@ -213,7 +200,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 			subnetID, err = session.GetSubnetForVolumeAccessPoint(subnetReq)
 			if err != nil || len(subnetID) == 0 {
-				return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "GetSubnet")
+				return nil, commonError.GetCSIError(ctxLogger, commonError.SubnetFindFailed, requestID, err, requestedVolume.Az, subnetIDList)
 			}
 			ctxLogger.Info("Subnet fetched for VolumeAccessPoint", zap.Reflect("subnetID", subnetID))
 		}
@@ -223,6 +210,20 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		volumeAccesspointReq.PrimaryIP = requestedVolume.PrimaryIP
 		volumeAccesspointReq.SubnetID = subnetID
 	}
+
+	// Create volume if it does no exist
+	if !isVolumeExist {
+		ctxLogger.Info("Creating Volume...")
+
+		volumeObj, err = session.CreateVolume(*requestedVolume)
+		if err != nil {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "creation")
+		}
+
+		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
+	}
+
+	volumeAccesspointReq.VolumeID = volumeObj.VolumeID
 
 	//Create VolumeAccess Point
 	//No need to check for access point existence as library takes care of the same

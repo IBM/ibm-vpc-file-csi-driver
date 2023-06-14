@@ -301,7 +301,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
 		}
-
 	}
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
@@ -352,7 +351,7 @@ func setISENIEnabled(volume *provider.Volume, key string, value string) error {
 func setPrimaryIPID(volume *provider.Volume, key string, value string) error {
 	var err error
 	if volume.VPCVolume.PrimaryIP == nil {
-		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{ID: value}
+		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{PrimaryIPID: provider.PrimaryIPID{ID: value}}
 	} else {
 		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
 	}
@@ -364,7 +363,7 @@ func setPrimaryIPID(volume *provider.Volume, key string, value string) error {
 func setPrimaryIPAddress(volume *provider.Volume, key string, value string) error {
 	var err error
 	if volume.VPCVolume.PrimaryIP == nil {
-		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{Address: value}
+		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{PrimaryIPAddress: provider.PrimaryIPAddress{Address: value}}
 	} else {
 		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
 	}
