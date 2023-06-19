@@ -297,7 +297,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 		//subnetID is mandatory if PrimaryIPAddress is provided
 		if len(volume.VPCVolume.SubnetID) == 0 && volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.Address) != 0 {
-			err = fmt.Errorf("subnetID is mandatory if PrimaryIPAddress is provided: '%s'", volume.VPCVolume.PrimaryIP.Address	)
+			err = fmt.Errorf("subnetID is mandatory if PrimaryIPAddress is provided: '%s'", volume.VPCVolume.PrimaryIP.Address)
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
 		}
@@ -350,6 +350,7 @@ func setISENIEnabled(volume *provider.Volume, key string, value string) error {
 // setPrimaryIPID
 func setPrimaryIPID(volume *provider.Volume, key string, value string) error {
 	var err error
+	//We are failing in case PrimaryIPAddress is already set.
 	if volume.VPCVolume.PrimaryIP == nil {
 		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{PrimaryIPID: provider.PrimaryIPID{ID: value}}
 	} else {
@@ -362,6 +363,7 @@ func setPrimaryIPID(volume *provider.Volume, key string, value string) error {
 // setPrimaryIPAddress
 func setPrimaryIPAddress(volume *provider.Volume, key string, value string) error {
 	var err error
+	//We are failing in case PrimaryIPID is already set.
 	if volume.VPCVolume.PrimaryIP == nil {
 		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{PrimaryIPAddress: provider.PrimaryIPAddress{Address: value}}
 	} else {
