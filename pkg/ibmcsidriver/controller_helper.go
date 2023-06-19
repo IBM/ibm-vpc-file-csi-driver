@@ -290,14 +290,14 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 		//Zone is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined
 		if len(strings.TrimSpace(volume.Az)) == 0 && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
-			err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided: '%v'", err)
+			err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided")
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
 		}
 
 		//subnetID is mandatory if PrimaryIPAddress is provided
 		if len(volume.VPCVolume.SubnetID) == 0 && volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.Address) != 0 {
-			err = fmt.Errorf("subnetID is mandatory if PrimaryIPAddress is provided: '%v'", err)
+			err = fmt.Errorf("subnetID is mandatory if PrimaryIPAddress is provided: '%s'", volume.VPCVolume.PrimaryIP.Address	)
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
 		}
@@ -574,6 +574,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	if vol.Iops != nil && len(*vol.Iops) > 0 {
 		labels[IOPSLabel] = *vol.Iops
 	}
+
 	labels[utils.NodeRegionLabel] = vol.Region
 	labels[utils.NodeZoneLabel] = vol.Az
 
