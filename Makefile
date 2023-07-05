@@ -100,7 +100,7 @@ endif
 .PHONY: build-systemutil
 build-systemutil:
 	docker build --build-arg TAG=$(GIT_COMMIT_SHA) --build-arg OS=linux --build-arg ARCH=$(ARCH) -t csi-driver-builder --pull -f Dockerfile.builder .
-	docker run --env GHE_TOKEN=${GHE_TOKEN} csi-driver-builder
+	docker run --privileged --env GHE_TOKEN=${GHE_TOKEN} csi-driver-builder
 	docker cp `docker ps -q -n=1`:/go/bin/${EXE_DRIVER_NAME} ./${EXE_DRIVER_NAME}
 
 .PHONY: test-sanity
