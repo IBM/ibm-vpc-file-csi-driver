@@ -4,7 +4,6 @@ go:
 - "1.19"
 
 group: bluezone
-dist: trusty
 
 matrix:
   fast_finish: true
