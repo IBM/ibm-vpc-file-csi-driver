@@ -452,7 +452,7 @@ func TestIsValidCapacityIOPS(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			isValid, err := isValidCapacityIOPS4CustomClass(testcase.requestSize, testcase.requestIops, "custom-iops")
+			isValid, err := isValidCapacityIOPS(testcase.requestSize, testcase.requestIops, "custom-iops")
 			if testcase.expectedError != nil {
 				assert.Equal(t, err, testcase.expectedError)
 			} else {
