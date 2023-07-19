@@ -419,7 +419,7 @@ func TestGetVolumeParameters(t *testing.T) {
 	}
 }
 
-func TestIsValidCapacityIOPS4CustomClass(t *testing.T) {
+func TestIsValidCapacityIOPS(t *testing.T) {
 	testCases := []struct {
 		testCaseName   string
 		requestSize    int
@@ -452,7 +452,7 @@ func TestIsValidCapacityIOPS4CustomClass(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			isValid, err := isValidCapacityIOPS4CustomClass(testcase.requestSize, testcase.requestIops)
+			isValid, err := isValidCapacityIOPS4CustomClass(testcase.requestSize, testcase.requestIops, "custom-iops")
 			if testcase.expectedError != nil {
 				assert.Equal(t, err, testcase.expectedError)
 			} else {

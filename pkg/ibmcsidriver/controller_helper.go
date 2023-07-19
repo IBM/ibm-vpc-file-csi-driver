@@ -50,6 +50,20 @@ var customCapacityIopsRanges = []classRange{
 	{1000, 1999, 100, 20000},
 }
 
+// Range as per IBM volume provider Storage for DP2 Profile
+var dp2CapacityIopsRanges = []classRange{
+    {10, 39, 100, 1000},
+    {40, 79, 100, 2000},
+    {80, 99, 100, 4000},
+    {100, 499, 100, 6000},
+    {500, 999, 100, 10000},
+    {1000, 1999, 100, 20000},
+    {2000, 3999, 200, 40000},
+    {4000, 7999, 300, 40000},
+    {8000, 15999, 500, 64000},
+    {16000, 32000, 2000, 96000},
+} 
+
 // normalize the requested capacity(in GiB) to what is supported by the driver
 func getRequestedCapacity(capRange *csi.CapacityRange) (int64, error) {
 	// Input is in bytes from csi
@@ -262,8 +276,8 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		return volume, err
 	}
 
-	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name != CustomProfile {
-		// Specify IOPS only for custom class
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name != CustomProfile && volume.VPCVolume.Profile.Name != DP2Profile  {
+		// Specify IOPS only for custom class or DP2 class
 		volume.Iops = nil
 	}
 
@@ -283,9 +297,19 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 }
 
 // Validate size and iops for custom class
-func isValidCapacityIOPS4CustomClass(size int, iops int) (bool, error) {
+func isValidCapacityIOPS(size int, iops int, profile string) (bool, error) {
 	var ind = -1
-	for i, entry := range customCapacityIopsRanges {
+	var capacityIopsRanges classRange
+	
+	if profile == DP2Profile {
+		capacityIopsRanges = dp2CapacityIopsRanges 
+	} else if profile == CustomProfile {
+		capacityIopsRanges = customCapacityIopsRanges
+	} else {
+		return false, fmt.Errorf("invalid profile: <%s>",profile)
+	}
+
+	for i, entry := range capacityIopsRanges {
 		if size >= entry.minSize && size <= entry.maxSize {
 			ind = i
 			break
@@ -293,13 +317,13 @@ func isValidCapacityIOPS4CustomClass(size int, iops int) (bool, error) {
 	}
 
 	if ind < 0 {
-		return false, fmt.Errorf("invalid PVC size for custom class: <%v>. Should be in range [%d - %d]GiB",
+		return false, fmt.Errorf("invalid PVC size for class: <%v>. Should be in range [%d - %d]GiB",
 			size, utils.MinimumVolumeDiskSizeInGb, utils.MaximumVolumeDiskSizeInGb)
 	}
 
-	if iops < customCapacityIopsRanges[ind].minIops || iops > customCapacityIopsRanges[ind].maxIops {
+	if iops < capacityIopsRanges[ind].minIops || iops > capacityIopsRanges[ind].maxIops {
 		return false, fmt.Errorf("invalid IOPS: <%v> for capacity: <%vGiB>. Should be in range [%d - %d]",
-			iops, size, customCapacityIopsRanges[ind].minIops, customCapacityIopsRanges[ind].maxIops)
+			iops, size, capacityIopsRanges[ind].minIops, capacityIopsRanges[ind].maxIops)
 	}
 	return true, nil
 }
@@ -360,14 +384,14 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case IOPS:
 			// Override IOPS only for custom class
-			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == CustomProfile {
+			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && ( volume.VPCVolume.Profile.Name == CustomProfile  || volume.VPCVolume.Profile.Name == DP2Profile ){
 				var iops int
 				var check bool
 				iops, err = strconv.Atoi(value)
 				if err != nil {
 					err = fmt.Errorf("%v:<%v> invalid value", key, value)
 				} else {
-					if check, err = isValidCapacityIOPS4CustomClass(*(volume.Capacity), iops); check {
+					if check, err = isValidCapacityIOPS(*(volume.Capacity), iops, volume.VPCVolume.Profile.Name); check {
 						iopsStr := value
 						logger.Info("override", zap.Any(IOPS, value))
 						volume.Iops = &iopsStr

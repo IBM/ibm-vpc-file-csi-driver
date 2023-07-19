@@ -59,6 +59,9 @@ const (
 	// CustomProfile ...
 	CustomProfile = "custom-iops"
 
+	// DP2Profile ...
+	DP2Profile = "dp2"
+
 	// ClassVersion ...
 	ClassVersion = "classVersion"
 
