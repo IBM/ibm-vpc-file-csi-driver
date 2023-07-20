@@ -76,10 +76,10 @@ func (su *VolumeStatUtils) FSInfo(path string) (int64, int64, int64, int64, int6
 
 const (
 	// DefaultVolumesPerNode is the default number of volumes attachable to a node
-	DefaultVolumesPerNode = 4
+	//DefaultVolumesPerNode = 4
 
 	// MaxVolumesPerNode is the maximum number of volumes attachable to a node
-	MaxVolumesPerNode = 12
+	//MaxVolumesPerNode = 12
 
 	// MinimumCoresWithMaximumAttachableVolumes is the minimum cores required to have maximum number of attachable volumes, currently 4 as per the docs.
 	MinimumCoresWithMaximumAttachableVolumes = 4
@@ -220,9 +220,6 @@ func (csiNS *CSINodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInf
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeGetInfo... ", zap.Reflect("Request", *req))
 
-	// maxVolumesPerNode is the maximum number of volumes attachable to a node
-	var maxVolumesPerNode int64 = DefaultVolumesPerNode
-
 	// Check if node metadata service initialized properly
 	if csiNS.Metadata == nil { //nolint
 		metadata, err := nodeMetadata.NewNodeMetadata(os.Getenv("KUBE_NODE_NAME"), ctxLogger)
@@ -240,16 +237,10 @@ func (csiNS *CSINodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInf
 		},
 	}
 
-	// maxVolumesPerNode is the maximum number of volumes attachable to a node; default is 4
-	cores := runtime.NumCPU()
-	if cores >= MinimumCoresWithMaximumAttachableVolumes {
-		maxVolumesPerNode = MaxVolumesPerNode
-	}
-	ctxLogger.Info("Number of cores of the node and attachable volume limits.", zap.Reflect("Cores", cores), zap.Reflect("AttachableVolumeLimits", maxVolumesPerNode))
+	//ctxLogger.Info("Number of cores of the node and attachable volume limits.", zap.Reflect("Cores", cores), zap.Reflect("AttachableVolumeLimits", maxVolumesPerNode))
 
 	resp := &csi.NodeGetInfoResponse{
 		NodeId:             csiNS.Metadata.GetWorkerID(),
-		MaxVolumesPerNode:  maxVolumesPerNode,
 		AccessibleTopology: top,
 	}
 	ctxLogger.Info("NodeGetInfoResponse", zap.Reflect("NodeGetInfoResponse", resp))
