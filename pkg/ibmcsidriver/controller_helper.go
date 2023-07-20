@@ -50,7 +50,7 @@ var customCapacityIopsRanges = []classRange{
 	{1000, 1999, 100, 20000},
 }
 
-// Range as per IBM volume provider Storage for DP2 Profile
+// Range as per IBM volume provider Storage for DP2 Profile - https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles&interface=ui#dp2-profile
 var dp2CapacityIopsRanges = []classRange{
 	{10, 39, 100, 1000},
 	{40, 79, 100, 2000},
@@ -383,7 +383,7 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 				volume.Region = value
 			}
 		case IOPS:
-			// Override IOPS only for custom class
+			// Override IOPS only for custom or dp2
 			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && (volume.VPCVolume.Profile.Name == CustomProfile || volume.VPCVolume.Profile.Name == DP2Profile) {
 				var iops int
 				var check bool
