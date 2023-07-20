@@ -2,9 +2,9 @@ language: go
 
 go:
 - "1.19"
-- tip
 
 group: bluezone
+dist: trusty
 
 matrix:
   fast_finish: true
@@ -16,11 +16,12 @@ cache:
 
 sudo: true
 
+addons:
+  apt:
+    packages:
+      - docker-ce
+
 before_install:
-- openssl aes-256-cbc -K $encrypted_7937b810c182_key -iv $encrypted_7937b810c182_iv
-  - in ./e2e/confgig/secret.txt.enc -out secret.txt -d || true
-- sudo add-apt-repository ppa:masterminds/glide -y && sudo apt-get update -q
-- sudo apt-get install glide -y
 - sudo apt-get install bc
 
 before_script:
