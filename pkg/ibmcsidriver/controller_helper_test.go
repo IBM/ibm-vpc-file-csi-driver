@@ -439,7 +439,7 @@ func TestIsValidCapacityIOPS(t *testing.T) {
 			requestSize:    5,
 			requestIops:    110,
 			expectedStatus: false,
-			expectedError:  fmt.Errorf("invalid PVC size for custom class: <%v>. Should be in range [%d - %d]GiB", 5, utils.MinimumVolumeDiskSizeInGb, utils.MaximumVolumeDiskSizeInGb),
+			expectedError:  fmt.Errorf("invalid PVC size for class: <%v>. Should be in range [%d - %d]GiB", 5, utils.MinimumVolumeDiskSizeInGb, utils.MaximumVolumeDiskSizeInGb),
 		},
 		{
 			testCaseName:   "Invalid IOPS",
