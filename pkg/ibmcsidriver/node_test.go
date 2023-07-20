@@ -231,7 +231,7 @@ func TestNodeGetCapabilities(t *testing.T) {
 }
 
 func TestNodeGetInfo(t *testing.T) {
-	
+
 	testCases := []struct {
 		name          string
 		req           *csi.NodeGetInfoRequest
@@ -245,7 +245,7 @@ func TestNodeGetInfo(t *testing.T) {
 			req:           &csi.NodeGetInfoRequest{},
 			resetMetadata: false,
 			resp: &csi.NodeGetInfoResponse{
-				NodeId:            "testworker",
+				NodeId: "testworker",
 				AccessibleTopology: &csi.Topology{
 					Segments: map[string]string{
 						utils.NodeRegionLabel: "testregion",
