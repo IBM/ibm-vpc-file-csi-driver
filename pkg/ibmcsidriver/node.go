@@ -22,7 +22,6 @@ package ibmcsidriver
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"sync"
 
 	"time"
