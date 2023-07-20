@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -232,12 +231,7 @@ func TestNodeGetCapabilities(t *testing.T) {
 }
 
 func TestNodeGetInfo(t *testing.T) {
-	cores := runtime.NumCPU()
-	var maxVolumesPerNode int64 = DefaultVolumesPerNode
-	if cores >= MinimumCoresWithMaximumAttachableVolumes {
-		maxVolumesPerNode = MaxVolumesPerNode
-	}
-
+	
 	testCases := []struct {
 		name          string
 		req           *csi.NodeGetInfoRequest
@@ -252,7 +246,6 @@ func TestNodeGetInfo(t *testing.T) {
 			resetMetadata: false,
 			resp: &csi.NodeGetInfoResponse{
 				NodeId:            "testworker",
-				MaxVolumesPerNode: maxVolumesPerNode,
 				AccessibleTopology: &csi.Topology{
 					Segments: map[string]string{
 						utils.NodeRegionLabel: "testregion",

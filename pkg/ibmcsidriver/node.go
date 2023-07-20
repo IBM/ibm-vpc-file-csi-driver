@@ -74,14 +74,6 @@ func (su *VolumeStatUtils) FSInfo(path string) (int64, int64, int64, int64, int6
 }
 
 const (
-	// DefaultVolumesPerNode is the default number of volumes attachable to a node
-	//DefaultVolumesPerNode = 4
-
-	// MaxVolumesPerNode is the maximum number of volumes attachable to a node
-	//MaxVolumesPerNode = 12
-
-	// MinimumCoresWithMaximumAttachableVolumes is the minimum cores required to have maximum number of attachable volumes, currently 4 as per the docs.
-	MinimumCoresWithMaximumAttachableVolumes = 4
 
 	// default file system type to be used when it is not provided
 	defaultFsType = "nfs"
@@ -235,8 +227,6 @@ func (csiNS *CSINodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInf
 			utils.NodeZoneLabel:   csiNS.Metadata.GetZone(),
 		},
 	}
-
-	//ctxLogger.Info("Number of cores of the node and attachable volume limits.", zap.Reflect("Cores", cores), zap.Reflect("AttachableVolumeLimits", maxVolumesPerNode))
 
 	resp := &csi.NodeGetInfoResponse{
 		NodeId:             csiNS.Metadata.GetWorkerID(),
