@@ -1,15 +1,15 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: ibmc-vpc-file-custom
+  name: ibmc-vpc-file-dp2
 provisioner: vpc.file.csi.ibm.io
 mountOptions:
     - hard
     - nfsvers=4.1
     - sec=sys
 parameters:
-  profile: "custom-iops"            # The VPC Storage profile used. https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles#fs-tiers
-  iops: "400"                       # Default IOPS. User can override from secrets
+  profile: "dp2"            # The VPC Storage profile used. https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles&interface=ui#dp2-profile
+  iops: "100"                       # Default IOPS. User can override from secrets
   billingType: "hourly"             # The default billing policy used. User can override this default
   encrypted: "false"                # By default, all PVC using this class will only be provider managed encrypted. The user can override this default
   encryptionKey: ""                 # If encrypted is true, then a user must specify the encryption key used associated KP instance
