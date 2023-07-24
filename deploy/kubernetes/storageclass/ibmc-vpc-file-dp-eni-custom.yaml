@@ -9,6 +9,7 @@ mountOptions:
   - sec=sys
 parameters:
  profile: "dp2"       # The VPC Storage profile used. /docs/vpc?topic=vpc-block-storage-profiles&interface=ui#tiers-beta
+ iops: "100"          # Default IOPS. User can override from secrets
  billingType: "hourly"        # The default billing policy used. User can override this default
  encrypted: "false"         # By default, all PVC using this class will only be provider managed encrypted. The user can override this default
  encryptionKey: ""          # If encrypted is true, then a user must specify the encryption key used associated KP instance
