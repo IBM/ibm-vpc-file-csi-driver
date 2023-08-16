@@ -20,11 +20,24 @@
 package ibmcsidriver
 
 import (
+	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
+	"strings"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
+	"golang.org/x/net/context"
+)
+
+const (
+	//socket path
+	socketPath = "/tmp/mysocket.sock"
+	// url
+	urlPath = "http:/unix/api/mount"
 )
 
 func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagingTargetPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) {
@@ -36,7 +49,54 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 	if err := csiNS.Mounter.MakeDir(targetPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, targetPath)
 	}
-	err := csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
+
+	var err error
+	// Check if EIT is enabled.
+	if fsType == eitFsType {
+		// Create payload
+		payload := fmt.Sprintf(`{"target":"%s","path":"%s"}`, stagingTargetPath, targetPath)
+
+		// Create a custom dialer function for Unix socket connection
+		dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return net.Dial("unix", socketPath)
+		}
+
+		// Create an HTTP client with the Unix socket transport
+		client := &http.Client{
+			Transport: &http.Transport{
+				DialContext: dialer,
+			},
+		}
+
+		//Create POST request
+		req, err := http.NewRequest("POST", urlPath, strings.NewReader(payload))
+		if err != nil {
+			ctxLogger.Error("Request creation error...")
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		response, err := client.Do(req)
+		if err != nil {
+			ctxLogger.Error("Response error...")
+			// TODO: create new error codes
+			return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, err, targetPath)
+		}
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			ctxLogger.Error("Error reading response.")
+			// TODO: create new error codes
+			return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, err, targetPath)
+		}
+		ctxLogger.Info("Mount output: ", zap.String("Response:", string(body)))
+
+	} else if fsType == defaultFsType {
+		err = csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
+	} else {
+		ctxLogger.Error("Invalid fsType")
+		return nil, fmt.Errorf("Received inavlid fsType")
+	}
+
 	if err != nil {
 		notMnt, mntErr := csiNS.Mounter.IsLikelyNotMountPoint(targetPath)
 		if mntErr != nil {

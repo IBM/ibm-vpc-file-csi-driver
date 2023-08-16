@@ -318,6 +318,13 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		}
 	}
 
+	// For enabling EIT, check if ENI is enabled or not. If not, fail with error as to enable encryption in transit, accessControlMode must be set to security_group.
+	if volume.VPCVolume.EncryptionInTransit == EncryptionTransit && volume.VPCVolume.AccessControlMode != SecurityGroup {
+		err = fmt.Errorf("ENI must be enabled i.e accessControlMode must be set to security_group for creating EIT enabled fileShare. Set 'isENIEnabled' to 'true' in storage class parameters.")
+		logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+		return volume, err
+	}
+
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
 	//If the zone is not provided in storage class parameters then we pick from the Topology
@@ -356,6 +363,19 @@ func setISENIEnabled(volume *provider.Volume, key string, value string) error {
 			volume.VPCVolume.AccessControlMode = SecurityGroup
 		} else {
 			volume.VPCVolume.AccessControlMode = VPC
+		}
+	}
+
+	return err
+}
+
+func setISEITEnabled(volume *provider.Volume, key string, value string) error {
+	var err error
+	if value != TrueStr && value != FalseStr {
+		err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+	} else {
+		if value == TrueStr {
+			volume.VPCVolume.EncryptionInTransit = EncryptionTransit
 		}
 	}
 
@@ -584,6 +604,9 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	}
 
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
+	if len(vol.VPCFileVolume.EncryptionInTransit) != 0 {
+		labels[IsEITEnabled] = TrueStr
+	}
 
 	// Create csi volume response
 	//Volume ID is in format volumeID:volumeAccessPointID, to assist the deletion of access point in delete volume
