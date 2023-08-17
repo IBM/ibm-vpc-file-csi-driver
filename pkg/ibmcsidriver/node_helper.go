@@ -37,7 +37,7 @@ const (
 	//socket path
 	socketPath = "/tmp/mysocket.sock"
 	// url
-	urlPath = "http:/unix/api/mount"
+	urlPath = "http://unix/api/mount"
 )
 
 func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagingTargetPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) {
