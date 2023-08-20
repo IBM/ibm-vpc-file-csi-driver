@@ -89,9 +89,7 @@ func init() {
 
 // NodePublishVolume ...
 func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	publishContext := req.GetPublishContext()
-	controlleRequestID := publishContext[PublishInfoRequestID]
-	ctxLogger, requestID := utils.GetContextLoggerWithRequestID(ctx, false, &controlleRequestID)
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodePublishVolume...", zap.Reflect("Request", *req))
 	defer metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
 

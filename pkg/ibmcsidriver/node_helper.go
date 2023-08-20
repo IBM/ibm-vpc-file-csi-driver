@@ -33,6 +33,7 @@ import (
 	"golang.org/x/net/context"
 )
 
+// TODO: expose via deployment.yaml
 const (
 	//socket path
 	socketPath = "/tmp/mysocket.sock"
@@ -51,10 +52,12 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 	}
 
 	var err error
-	// Check if EIT is enabled.
-	if fsType == eitFsType {
+
+	if fsType == defaultFsType {
+		err = csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
+	} else if fsType == eitFsType {
 		// Create payload
-		payload := fmt.Sprintf(`{"target":"%s","path":"%s"}`, stagingTargetPath, targetPath)
+		payload := fmt.Sprintf(`{"stagingTargetPath":"%s","targetPath":"%s","fsType","%s","requestID","%s"}`, stagingTargetPath, targetPath, fsType, requestID)
 
 		// Create a custom dialer function for Unix socket connection
 		dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -71,27 +74,34 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 		//Create POST request
 		req, err := http.NewRequest("POST", urlPath, strings.NewReader(payload))
 		if err != nil {
-			ctxLogger.Error("Request creation error...")
+			ctxLogger.Error("Failed to create EIT based request. Failed wth error.")
 			return nil, err
 		}
 		req.Header.Set("Content-Type", "application/json")
 		response, err := client.Do(req)
 		if err != nil {
-			ctxLogger.Error("Response error...")
-			// TODO: create new error codes
-			return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, err, targetPath)
+			ctxLogger.Error("Failed to send EIT based request. Failed with error.")
+			return nil, err
 		}
 		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
 			ctxLogger.Error("Error reading response.")
-			// TODO: create new error codes
-			return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, err, targetPath)
+			return nil, err
 		}
-		ctxLogger.Info("Mount output: ", zap.String("Response:", string(body)))
+		statusCode := response.StatusCode
+		switch statusCode {
+		case http.StatusOK:
+			ctxLogger.Info("Request was successful (200 OK)")
+		case http.StatusBadRequest:
+			ctxLogger.Error("Client sent an invalid request (400 Bad Request)")
+		case http.StatusInternalServerError:
+			ctxLogger.Error("Server encountered an error (500 Internal Server Error)")
+		default:
+			fmt.Printf("Unknown status code: %d\n", statusCode)
+		}
 
-	} else if fsType == defaultFsType {
-		err = csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
+		ctxLogger.Info("Mount output: ", zap.String("Response:", string(body)))
 	} else {
 		ctxLogger.Error("Invalid fsType")
 		return nil, fmt.Errorf("Received inavlid fsType")
