@@ -57,7 +57,7 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 		err = csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
 	} else if fsType == eitFsType {
 		// Create payload
-		payload := fmt.Sprintf(`{"stagingTargetPath":"%s","targetPath":"%s","fsType","%s","requestID","%s"}`, stagingTargetPath, targetPath, fsType, requestID)
+		payload := fmt.Sprintf(`{"stagingTargetPath":"%s","targetPath":"%s","fsType":"%s","requestID":"%s"}`, stagingTargetPath, targetPath, fsType, requestID)
 
 		// Create a custom dialer function for Unix socket connection
 		dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -89,16 +89,9 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 			ctxLogger.Error("Error reading response.")
 			return nil, err
 		}
-		statusCode := response.StatusCode
-		switch statusCode {
-		case http.StatusOK:
-			ctxLogger.Info("Request was successful (200 OK)")
-		case http.StatusBadRequest:
-			ctxLogger.Error("Client sent an invalid request (400 Bad Request)")
-		case http.StatusInternalServerError:
-			ctxLogger.Error("Server encountered an error (500 Internal Server Error)")
-		default:
-			fmt.Printf("Unknown status code: %d\n", statusCode)
+
+		if response.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("Mount failed. Error: %s. ResponseCode: %v", string(body), response.StatusCode)
 		}
 
 		ctxLogger.Info("Mount output: ", zap.String("Response:", string(body)))
