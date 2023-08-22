@@ -94,7 +94,7 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 			return nil, fmt.Errorf("Mount failed. Error: %s. ResponseCode: %v", string(body), response.StatusCode)
 		}
 
-		ctxLogger.Info("Mount output: ", zap.String("Response:", string(body)))
+		ctxLogger.Info("Mount passed.", zap.String("Response:", string(body)), zap.Any("StatusCode:", response.StatusCode))
 	} else {
 		ctxLogger.Error("Invalid fsType")
 		return nil, fmt.Errorf("Received inavlid fsType")
