@@ -27,7 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends nfs-common && \
 
 RUN mkdir -p /home/ibm-csi-drivers/
 ADD ibm-vpc-file-csi-driver /home/ibm-csi-drivers
-RUN chmod +x /home/ibm-csi-drivers/ibm-vpc-file-csi-driver
+ADD eit-mount-utility /home/ibm-csi-drivers/eit-mount-utility
+RUN /home/ibm-csi-drivers/eit-mount-utility/setup.sh
 
 USER 2121:2121
 
