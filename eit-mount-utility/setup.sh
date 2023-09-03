@@ -12,11 +12,17 @@
 set -ex
 
 if [ "$IS_NODE_SERVER" = "true" ]; then
-    echo "Inside node-server. Enabling eit-mount-utility service..."
+    echo "Inside node-server. Enabling mount-helper-container service..."
     /home/ibm-csi-drivers/systemutil -action reload
-    /home/ibm-csi-drivers/systemutil -target eit-mount-utility.service -action start
+    /home/ibm-csi-drivers/systemutil -target mount-helper-container.service -action start
 fi
 
-/home/ibm-csi-drivers/ibm-vpc-file-csi-driver
+# Run file-csi-driver binary with all the possible arguments passed from the deployment.
+/home/ibm-csi-drivers/ibm-vpc-file-csi-driver $1 $2 $3 $4
+
+if [ "$IS_NODE_SERVER" = "true" ]; then
+    echo "Stopping mount-helper-container service..."
+    /home/ibm-csi-drivers/systemutil -target mount-helper-container.service -action stop
+fi
 
 set +ex
