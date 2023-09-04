@@ -20,7 +20,6 @@
 package ibmcsidriver
 
 import (
-	"fmt"
 	"os"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
@@ -37,20 +36,19 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 	if err := csiNS.Mounter.MakeDir(targetPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, targetPath)
 	}
+	ctxLogger.Info("Successfully created targetPath directory...", targetPathField)
 
 	var err error
 
-	if fsType == defaultFsType {
+	if fsType != eitFsType {
 		err = csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
-	} else if fsType != eitFsType {
-		ctxLogger.Error("Invalid fsType")
-		return nil, fmt.Errorf("Received inavlid fsType")
+	} else {
+		// For EIT based request...
+		err = csiNS.Mounter.MountEITBasedFileShare(ctxLogger, stagingTargetPath, targetPath, fsType, requestID)
 	}
 
-	// For EIT based request...
-	err = csiNS.Mounter.MountEITBasedFileShare(ctxLogger, stagingTargetPath, targetPath, fsType, requestID)
-
 	if err != nil {
+		ctxLogger.Warn("Got error..,", zap.Error(err))
 		notMnt, mntErr := csiNS.Mounter.IsLikelyNotMountPoint(targetPath)
 		if mntErr != nil {
 			return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, mntErr, targetPath)
@@ -72,7 +70,8 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 		if err != nil {
 			ctxLogger.Warn("processMount: Remove targePath Failed", zap.String("targetPath", targetPath), zap.Error(err))
 		}
-		return nil, commonError.GetCSIError(ctxLogger, commonError.CreateMountTargetFailed, requestID, err, targetPath)
+		ctxLogger.Error("CSINodeServer-processMount failed", zap.Error(err))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.MountTargetFailed, requestID, err, stagingTargetPath, targetPath)
 	}
 
 	ctxLogger.Info("CSINodeServer-processMount successfully mounted", stagingTargetPathField, targetPathField, fsTypeField, optionsField)
