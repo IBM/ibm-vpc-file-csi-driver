@@ -36,19 +36,17 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 	if err := csiNS.Mounter.MakeDir(targetPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, targetPath)
 	}
-	ctxLogger.Info("Successfully created targetPath directory...", targetPathField)
 
 	var err error
 
+	ctxLogger.Info("Creating request for mounting volume...")
 	if fsType != eitFsType {
 		err = csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
 	} else {
-		// For EIT based request...
 		err = csiNS.Mounter.MountEITBasedFileShare(ctxLogger, stagingTargetPath, targetPath, fsType, requestID)
 	}
 
 	if err != nil {
-		ctxLogger.Warn("Got error..,", zap.Error(err))
 		notMnt, mntErr := csiNS.Mounter.IsLikelyNotMountPoint(targetPath)
 		if mntErr != nil {
 			return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, mntErr, targetPath)
