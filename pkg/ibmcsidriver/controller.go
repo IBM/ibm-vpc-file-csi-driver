@@ -218,16 +218,15 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 			securityGroupID, err := session.GetSecurityGroupForVolumeAccessPoint(securityGroupReq)
 			if err != nil || len(securityGroupID) == 0 {
-				return nil, commonError.GetCSIError(ctxLogger, commonError.SecurityGroupFindFailed, requestID, err, securityGroupReq.Name)
+				ctxLogger.Warn("SecurityGroup find failed for VolumeAccessPoint.VPC default SG will be considered")
+			} else {
+				requestedVolume.SecurityGroups = &[]provider.SecurityGroup{
+					{
+						ID: securityGroupID,
+					},
+				}
+				ctxLogger.Info("SecurityGroup fetched for VolumeAccessPoint", zap.Reflect("securityGroupID", securityGroupID))
 			}
-
-			requestedVolume.SecurityGroups = &[]provider.SecurityGroup{
-				{
-					ID: securityGroupID,
-				},
-			}
-
-			ctxLogger.Info("SecurityGroup fetched for VolumeAccessPoint", zap.Reflect("securityGroupID", securityGroupID))
 		}
 
 		volumeAccesspointReq.ResourceGroup = requestedVolume.ResourceGroup
