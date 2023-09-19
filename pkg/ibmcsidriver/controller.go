@@ -213,7 +213,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		//If securityGroup parameter is not populated via storage class
 		if requestedVolume.SecurityGroups == nil {
 			securityGroupReq := provider.SecurityGroupRequest{
-				Name:          "kube1-" + csiCS.CSIProvider.GetClusterID(),
+				Name:          "kube-" + csiCS.CSIProvider.GetClusterID(),
 				VPCID:         os.Getenv("VPC_ID"),
 				ResourceGroup: requestedVolume.ResourceGroup,
 			}
