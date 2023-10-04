@@ -170,7 +170,10 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
 
 		In all the above cases the variation possible is user can pass 0 or more securitygroupIDs that will govern the authorization. IF user does not pass
-		any securityGroupID then default VPC security group is considerd by the VPC IAAS layer.
+		any securityGroupID then
+
+		1. IKS cluster security group is fetched and used by CSI driver
+		2. Else default VPC security group is considerd by the VPC IAAS layer.
 
 	*/
 
@@ -218,6 +221,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 			securityGroupID, err := session.GetSecurityGroupForVolumeAccessPoint(securityGroupReq)
 			if err != nil || len(securityGroupID) == 0 {
+				// If IKS Cluster SG is not available pass empty SG. VPC IAAS will consider VPC Default SG.
 				ctxLogger.Warn("SecurityGroup find failed for VolumeAccessPoint.VPC default SG will be considered")
 			} else {
 				requestedVolume.SecurityGroups = &[]provider.SecurityGroup{
