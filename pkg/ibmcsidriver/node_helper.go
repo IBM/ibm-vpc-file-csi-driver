@@ -87,5 +87,8 @@ func checkMountResponse(err error) string {
 	if strings.Contains(err.Error(), "exit status 132") {
 		return commonError.MountHelperCertificatesMissing
 	}
+	if strings.Contains(err.Error(), "connect: no such file") {
+		return commonError.UnresponsiveMountHelperContainerUtility
+	}
 	return commonError.MountingTargetFailed
 }
