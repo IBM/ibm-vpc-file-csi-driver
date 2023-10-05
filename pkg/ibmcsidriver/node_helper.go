@@ -21,6 +21,7 @@ package ibmcsidriver
 
 import (
 	"os"
+	"strings"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -43,7 +44,7 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 	if fsType != eitFsType {
 		err = csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
 	} else {
-		err = csiNS.Mounter.MountEITBasedFileShare(ctxLogger, stagingTargetPath, targetPath, fsType, requestID)
+		err = csiNS.Mounter.MountEITBasedFileShare(stagingTargetPath, targetPath, fsType, requestID)
 	}
 
 	if err != nil {
@@ -64,14 +65,27 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 				return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
 			}
 		}
-		err = os.Remove(targetPath)
-		if err != nil {
-			ctxLogger.Warn("processMount: Remove targePath Failed", zap.String("targetPath", targetPath), zap.Error(err))
+		errRemovePath := os.Remove(targetPath)
+		if errRemovePath != nil {
+			ctxLogger.Warn("processMount: Remove targePath failed", zap.String("targetPath", targetPath), zap.Error(errRemovePath))
 		}
-		ctxLogger.Error("CSINodeServer-processMount failed", zap.Error(err))
-		return nil, commonError.GetCSIError(ctxLogger, commonError.MountTargetFailed, requestID, err, stagingTargetPath, targetPath)
+		errorCode := checkMountResponse(err)
+		return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)
 	}
 
 	ctxLogger.Info("CSINodeServer-processMount successfully mounted", stagingTargetPathField, targetPathField, fsTypeField, optionsField)
 	return &csi.NodePublishVolumeResponse{}, nil
+}
+
+func checkMountResponse(err error) string {
+	if strings.Contains(err.Error(), "exit status 32") {
+		return commonError.UnresponsiveMountHelperUtility
+	}
+	if strings.Contains(err.Error(), "exit status 1") {
+		return commonError.MetadataServiceNotEnabled
+	}
+	if strings.Contains(err.Error(), "exit status 132") {
+		return commonError.MountHelperCertificatesMissing
+	}
+	return commonError.MountingTargetFailed
 }

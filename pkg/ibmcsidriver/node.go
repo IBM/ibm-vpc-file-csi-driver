@@ -176,14 +176,14 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
 	}
 
-	ctxLogger.Info("Unmounting  target path", zap.String("targetPath", targetPath))
+	ctxLogger.Info("Unmounting target path", zap.String("targetPath", targetPath))
 	err := mount.CleanupMountPoint(targetPath, csiNS.Mounter, false /* bind mount */)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
 	}
 
 	nodeUnpublishVolumeResponse := &csi.NodeUnpublishVolumeResponse{}
-	ctxLogger.Info("Successfully unmounted  target path", zap.String("targetPath", targetPath), zap.Error(err))
+	ctxLogger.Info("Successfully unmounted target path", zap.String("targetPath", targetPath), zap.Error(err))
 	return nodeUnpublishVolumeResponse, err
 }
 
