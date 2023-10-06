@@ -256,6 +256,11 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	volumeAccessPointObj, err := createVolumeAccessPoint(session, volumeAccesspointReq, ctxLogger)
 
 	if err != nil {
+		// Try to cleanup the Volume as VolumeAccessPoint creation failed. TBD if we combine CreateVolume and VolumeAccesspoint calls this is not required.
+		delErr := session.DeleteVolume(volumeObj)
+		if delErr != nil {
+			ctxLogger.Error("Volume cleanup failed", zap.Error(delErr))
+		}
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
