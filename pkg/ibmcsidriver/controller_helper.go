@@ -178,7 +178,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
-			err = setISENIEnabled(volume, key, value)
+			err = setISENIEnabled(volume, key, strings.ToLower(value))
 		case ResourceGroup:
 			if len(value) > ResourceGroupIDMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ResourceGroupIDMaxLen)
@@ -364,28 +364,24 @@ func setISENIEnabled(volume *provider.Volume, key string, value string) error {
 
 // setPrimaryIPID
 func setPrimaryIPID(volume *provider.Volume, key string, value string) error {
-	var err error
 	//We are failing in case PrimaryIPAddress is already set.
 	if volume.VPCVolume.PrimaryIP == nil {
 		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{PrimaryIPID: provider.PrimaryIPID{ID: value}}
-	} else {
-		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
+		return nil
 	}
 
-	return err
+	return fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
 }
 
 // setPrimaryIPAddress
 func setPrimaryIPAddress(volume *provider.Volume, key string, value string) error {
-	var err error
 	//We are failing in case PrimaryIPID is already set.
 	if volume.VPCVolume.PrimaryIP == nil {
 		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{PrimaryIPAddress: provider.PrimaryIPAddress{Address: value}}
-	} else {
-		err = fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
+		return nil
 	}
 
-	return err
+	return fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
 }
 
 // Validate size and iops for custom class
@@ -507,7 +503,7 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
-			err = setISENIEnabled(volume, key, value)
+			err = setISENIEnabled(volume, key, strings.ToLower(value))
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
