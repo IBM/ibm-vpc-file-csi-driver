@@ -206,6 +206,8 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 			if err != nil || len(subnetID) == 0 {
 				return nil, commonError.GetCSIError(ctxLogger, commonError.SubnetFindFailed, requestID, err, requestedVolume.Az, subnetIDList)
 			}
+			
+			requestedVolume.SubnetID = subnetID
 			ctxLogger.Info("Subnet fetched for VolumeAccessPoint", zap.Reflect("subnetID", subnetID))
 		}
 
