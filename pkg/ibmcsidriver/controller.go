@@ -232,11 +232,8 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 				ctxLogger.Info("SecurityGroup fetched for VolumeAccessPoint", zap.Reflect("securityGroupID", securityGroupID))
 			}
 		}
-
-		volumeAccesspointReq.ResourceGroup = requestedVolume.ResourceGroup
-		volumeAccesspointReq.SecurityGroups = requestedVolume.SecurityGroups
-		volumeAccesspointReq.PrimaryIP = requestedVolume.PrimaryIP
-		volumeAccesspointReq.SubnetID = subnetID
+	} else { // IF VPC Mode
+		requestedVolume.VPCID = os.Getenv("VPC_ID")
 	}
 
 	// Create volume if it does no exist
@@ -251,15 +248,20 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
 	}
 
-	volumeAccesspointReq.VolumeID = volumeObj.VolumeID
-
-	//Create VolumeAccess Point
-	//No need to check for access point existence as library takes care of the same
-	volumeAccessPointObj, err := createVolumeAccessPoint(session, volumeAccesspointReq, ctxLogger)
-
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	if volumeObj.VolumeAccessPoints != nil && len(volumeObj.VolumeAccessPoints) != 0 {
+		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
+		volumeAccesspointReq.AccessPointID = volumeObj.VolumeAccessPoints[0].AccessPointID
 	}
+
+	ctxLogger.Info("Waiting for CreateVolumeAccessPoint...")
+
+	volumeAccessPointObj, err = session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
+	if err != nil {
+		//retry gap is constant in the common lib i.e 10 seconds and number of retries are 4*Retry configure in the driver
+		return nil, err
+	}
+
+	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", volumeAccessPointObj.AccessPointID))
 
 	// return csi volume object
 	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterID()), nil
