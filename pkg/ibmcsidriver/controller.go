@@ -249,14 +249,17 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	}
 
 	volumeAccesspointReq.VolumeID = volumeObj.VolumeID
-	if volumeObj.VolumeAccessPoints != nil && len(volumeObj.VolumeAccessPoints) != 0 {
+	volumeAccessPoints := volumeObj.VolumeAccessPoints
+	if volumeAccessPoints != nil && len(*volumeAccessPoints) != 0 {
 		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
-		volumeAccesspointReq.AccessPointID = volumeObj.VolumeAccessPoints[0].AccessPointID
+		volumeAccesspointReq.AccessPointID = (*volumeAccessPoints)[0].ID
+	} else { // This will not hit as we should always have one VolumeAccessPoint on sucessfull Volume creation. If this occurs then something is really wrong.
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
 	ctxLogger.Info("Waiting for VolumeAccessPoint stable state...")
 
-	volumeAccessPointObj, err = session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
+	volumeAccessPointObj, err := session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
