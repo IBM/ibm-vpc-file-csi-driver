@@ -248,17 +248,17 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
 	}
 
+	volumeAccesspointReq.VolumeID = volumeObj.VolumeID
 	if volumeObj.VolumeAccessPoints != nil && len(volumeObj.VolumeAccessPoints) != 0 {
 		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
 		volumeAccesspointReq.AccessPointID = volumeObj.VolumeAccessPoints[0].AccessPointID
 	}
 
-	ctxLogger.Info("Waiting for CreateVolumeAccessPoint...")
+	ctxLogger.Info("Waiting for VolumeAccessPoint stable state...")
 
 	volumeAccessPointObj, err = session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
 	if err != nil {
-		//retry gap is constant in the common lib i.e 10 seconds and number of retries are 4*Retry configure in the driver
-		return nil, err
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
 	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", volumeAccessPointObj.AccessPointID))
