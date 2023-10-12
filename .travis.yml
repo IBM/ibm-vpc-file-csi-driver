@@ -35,7 +35,7 @@ script:
 
 - make fmt
 - travis_wait 300 make test
-- make coverage && touch "Passing" || touch "Failed"
+- make coverage
 - make driver
 
 after_success:
