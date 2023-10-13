@@ -559,32 +559,6 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 	return existingVol, err
 }
 
-// createVolumeAccessPoint ...
-func createVolumeAccessPoint(session provider.Session, volumeAccesspointReq provider.VolumeAccessPointRequest, ctxLogger *zap.Logger) (*provider.VolumeAccessPointResponse, error) {
-	ctxLogger.Info("Creating VolumeAccessPoint...")
-	response, err := session.CreateVolumeAccessPoint(volumeAccesspointReq)
-	if err != nil {
-		return nil, err
-	}
-
-	ctxLogger.Info("Volume Access Point Created", zap.Reflect("Volume Access Point", response))
-
-	//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
-	volumeAccesspointReq.AccessPointID = response.AccessPointID
-
-	ctxLogger.Info("Waiting for CreateVolumeAccessPoint...")
-
-	response, err = session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
-	if err != nil {
-		//retry gap is constant in the common lib i.e 10 seconds and number of retries are 4*Retry configure in the driver
-		return nil, err
-	}
-
-	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", response.AccessPointID))
-
-	return response, nil
-}
-
 // createCSIVolumeResponse ...
 func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string) *csi.CreateVolumeResponse {
 	labels := map[string]string{}

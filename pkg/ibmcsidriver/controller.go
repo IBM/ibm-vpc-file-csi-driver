@@ -206,6 +206,8 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 			if err != nil || len(subnetID) == 0 {
 				return nil, commonError.GetCSIError(ctxLogger, commonError.SubnetFindFailed, requestID, err, requestedVolume.Az, subnetIDList)
 			}
+
+			requestedVolume.SubnetID = subnetID
 			ctxLogger.Info("Subnet fetched for VolumeAccessPoint", zap.Reflect("subnetID", subnetID))
 		}
 
@@ -232,11 +234,8 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 				ctxLogger.Info("SecurityGroup fetched for VolumeAccessPoint", zap.Reflect("securityGroupID", securityGroupID))
 			}
 		}
-
-		volumeAccesspointReq.ResourceGroup = requestedVolume.ResourceGroup
-		volumeAccesspointReq.SecurityGroups = requestedVolume.SecurityGroups
-		volumeAccesspointReq.PrimaryIP = requestedVolume.PrimaryIP
-		volumeAccesspointReq.SubnetID = subnetID
+	} else { // IF VPC Mode
+		requestedVolume.VPCID = os.Getenv("VPC_ID")
 	}
 
 	// Create volume if it does no exist
@@ -252,14 +251,22 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	}
 
 	volumeAccesspointReq.VolumeID = volumeObj.VolumeID
+	volumeAccessPoints := volumeObj.VolumeAccessPoints
+	if volumeAccessPoints != nil && len(*volumeAccessPoints) != 0 {
+		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
+		volumeAccesspointReq.AccessPointID = (*volumeAccessPoints)[0].ID
+	} else { // This will not hit as we should always have one VolumeAccessPoint on sucessfull Volume creation. If this occurs then something is really wrong.
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	}
 
-	//Create VolumeAccess Point
-	//No need to check for access point existence as library takes care of the same
-	volumeAccessPointObj, err := createVolumeAccessPoint(session, volumeAccesspointReq, ctxLogger)
+	ctxLogger.Info("Waiting for VolumeAccessPoint stable state...")
 
+	volumeAccessPointObj, err := session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
+
+	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", volumeAccessPointObj.AccessPointID))
 
 	// return csi volume object
 	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterID()), nil
