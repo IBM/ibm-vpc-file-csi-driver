@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.8
-	github.com/IBM/ibmcloud-volume-file-vpc v1.1.1-beta.0.20231011090237-01b0e1cad7cd
+	github.com/IBM/ibmcloud-volume-file-vpc v1.1.1-beta.0.20231013101204-67c26f9c55f4
 	github.com/IBM/ibmcloud-volume-interface v1.2.1-0.20231011061540-69f2d3641559
 	github.com/IBM/secret-utils-lib v1.1.4
 	github.com/container-storage-interface/spec v1.7.0
