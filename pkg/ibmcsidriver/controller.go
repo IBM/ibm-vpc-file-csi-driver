@@ -127,11 +127,6 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		}
 	}
 
-	volumeAccesspointReq := provider.VolumeAccessPointRequest{
-		VPCID:             os.Getenv("VPC_ID"),
-		AccessControlMode: requestedVolume.AccessControlMode,
-	}
-
 	/*
 		//IF ENI/VNI is enabled
 
@@ -251,7 +246,11 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
 	}
 
-	volumeAccesspointReq.VolumeID = volumeObj.VolumeID
+	// Prepare input for WaitForCreateVolumeAccessPoint
+	volumeAccesspointReq := provider.VolumeAccessPointRequest{
+		VolumeID: volumeObj.VolumeID,
+	}
+
 	volumeAccessPoints := volumeObj.VolumeAccessPoints
 	if volumeAccessPoints != nil && len(*volumeAccessPoints) != 0 {
 		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
