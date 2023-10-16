@@ -226,7 +226,10 @@ func TestCreateVolumeArguments(t *testing.T) {
 				CreatedAt:     &time.Time{},
 			},
 
-			libVolumeResponse:             &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			libVolumeResponse: &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion",
+				VolumeAccessPoints: &[]provider.VolumeAccessPoints{{
+					ID: "testVolumeAccessPointId"}},
+			},
 			subnetID:                      "sub-1",
 			securityGroupID:               "kube-fake-cluster-id",
 			subnetError:                   nil,
@@ -235,26 +238,6 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeError:                nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
-		},
-		{
-			name: "CreateVolume Access Point failure",
-			req: &csi.CreateVolumeRequest{
-				Name:               volName,
-				CapacityRange:      stdCapRange,
-				VolumeCapabilities: stdVolCap,
-				Parameters:         stdParams,
-			},
-			expVol:                        nil,
-			libVolumeAccessPointResp:      nil,
-			libVolumeResponse:             &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
-			expErrCode:                    codes.Internal,
-			subnetID:                      "sub-1",
-			securityGroupID:               "kube-fake-cluster-id",
-			subnetError:                   nil,
-			securityGroupError:            nil,
-			libVolumeError:                nil,
-			libVolumeAccessPointWaitError: nil,
-			libVolumeAccessPointError:     providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume Access Point failed", Type: providerError.ProvisioningFailed},
 		},
 		{
 			name: "Wait for CreateVolume Access Point failure",
@@ -418,7 +401,6 @@ func TestCreateVolumeArguments(t *testing.T) {
 		fakeStructSession.GetSecurityGroupForVolumeAccessPointReturns(tc.securityGroupID, tc.securityGroupError)
 		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeError)
 		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
-		fakeStructSession.CreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointError)
 		fakeStructSession.WaitForCreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointWaitError)
 
 		// Call CSI CreateVolume
