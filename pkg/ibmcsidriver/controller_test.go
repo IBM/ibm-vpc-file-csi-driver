@@ -226,9 +226,18 @@ func TestCreateVolumeArguments(t *testing.T) {
 				CreatedAt:     &time.Time{},
 			},
 
-			libVolumeResponse: &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion",
-				VolumeAccessPoints: &[]provider.VolumeAccessPoint{{
-					ID: "testVolumeAccessPointId"}},
+			libVolumeResponse: &provider.Volume{
+				Capacity: &cap,
+				Name:     &volName,
+				VolumeID: "testVolumeId",
+				Iops:     &iopsStr,
+				Az:       "myzone",
+				Region:   "myregion",
+				VolumeAccessPoints: *[]provider.VolumeAccessPoint{
+					{
+						ID: "testVolumeAccessPointId",
+					},
+				},
 			},
 			subnetID:                      "sub-1",
 			securityGroupID:               "kube-fake-cluster-id",
