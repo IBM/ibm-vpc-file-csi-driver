@@ -233,9 +233,13 @@ func TestCreateVolumeArguments(t *testing.T) {
 				Iops:     &iopsStr,
 				Az:       "myzone",
 				Region:   "myregion",
-				VolumeAccessPoints: &[]provider.VolumeAccessPoint{
-					{
-						ID: "testVolumeAccessPointId",
+				VPCVolume: VPCVolume{
+					VPCFileVolume: VPCFileVolume{
+						VolumeAccessPoints: &[]provider.VolumeAccessPoint{
+							{
+								ID: "testVolumeAccessPointId",
+							},
+						},
 					},
 				},
 			},
