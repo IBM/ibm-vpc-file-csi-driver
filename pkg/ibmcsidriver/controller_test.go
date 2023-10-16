@@ -227,7 +227,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 
 			libVolumeResponse: &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion",
-				VolumeAccessPoints: &[]provider.VolumeAccessPoints{{
+				VolumeAccessPoints: &[]provider.VolumeAccessPoint{{
 					ID: "testVolumeAccessPointId"}},
 			},
 			subnetID:                      "sub-1",
