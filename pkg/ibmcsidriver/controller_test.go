@@ -233,7 +233,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 				Iops:     &iopsStr,
 				Az:       "myzone",
 				Region:   "myregion",
-				VolumeAccessPoints: *[]provider.VolumeAccessPoint{
+				VolumeAccessPoints: &[]provider.VolumeAccessPoint{
 					{
 						ID: "testVolumeAccessPointId",
 					},
