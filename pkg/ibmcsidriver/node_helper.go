@@ -21,6 +21,7 @@ package ibmcsidriver
 
 import (
 	"os"
+	"strings"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -86,6 +87,8 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 
 // checkMountResponse checks for known errors while mounting and return appropriate user error codes.
 func checkMountResponse(err error) string {
+	errorString := err.Error()
+
 	errorMap := map[string]string{
 		"exit status 32":        commonError.UnresponsiveMountHelperUtility,
 		"exit status 1":         commonError.MetadataServiceNotEnabled,
@@ -94,9 +97,11 @@ func checkMountResponse(err error) string {
 		"connect: no such file": commonError.UnresponsiveMountHelperContainerUtility,
 	}
 
-	errString := err.Error()
-	if errMsg, ok := errorMap[errString]; ok {
-		return errMsg
+	for code, message := range errorMap {
+		if strings.Contains(errorString, code) {
+			return message
+		}
 	}
+
 	return commonError.MountingTargetFailed
 }
