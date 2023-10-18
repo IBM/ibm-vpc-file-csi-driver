@@ -56,9 +56,6 @@ const (
 	// Tag ...
 	Tag = "tags"
 
-	// CustomProfile ...
-	CustomProfile = "custom-iops"
-
 	// DP2Profile ...
 	DP2Profile = "dp2"
 

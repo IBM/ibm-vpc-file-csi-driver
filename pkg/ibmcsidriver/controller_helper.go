@@ -276,7 +276,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		return volume, err
 	}
 
-	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name != CustomProfile && volume.VPCVolume.Profile.Name != DP2Profile {
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name != DP2Profile {
 		// Specify IOPS only for custom class or DP2 class
 		volume.Iops = nil
 	}
@@ -303,8 +303,6 @@ func isValidCapacityIOPS(size int, iops int, profile string) (bool, error) {
 
 	if profile == DP2Profile {
 		capacityIopsRanges = dp2CapacityIopsRanges
-	} else if profile == CustomProfile {
-		capacityIopsRanges = customCapacityIopsRanges
 	} else {
 		return false, fmt.Errorf("invalid profile: <%s>", profile)
 	}
@@ -384,7 +382,7 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case IOPS:
 			// Override IOPS only for custom or dp2
-			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && (volume.VPCVolume.Profile.Name == CustomProfile || volume.VPCVolume.Profile.Name == DP2Profile) {
+			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == DP2Profile {
 				var iops int
 				var check bool
 				iops, err = strconv.Atoi(value)
