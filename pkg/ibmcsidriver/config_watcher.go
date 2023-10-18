@@ -50,10 +50,10 @@ func NewConfigWatcher(client kubernetes.Interface, log *zap.Logger) *ConfigWatch
 }
 
 func (cw *ConfigWatcher) Start() {
-	watchlist := cache.NewListWatchFromClient(cw.kclient.CoreV1().RESTClient(), "configmaps", CONFIGMAP_NAMESPACE, fields.Everything())
+	watchlist := cache.NewListWatchFromClient(cw.kclient.CoreV1().RESTClient(), "configmaps", CONFIGMAP_NAMESPACE, fields.Set{"metadata.name": CONFIGMAP_NAME}.AsSelector())
 	_, controller := cache.NewInformer(watchlist, &v1.ConfigMap{}, time.Second*0,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    nil,
+			AddFunc:    cw.addSubnetList,
 			DeleteFunc: nil,
 			UpdateFunc: cw.updateSubnetList,
 		},
@@ -63,6 +63,18 @@ func (cw *ConfigWatcher) Start() {
 	go controller.Run(stopch)
 	cw.logger.Info("ConfigWatcher started")
 	<-stopch
+}
+
+func (cw *ConfigWatcher) addSubnetList(newObj interface{}) {
+	newData, _ := newObj.(*v1.ConfigMap)
+	if strings.TrimSpace(newData.Name) == CONFIGMAP_NAME {
+		VPC_SUBNET_IDS := newData.Data[CONFIG_DATA_KEY]
+		if VPC_SUBNET_IDS != "" {
+			os.Setenv("VPC_SUBNET_IDS", VPC_SUBNET_IDS)
+			cw.logger.Info("Added the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", VPC_SUBNET_IDS))
+		}
+	}
+
 }
 
 func (cw *ConfigWatcher) updateSubnetList(oldObj, newObj interface{}) {
