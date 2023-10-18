@@ -117,6 +117,7 @@ func handle(logger *zap.Logger) {
 		pvwatcher := watcher.New(logger, csiConfig.CSIDriverName, csiConfig.CSIProviderVolumeType, ibmcloudProvider)
 		go pvwatcher.Start()
 	}
+	go driver.WatchClusterConfigMap(logger)
 
 	ibmCSIDriver.Run(*endpoint)
 }
