@@ -127,6 +127,112 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		}
 	}
 
+	/*
+		//IF ENI/VNI is enabled
+
+		Case 1: User has not provided anything.
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having randomIP from subnet within the same zone as used by the
+		volume (aka File share). The zone is picked-up randomly from topology and the subnet is fetched via the CSI driver matching with the
+		volumeaccess point zone and cluster subnet list.In this case any random IP Address will be created and assigned to VNI in the fetched subnet range.
+
+		Case 2: User has provided the subnetId, zone but nothing else
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having randomIP from subnet within the zone provided by user
+		as used by the volume (aka File share).In this case any random IP Address will be created and assigned to VNI in the user provided subnet range.
+
+		Case 3: User has provided the subnetId, zone and PrimaryIPAddress
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having PrimaryIPAddress from subnet within the zone provided by user
+		as the volume (aka File share).In this case any PrimaryIPAddress will be created and assigned to VNI in the user provided subnet range.
+
+		Case 4: User has provided the subnetId, zone and PrimaryIPID
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within
+		the zone provided by user as used by the volume (aka File share).In this case any IP adress associated with PrimaryIPID is assigned to VNI.
+
+		Case 5: User has not provided the subnetId and provided zone, PrimaryIPID
+		The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within
+		the zone provided by user as used by the volume (aka File share).In this case any IP adress associated with PrimaryIPID is assigned to VNI.
+
+		Case 6: User has not provided the subnetId,zone but provided PrimaryIPID
+		This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
+
+		Case 7: User has provided the subnetId but nothing else
+		This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
+
+		Case 8: User has not provided the subnetID but provided the zone and PrimaryIPAddress
+		This will throw error that subnet is mandatory as CSI driver cannot predict the subnet in such scenarios as there
+		might be multiple subnets in same zone.
+
+		Case 9: User has provided the subnetID and PrimaryIPAddress but not provided the zone.
+		This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
+
+		In all the above cases the variation possible is user can pass 0 or more securitygroupIDs that will govern the authorization. IF user does not pass
+		any securityGroupID then
+
+		1. IKS cluster security group is fetched and used by CSI driver
+		2. Else default VPC security group is considerd by the VPC IAAS layer.
+
+	*/
+
+	if requestedVolume.AccessControlMode == SecurityGroup {
+		/* Skip GetSubnetForVolumeAccessPoint call if user has not provided SubnetID but PrimaryIPID is provided.
+		For all rest of the following use cases if subnetId is not provided we fetch subnet
+		1.) User has not provided anything just ENI/VNI is enabled (Any random IP Address will be created and assigned to VNI in the fetch subnet range)
+		2.) User has provided PrimaryIP Address. (The respective IP Address will be created and assigned to VNI in the fetched subnet range)
+		*/
+		subnetID := requestedVolume.SubnetID
+
+		if len(subnetID) == 0 && (requestedVolume.PrimaryIP == nil || len(requestedVolume.PrimaryIP.ID) == 0) {
+			subnetIDList := os.Getenv("VPC_SUBNET_IDS")
+
+			//We need to abort here as there is no use of going ahead and fetching the matching subnet with empty list
+			if len(subnetIDList) == 0 {
+				return nil, commonError.GetCSIError(ctxLogger, commonError.SubnetIDListNotFound, requestID, nil)
+			}
+
+			subnetReq := provider.SubnetRequest{
+				SubnetIDList:  subnetIDList,
+				ZoneName:      requestedVolume.Az,
+				VPCID:         os.Getenv("VPC_ID"),
+				ResourceGroup: requestedVolume.ResourceGroup,
+			}
+
+			ctxLogger.Info("Getting Subnet for VolumeAccessPoint...")
+
+			subnetID, err = session.GetSubnetForVolumeAccessPoint(subnetReq)
+			if err != nil || len(subnetID) == 0 {
+				return nil, commonError.GetCSIError(ctxLogger, commonError.SubnetFindFailed, requestID, err, requestedVolume.Az, subnetIDList)
+			}
+
+			requestedVolume.SubnetID = subnetID
+			ctxLogger.Info("Subnet fetched for VolumeAccessPoint", zap.Reflect("subnetID", subnetID))
+		}
+
+		//If securityGroup parameter is not populated via storage class
+		if requestedVolume.SecurityGroups == nil {
+			securityGroupReq := provider.SecurityGroupRequest{
+				Name:          "kube-" + csiCS.CSIProvider.GetClusterID(),
+				VPCID:         os.Getenv("VPC_ID"),
+				ResourceGroup: requestedVolume.ResourceGroup,
+			}
+
+			ctxLogger.Info("Getting SecurityGroup for VolumeAccessPoint...")
+
+			securityGroupID, err := session.GetSecurityGroupForVolumeAccessPoint(securityGroupReq)
+			if err != nil || len(securityGroupID) == 0 {
+				// If IKS Cluster SG is not available pass empty SG. VPC IAAS will consider VPC Default SG.
+				ctxLogger.Warn("SecurityGroup find failed for VolumeAccessPoint.VPC default SG will be considered", zap.Error(err))
+			} else {
+				requestedVolume.SecurityGroups = &[]provider.SecurityGroup{
+					{
+						ID: securityGroupID,
+					},
+				}
+				ctxLogger.Info("SecurityGroup fetched for VolumeAccessPoint", zap.Reflect("securityGroupID", securityGroupID))
+			}
+		}
+	} else { // IF VPC Mode
+		requestedVolume.VPCID = os.Getenv("VPC_ID")
+	}
+
 	// Create volume if it does no exist
 	if !isVolumeExist {
 		ctxLogger.Info("Creating Volume...")
@@ -139,18 +245,27 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
 	}
 
+	// Prepare input for WaitForCreateVolumeAccessPoint
 	volumeAccesspointReq := provider.VolumeAccessPointRequest{
 		VolumeID: volumeObj.VolumeID,
-		VPCID:    os.Getenv("VPC_ID"),
 	}
 
-	//Create VolumeAccess Point
-	//No need to check for access point existence as library takes care of the same
-	volumeAccessPointObj, err := createVolumeAccessPoint(session, volumeAccesspointReq, ctxLogger)
+	volumeAccessPoints := volumeObj.VolumeAccessPoints
+	if volumeAccessPoints != nil && len(*volumeAccessPoints) != 0 {
+		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
+		volumeAccesspointReq.AccessPointID = (*volumeAccessPoints)[0].ID
+	} else { // This will not hit as we should always have one VolumeAccessPoint on sucessfull Volume creation. If this occurs then something is really wrong.
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	}
 
+	ctxLogger.Info("Waiting for VolumeAccessPoint stable state...")
+
+	volumeAccessPointObj, err := session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
+
+	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", volumeAccessPointObj.AccessPointID))
 
 	// return csi volume object
 	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterID()), nil

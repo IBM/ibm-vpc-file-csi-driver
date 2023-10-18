@@ -133,6 +133,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	var gid int
 	volume := &provider.Volume{}
 	volume.Name = &req.Name
+	volume.VPCVolume.AccessControlMode = SecurityGroup //Default mode is ENI/VNI
 	for key, value := range req.GetParameters() {
 		switch key {
 		case Profile:
@@ -160,7 +161,24 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			if len(value) != 0 {
 				volume.VPCVolume.Tags = []string{value}
 			}
-
+		case SecurityGroupIDs:
+			if len(value) != 0 {
+				setSecurityGroupList(volume, value)
+			}
+		case PrimaryIPID:
+			if len(value) != 0 {
+				err = setPrimaryIPID(volume, key, value)
+			}
+		case PrimaryIPAddress:
+			if len(value) != 0 {
+				err = setPrimaryIPAddress(volume, key, value)
+			}
+		case SubnetID:
+			if len(value) != 0 {
+				volume.VPCVolume.SubnetID = value
+			}
+		case IsENIEnabled:
+			err = setISENIEnabled(volume, key, strings.ToLower(value))
 		case ResourceGroup:
 			if len(value) > ResourceGroupIDMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ResourceGroupIDMaxLen)
@@ -231,6 +249,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			return volume, err
 		}
 	}
+
 	// If encripted is set to false
 	if encrypt == FalseStr {
 		volume.VPCVolume.VolumeEncryptionKey = nil
@@ -281,6 +300,26 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.Iops = nil
 	}
 
+	//If ENI/VNI enabled then check for scenarios where zone and subnetId is mandatory
+	if volume.VPCVolume.AccessControlMode == SecurityGroup {
+
+		//Zone is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined
+		if len(strings.TrimSpace(volume.Az)) == 0 && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
+			err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided")
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
+		}
+
+		//subnetID is mandatory if PrimaryIPAddress is provided
+		if len(volume.VPCVolume.SubnetID) == 0 && volume.VPCVolume.PrimaryIP != nil && len(volume.VPCVolume.PrimaryIP.Address) != 0 {
+			err = fmt.Errorf("subnetID is mandatory if PrimaryIPAddress is provided: '%s'", volume.VPCVolume.PrimaryIP.Address)
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
+		}
+	}
+
+	//TODO port the code from VPC BLOCK to find region if zone is given
+
 	//If the zone is not provided in storage class parameters then we pick from the Topology
 	if len(strings.TrimSpace(volume.Az)) == 0 {
 		zones, err := pickTargetTopologyParams(req.GetAccessibilityRequirements())
@@ -294,6 +333,55 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	return volume, nil
+}
+
+// setSecurityGroupList
+func setSecurityGroupList(volume *provider.Volume, value string) {
+	securityGroupstr := strings.TrimSpace(value)
+	securityGroupList := strings.Split(securityGroupstr, ",")
+	var securityGroups []provider.SecurityGroup
+	for _, securityGroup := range securityGroupList {
+		securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
+	}
+	volume.VPCVolume.SecurityGroups = &securityGroups
+}
+
+// setISENIEnabled
+func setISENIEnabled(volume *provider.Volume, key string, value string) error {
+	var err error
+	if value != TrueStr && value != FalseStr {
+		err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+	} else {
+		if value == TrueStr {
+			volume.VPCVolume.AccessControlMode = SecurityGroup
+		} else {
+			volume.VPCVolume.AccessControlMode = VPC
+		}
+	}
+
+	return err
+}
+
+// setPrimaryIPID
+func setPrimaryIPID(volume *provider.Volume, key string, value string) error {
+	//We are failing in case PrimaryIPAddress is already set.
+	if volume.VPCVolume.PrimaryIP == nil {
+		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{PrimaryIPID: provider.PrimaryIPID{ID: value}}
+		return nil
+	}
+
+	return fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
+}
+
+// setPrimaryIPAddress
+func setPrimaryIPAddress(volume *provider.Volume, key string, value string) error {
+	//We are failing in case PrimaryIPID is already set.
+	if volume.VPCVolume.PrimaryIP == nil {
+		volume.VPCVolume.PrimaryIP = &provider.PrimaryIP{PrimaryIPAddress: provider.PrimaryIPAddress{Address: value}}
+		return nil
+	}
+
+	return fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
 }
 
 // Validate size and iops for custom class
@@ -398,6 +486,24 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 					}
 				}
 			}
+		case SecurityGroupIDs:
+			if len(value) != 0 {
+				setSecurityGroupList(volume, value)
+			}
+		case PrimaryIPID:
+			if len(value) != 0 {
+				err = setPrimaryIPID(volume, key, value)
+			}
+		case PrimaryIPAddress:
+			if len(value) != 0 {
+				err = setPrimaryIPAddress(volume, key, value)
+			}
+		case SubnetID:
+			if len(value) != 0 {
+				volume.VPCVolume.SubnetID = value
+			}
+		case IsENIEnabled:
+			err = setISENIEnabled(volume, key, strings.ToLower(value))
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
@@ -453,32 +559,6 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 	return existingVol, err
 }
 
-// createVolumeAccessPoint ...
-func createVolumeAccessPoint(session provider.Session, volumeAccesspointReq provider.VolumeAccessPointRequest, ctxLogger *zap.Logger) (*provider.VolumeAccessPointResponse, error) {
-	ctxLogger.Info("Creating VolumeAccessPoint...")
-	response, err := session.CreateVolumeAccessPoint(volumeAccesspointReq)
-	if err != nil {
-		return nil, err
-	}
-
-	ctxLogger.Info("Volume Access Point Created", zap.Reflect("Volume Access Point", response))
-
-	//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
-	volumeAccesspointReq.AccessPointID = response.AccessPointID
-
-	ctxLogger.Info("Waiting for CreateVolumeAccessPoint...")
-
-	response, err = session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
-	if err != nil {
-		//retry gap is constant in the common lib i.e 10 seconds and number of retries are 4*Retry configure in the driver
-		return nil, err
-	}
-
-	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", response.AccessPointID))
-
-	return response, nil
-}
-
 // createCSIVolumeResponse ...
 func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string) *csi.CreateVolumeResponse {
 	labels := map[string]string{}
@@ -491,6 +571,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	if vol.Iops != nil && len(*vol.Iops) > 0 {
 		labels[IOPSLabel] = *vol.Iops
 	}
+
 	labels[utils.NodeRegionLabel] = vol.Region
 	labels[utils.NodeZoneLabel] = vol.Az
 

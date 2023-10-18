@@ -20,10 +20,10 @@ parameters:
   region: ""
   zone: "" # By default, the storage vpc driver will select a zone. The user can override this default
   primaryIPID: "" # Existing ID of reserved IP from the same subnet as the file share zone.Subnet-id is not mandatory for this
-  primaryIPAddress: "" # IPAddress for ENI/VNI to be created in the respective subnet of the zone. Subnet-id is mandatory for this.
+  primaryIPAddress: "" # IPAddress for ENI/VNI to be created in the respective subnet of the zone. Subnet-id is mandatory for this.  
   tags: ""                          # A list of tags "a, b, c" that will be created when the volume is created. This can be overidden by user
   classVersion: "1"
   uid: "0"                           # The initial user identifier for the file share.
   gid: "0"                           # The initial group identifier for the file share.
-reclaimPolicy: "Delete"
+reclaimPolicy: "Retain"
 allowVolumeExpansion: true
