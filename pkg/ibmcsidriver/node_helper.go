@@ -21,7 +21,6 @@ package ibmcsidriver
 
 import (
 	"os"
-	"strings"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -70,6 +69,14 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 			ctxLogger.Warn("processMount: Remove targePath failed", zap.String("targetPath", targetPath), zap.Error(errRemovePath))
 		}
 		errorCode := checkMountResponse(err)
+		// If there is any unknown error while mounting, collect mount-helper-container logs for debugging
+		if errorCode == commonError.MountingTargetFailed {
+			ctxLogger.Warn("Collecting mount-helper-container logs...")
+			errDebug := csiNS.Mounter.DebugLogsEITBasedFileShare(requestID)
+			if errDebug != nil {
+				ctxLogger.Warn("Failed to collect logs from mount-helper-container service...", zap.Error(errDebug))
+			}
+		}
 		return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)
 	}
 
@@ -77,18 +84,19 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
+// checkMountResponse checks for known errors while mounting and return appropriate user error codes.
 func checkMountResponse(err error) string {
-	if strings.Contains(err.Error(), "exit status 32") {
-		return commonError.UnresponsiveMountHelperUtility
+	errorMap := map[string]string{
+		"exit status 32":        commonError.UnresponsiveMountHelperUtility,
+		"exit status 1":         commonError.MetadataServiceNotEnabled,
+		"exit status 132":       commonError.MountHelperCertificatesMissing,
+		"exit status 5":         commonError.MountHelperCertificatesExpired,
+		"connect: no such file": commonError.UnresponsiveMountHelperContainerUtility,
 	}
-	if strings.Contains(err.Error(), "exit status 1") {
-		return commonError.MetadataServiceNotEnabled
-	}
-	if strings.Contains(err.Error(), "exit status 132") {
-		return commonError.MountHelperCertificatesMissing
-	}
-	if strings.Contains(err.Error(), "connect: no such file") {
-		return commonError.UnresponsiveMountHelperContainerUtility
+
+	errString := err.Error()
+	if errMsg, ok := errorMap[errString]; ok {
+		return errMsg
 	}
 	return commonError.MountingTargetFailed
 }
