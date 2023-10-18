@@ -68,7 +68,7 @@ var (
 		RequiredBytes: 20 * 1024 * 1024 * 1024,
 	}
 	stdParams = map[string]string{
-		Profile: "tier-10iops",
+		Profile: "dp2",
 		Zone:    "myzone",
 		Region:  "myregion",
 	}
