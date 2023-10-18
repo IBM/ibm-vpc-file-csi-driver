@@ -20,6 +20,7 @@
 package ibmcsidriver
 
 import (
+	"os"
 	"strings"
 	"time"
 
@@ -35,8 +36,6 @@ import (
 const CONFIGMAP_NAME = "ibm-cloud-provider-data"
 const CONFIGMAP_NAMESPACE = "kube-system"
 const CONFIG_DATA_KEY = "vpc_subnet_ids"
-
-var VPC_SUBNET_IDS string
 
 type ConfigWatcher struct {
 	logger  *zap.Logger
@@ -73,7 +72,8 @@ func (cw *ConfigWatcher) updateSubnetList(oldObj, newObj interface{}) {
 		newConfig := newData.Data[CONFIG_DATA_KEY]
 		oldConfig := oldData.Data[CONFIG_DATA_KEY]
 		if newConfig != "" && (newConfig != oldConfig) {
-			VPC_SUBNET_IDS = newData.Data[CONFIG_DATA_KEY]
+			VPC_SUBNET_IDS := newData.Data[CONFIG_DATA_KEY]
+			os.Setenv("VPC_SUBNET_IDS", VPC_SUBNET_IDS)
 			cw.logger.Info("Updated the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", VPC_SUBNET_IDS))
 		}
 	}
