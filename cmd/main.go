@@ -118,6 +118,8 @@ func handle(logger *zap.Logger) {
 		go pvwatcher.Start()
 	}
 
+        go driver.WatchClusterConfigMap(logger)
+
 	ibmCSIDriver.Run(*endpoint)
 }
 
