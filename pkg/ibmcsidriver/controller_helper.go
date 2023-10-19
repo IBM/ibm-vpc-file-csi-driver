@@ -580,7 +580,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	//As cross zone mounting is supported for ENI/VNI lets not populate this for securityGroup Mode.
 	if vol.AccessControlMode == VPC {
 		labels[utils.NodeZoneLabel] = vol.Az
-		topology.Segments[utils.NodeRegionLabel] = labels[utils.NodeZoneLabel]
+		topology.Segments[utils.NodeZoneLabel] = labels[utils.NodeZoneLabel]
 	}
 
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
