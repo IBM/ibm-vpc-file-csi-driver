@@ -452,7 +452,7 @@ func TestIsValidCapacityIOPS(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			isValid, err := isValidCapacityIOPS(testcase.requestSize, testcase.requestIops, "custom-iops")
+			isValid, err := isValidCapacityIOPS(testcase.requestSize, testcase.requestIops, "dp2")
 			if testcase.expectedError != nil {
 				assert.Equal(t, err, testcase.expectedError)
 			} else {
@@ -580,7 +580,7 @@ func TestOverrideParams(t *testing.T) {
 		{
 			testCaseName: "Valid IOPS for custom class",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				Parameters: map[string]string{Profile: "custom-iops",
+				Parameters: map[string]string{Profile: "dp2",
 					Zone:          "testzone",
 					Region:        "us-south-test",
 					Tag:           "test",
@@ -596,7 +596,7 @@ func TestOverrideParams(t *testing.T) {
 			expectedVolume: &provider.Volume{Name: &volumeName,
 				Capacity: &volumeSize,
 				VPCVolume: provider.VPCVolume{
-					Profile:       &provider.Profile{Name: "custom-iops"},
+					Profile:       &provider.Profile{Name: "dp2"},
 					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
 				},
 				Az:   "testzone",
@@ -608,7 +608,7 @@ func TestOverrideParams(t *testing.T) {
 		{
 			testCaseName: "Secret invalid IOPS for custom class",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				Parameters: map[string]string{Profile: "custom-iops",
+				Parameters: map[string]string{Profile: "dp2",
 					Zone:          "testzone",
 					Region:        "us-south-test",
 					Tag:           "test",
@@ -623,7 +623,7 @@ func TestOverrideParams(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{Name: &volumeName,
 				Capacity:  &volumeSize,
-				VPCVolume: provider.VPCVolume{Profile: &provider.Profile{Name: "custom-iops"}},
+				VPCVolume: provider.VPCVolume{Profile: &provider.Profile{Name: "dp2"}},
 			},
 			expectedStatus: false,
 			expectedError:  fmt.Errorf("%v:<%v> invalid value", IOPS, secretInvalidIops),
@@ -631,7 +631,7 @@ func TestOverrideParams(t *testing.T) {
 		{
 			testCaseName: "Nil volume as input/output",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
-				Parameters: map[string]string{Profile: "custom-iops"},
+				Parameters: map[string]string{Profile: "dp2"},
 				Secrets: map[string]string{
 					IOPS: iops110,
 				},
