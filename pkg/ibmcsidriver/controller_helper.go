@@ -304,7 +304,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	if volume.VPCVolume.AccessControlMode == SecurityGroup {
 
 		//Zone and Region is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined
-		if len(strings.TrimSpace(volume.Az)) == 0 && len(strings.TrimSpace(volume.Region)) == 0 && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
+		if (len(strings.TrimSpace(volume.Az)) == 0 || len(strings.TrimSpace(volume.Region)) == 0) && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
 			err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided")
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
