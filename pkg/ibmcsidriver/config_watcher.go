@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2021- IBM Inc. All rights reserved
+ * Copyright 2023- IBM Inc. All rights reserved
  * SPDX-License-Identifier: Apache2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,7 +53,7 @@ func (cw *ConfigWatcher) Start() {
 	watchlist := cache.NewListWatchFromClient(cw.kclient.CoreV1().RESTClient(), "configmaps", CONFIGMAP_NAMESPACE, fields.Set{"metadata.name": CONFIGMAP_NAME}.AsSelector())
 	_, controller := cache.NewInformer(watchlist, &v1.ConfigMap{}, time.Second*0,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    cw.addSubnetList,
+			AddFunc:    nil,
 			DeleteFunc: nil,
 			UpdateFunc: cw.updateSubnetList,
 		},
@@ -65,18 +65,9 @@ func (cw *ConfigWatcher) Start() {
 	<-stopch
 }
 
-func (cw *ConfigWatcher) addSubnetList(newObj interface{}) {
-	newData, _ := newObj.(*v1.ConfigMap)
-	if strings.TrimSpace(newData.Name) == CONFIGMAP_NAME {
-		VPC_SUBNET_IDS := newData.Data[CONFIG_DATA_KEY]
-		if VPC_SUBNET_IDS != "" {
-			os.Setenv("VPC_SUBNET_IDS", VPC_SUBNET_IDS)
-			cw.logger.Info("Added the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", VPC_SUBNET_IDS))
-		}
-	}
-
-}
-
+//
+// Updates the VPC_SUBNET_IDS when configmap is updated.
+//
 func (cw *ConfigWatcher) updateSubnetList(oldObj, newObj interface{}) {
 	newData, _ := newObj.(*v1.ConfigMap)
 	oldData, _ := oldObj.(*v1.ConfigMap)
