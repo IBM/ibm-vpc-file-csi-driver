@@ -186,10 +186,10 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		subnetID := requestedVolume.SubnetID
 
 		if len(subnetID) == 0 && (requestedVolume.PrimaryIP == nil || len(requestedVolume.PrimaryIP.ID) == 0) {
-			//subnetIDList := os.Getenv("VPC_SUBNET_IDS")
-			subnetIDList := VPC_SUBNET_IDS
+			subnetIDList := os.Getenv("VPC_SUBNET_IDS")
+                        ctxLogger.Info("List of subnetIDs..", zap.Any("subnetIDList", subnetIDList))
 
-			//We need to abort here as there is no use of going ahead and fetching the matching subnet with empty list
+			//We need to abort here as there is no use of going ahead and fetching the mataching subnet with empty list
 			if len(subnetIDList) == 0 {
 				return nil, commonError.GetCSIError(ctxLogger, commonError.SubnetIDListNotFound, requestID, nil)
 			}
@@ -233,11 +233,8 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 				ctxLogger.Info("SecurityGroup fetched for VolumeAccessPoint", zap.Reflect("securityGroupID", securityGroupID))
 			}
 		}
-
-		volumeAccesspointReq.ResourceGroup = requestedVolume.ResourceGroup
-		volumeAccesspointReq.SecurityGroups = requestedVolume.SecurityGroups
-		volumeAccesspointReq.PrimaryIP = requestedVolume.PrimaryIP
-		volumeAccesspointReq.SubnetID = subnetID
+	} else { // IF VPC Mode
+		requestedVolume.VPCID = os.Getenv("VPC_ID")
 	}
 
 	// Create volume if it does no exist
