@@ -579,7 +579,6 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	topology := &csi.Topology{
 		Segments: map[string]string{
 			utils.NodeRegionLabel: labels[utils.NodeRegionLabel],
-			utils.NodeZoneLabel:   labels[utils.NodeZoneLabel],
 		},
 	}
 
