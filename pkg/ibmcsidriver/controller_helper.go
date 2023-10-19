@@ -303,8 +303,8 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	//If ENI/VNI enabled then check for scenarios where zone and subnetId is mandatory
 	if volume.VPCVolume.AccessControlMode == SecurityGroup {
 
-		//Zone is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined
-		if len(strings.TrimSpace(volume.Az)) == 0 && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
+		//Zone and Region is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined
+		if len(strings.TrimSpace(volume.Az)) == 0 && len(strings.TrimSpace(volume.Region)) == 0 && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
 			err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided")
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
@@ -571,7 +571,10 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	}
 
 	labels[utils.NodeRegionLabel] = vol.Region
-	labels[utils.NodeZoneLabel] = vol.Az
+	//As cross zone mounting is supported for ENI/VNI lets not populate this for securityGroup Mode.
+	if vol.AccessControlMode == VPC {
+		labels[utils.NodeZoneLabel] = vol.Az
+	}
 
 	topology := &csi.Topology{
 		Segments: map[string]string{
