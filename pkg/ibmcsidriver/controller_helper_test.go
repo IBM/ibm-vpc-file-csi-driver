@@ -707,11 +707,14 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 		expectedStatus bool
 	}{
 		{
-			testCaseName: "Valid volume response",
+			testCaseName: "Valid volume response for VPC Mode",
 			requestVol: provider.Volume{VolumeID: volumeID,
 				VPCVolume: provider.VPCVolume{
 					Profile:       &provider.Profile{Name: "dp2"},
 					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						AccessControlMode: "vpc",
+					},
 				},
 				Region: "us-south-test",
 				Iops:   &threeIops,
@@ -729,6 +732,38 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 						Segments: map[string]string{
 							utils.NodeRegionLabel: "us-south-test",
 							utils.NodeZoneLabel:   "testzone",
+						},
+					},
+					},
+				},
+			},
+			expectedStatus: true,
+		},
+		{
+			testCaseName: "Valid volume response for SecurityGroup Mode",
+			requestVol: provider.Volume{VolumeID: volumeID,
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "dp2"},
+					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						AccessControlMode: "security_group",
+					},
+				},
+				Region: "us-south-test",
+				Iops:   &threeIops,
+				Az:     "testzone",
+			},
+			requestCap:   20,
+			clusterID:    "1234",
+			requestZones: []string{"", ""},
+			expectedVolume: &csi.CreateVolumeResponse{
+				Volume: &csi.Volume{
+					CapacityBytes: 20,
+					VolumeId:      volumeID + ":" + volumeAPID,
+					VolumeContext: map[string]string{VolumeIDLabel: volumeID + ":" + volumeAPID, IOPSLabel: threeIops, utils.NodeRegionLabel: "us-south-test"},
+					AccessibleTopology: []*csi.Topology{{
+						Segments: map[string]string{
+							utils.NodeRegionLabel: "us-south-test",
 						},
 					},
 					},
