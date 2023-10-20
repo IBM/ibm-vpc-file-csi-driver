@@ -73,7 +73,11 @@ func (cw *ConfigWatcher) updateSubnetList(oldObj, newObj interface{}) {
 		// non empty data and there is change in configmap
 		if newConfig != "" && (newConfig != oldConfig) {
 			VPC_SUBNET_IDS := newData.Data[ConfigmapDataKey]
-			os.Setenv("VPC_SUBNET_IDS", VPC_SUBNET_IDS)
+			err := os.Setenv("VPC_SUBNET_IDS", VPC_SUBNET_IDS)
+			if err != nil {
+				cw.logger.Warn("Config watcher is unable to update the subnet list..", zap.Any("Updated list", VPC_SUBNET_IDS), zap.Error(err))
+				return
+			}
 			cw.logger.Info("Updated the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", VPC_SUBNET_IDS))
 		}
 	}
