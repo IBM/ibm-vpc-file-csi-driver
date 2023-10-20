@@ -69,9 +69,10 @@ var (
 		RequiredBytes: 20 * 1024 * 1024 * 1024,
 	}
 	stdParams = map[string]string{
-		Profile: "dp2",
-		Zone:    "myzone",
-		Region:  "myregion",
+		Profile:      "dp2",
+		Zone:         "myzone",
+		Region:       "myregion",
+		IsENIEnabled: "false",
 	}
 	stdTopology = []*csi.Topology{
 		{
