@@ -142,6 +142,15 @@ const (
 
 	// SubnetID
 	SubnetID = "subnetID"
+
+	// ConfigmapName
+	ConfigmapName = "ibm-cloud-provider-data"
+
+	// ConfigmapNamespace
+	ConfigmapNamespace = "kube-system"
+
+	// ConfigmapDataKey
+	ConfigmapDataKey = "vpc_subnet_ids"
 )
 
 // SupportedFS the supported FS types
