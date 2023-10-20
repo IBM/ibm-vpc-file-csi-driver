@@ -119,6 +119,7 @@ spec:
                 configMapKeyRef:
                   name: ibm-cloud-provider-data
                   key: vpc_subnet_ids
+                  optional: true
           resources:
             limits:
               cpu: 500m
