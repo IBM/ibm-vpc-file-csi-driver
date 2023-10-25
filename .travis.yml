@@ -37,6 +37,7 @@ script:
 - travis_wait 300 make test
 - make coverage && touch "Passing" || touch "Failed"
 - make driver
+- make test-sanity
 
 after_success:
 - "./scripts/calculateCoverage.sh"
