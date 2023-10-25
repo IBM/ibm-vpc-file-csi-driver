@@ -3,7 +3,7 @@ module github.com/IBM/ibm-vpc-file-csi-driver
 go 1.19
 
 require (
-	github.com/IBM/ibm-csi-common v1.1.8
+	github.com/IBM/ibm-csi-common v1.1.9-0.20231025155426-f22a469931d1
 	github.com/IBM/ibmcloud-volume-file-vpc v1.2.0
 	github.com/IBM/ibmcloud-volume-interface v1.2.1
 	github.com/IBM/secret-utils-lib v1.1.4
@@ -17,6 +17,9 @@ require (
 	golang.org/x/net v0.14.0
 	golang.org/x/sys v0.11.0
 	google.golang.org/grpc v1.49.0
+	k8s.io/api v0.26.4
+	k8s.io/apimachinery v0.26.4
+	k8s.io/client-go v11.0.1-0.20190516230509-ae8359b20417+incompatible
 	k8s.io/kubernetes v1.26.4
 	k8s.io/mount-utils v0.26.4
 	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d
@@ -95,10 +98,7 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.26.4 // indirect
-	k8s.io/apimachinery v0.26.4 // indirect
 	k8s.io/apiserver v0.26.4 // indirect
-	k8s.io/client-go v11.0.1-0.20190516230509-ae8359b20417+incompatible // indirect
 	k8s.io/component-base v0.26.4 // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect

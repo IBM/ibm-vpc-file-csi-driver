@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"strings"
 	"testing"
 	"time"
@@ -65,10 +64,12 @@ var (
 	CSIEndpoint = fmt.Sprintf("unix:%s/csi.sock", TempDir)
 
 	// TargetPath ...
-	TargetPath = path.Join(TempDir, "target")
+	// TargetPath = path.Join(TempDir, "target")
+	TargetPath = "target"
 
 	// StagePath ...
-	StagePath = path.Join(TempDir, "staging")
+	//StagePath = path.Join(TempDir, "staging")
+	StagePath = "staging"
 )
 
 func TestSanity(t *testing.T) {
@@ -76,6 +77,7 @@ func TestSanity(t *testing.T) {
 		t.Skip("Skipping sanity testing...")
 	}
 
+	os.Setenv("VPC_SUBNET_IDS", "subnet-id")
 	// Create a fake CSI driver
 	csiSanityDriver := initCSIDriverForSanity(t)
 
@@ -97,20 +99,20 @@ func TestSanity(t *testing.T) {
 
 	// Run sanity test
 	config := sanity.TestConfig{
-		TargetPath:               TargetPath,
-		StagingPath:              StagePath,
+		TargetPath:               "some",
+		StagingPath:              "some",
 		Address:                  CSIEndpoint,
 		DialOptions:              []grpc.DialOption{grpc.WithInsecure()}, //nolint
 		IDGen:                    &providerIDGenerator{},
 		TestVolumeParametersFile: os.Getenv("SANITY_PARAMS_FILE"),
 		TestVolumeSize:           10737418240, // i.e 10 GB
 		CreateTargetDir: func(targetPath string) (string, error) {
-			targetPath = path.Join(TempDir, targetPath)
-			return targetPath, createTargetDir(targetPath)
+			// targetPath = path.Join(TempDir, targetPath)
+			return targetPath, createTargetDir(TempDir)
 		},
 		CreateStagingDir: func(stagePath string) (string, error) {
-			stagePath = path.Join(TempDir, stagePath)
-			return stagePath, createTargetDir(stagePath)
+			// stagePath = path.Join(TempDir, stagePath)
+			return stagePath, createTargetDir(TempDir)
 		},
 	}
 	sanity.Test(t, config)
@@ -246,6 +248,10 @@ func newFakeProviderSession() *fakeProviderSession {
 // to validate and modify accordingly
 //##############################################################################
 
+func (c *fakeProviderSession) GetSubnetForVolumeAccessPoint(subnetRequest provider.SubnetRequest) (string, error) {
+	return "subnet-id", nil
+}
+
 // ProviderName ...
 func (c *fakeProviderSession) ProviderName() provider.VolumeProvider {
 	return ProviderName
@@ -277,6 +283,15 @@ func (c *fakeProviderSession) CreateVolume(volumeRequest provider.Volume) (*prov
 			Name:     volumeRequest.Name,
 			Region:   volumeRequest.Region,
 			Capacity: volumeRequest.Capacity,
+			VPCVolume: provider.VPCVolume{
+				VPCFileVolume: provider.VPCFileVolume{
+					VolumeAccessPoints: &[]provider.VolumeAccessPoint{
+						{
+							ID: "Fake-ID",
+						},
+					},
+				},
+			},
 		},
 	}
 
