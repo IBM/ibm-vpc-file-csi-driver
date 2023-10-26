@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-//Package ibmcsidriver ...
+// Package ibmcsidriver ...
 package ibmcsidriver
 
 const (
@@ -55,9 +55,6 @@ const (
 
 	// Tag ...
 	Tag = "tags"
-
-	// CustomProfile ...
-	CustomProfile = "custom-iops"
 
 	// DP2Profile ...
 	DP2Profile = "dp2"
@@ -124,10 +121,40 @@ const (
 
 	// GID ...
 	GID = "gid"
+
+	// SecurityGroup
+	SecurityGroup = "security_group"
+
+	// VPC
+	VPC = "vpc"
+
+	// IsENIEnabled
+	IsENIEnabled = "isENIEnabled"
+
+	// SecurityGroupIDs
+	SecurityGroupIDs = "securityGroupIDs"
+
+	// PrimaryIPId
+	PrimaryIPID = "primaryIPID"
+
+	// PrimaryIPAddress
+	PrimaryIPAddress = "primaryIPAddress"
+
+	// SubnetID
+	SubnetID = "subnetID"
+
+	// ConfigmapName
+	ConfigmapName = "ibm-cloud-provider-data"
+
+	// ConfigmapNamespace
+	ConfigmapNamespace = "kube-system"
+
+	// ConfigmapDataKey
+	ConfigmapDataKey = "vpc_subnet_ids"
 )
 
 // SupportedFS the supported FS types
 var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
-var SupportedProfile = []string{"tier-5iops", "tier-3iops", "tier-10iops", "custom-iops", "dp2"}
+var SupportedProfile = []string{"dp2"}
