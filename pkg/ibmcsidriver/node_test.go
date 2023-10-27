@@ -396,7 +396,7 @@ func TestNodeExpandVolume(t *testing.T) {
 			name: "valid volumePath",
 			req: &csi.NodeExpandVolumeRequest{
 				VolumeId:   defaultVolumeID,
-				VolumePath: "valid-vol-path",
+				VolumePath: "some/target",
 				CapacityRange: &csi.CapacityRange{
 					RequiredBytes: 20 * 1024 * 1024 * 1024,
 				},
