@@ -74,9 +74,23 @@ var (
 		Region:       "myregion",
 		IsENIEnabled: "false",
 	}
+
+	stdENIParams = map[string]string{
+		Profile:      "dp2",
+		Zone:         "myzone",
+		Region:       "myregion",
+		IsENIEnabled: "true",
+	}
+
 	stdTopology = []*csi.Topology{
 		{
 			Segments: map[string]string{utils.NodeZoneLabel: "myzone", utils.NodeRegionLabel: "myregion"},
+		},
+	}
+
+	stdENITopology = []*csi.Topology{
+		{
+			Segments: map[string]string{utils.NodeRegionLabel: "myregion"},
 		},
 	}
 )
@@ -205,7 +219,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 		libVolumeAccessPointWaitError error
 	}{
 		{
-			name: "Success default",
+			name: "Success VPC mode",
 			req: &csi.CreateVolumeRequest{
 				Name:               volName,
 				CapacityRange:      stdCapRange,
@@ -217,6 +231,55 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeId:           "testVolumeId:testVolumeAccessPointId",
 				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId:testVolumeAccessPointId", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
 				AccessibleTopology: stdTopology,
+			},
+
+			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
+				VolumeID:      "testVolumeId",
+				AccessPointID: "testVolumeAccessPointId",
+				Status:        "Stable",
+				MountPath:     "abc:/xyz/pqr",
+				CreatedAt:     &time.Time{},
+			},
+
+			libVolumeResponse: &provider.Volume{
+				Capacity: &cap,
+				Name:     &volName,
+				VolumeID: "testVolumeId",
+				Iops:     &iopsStr,
+				Az:       "myzone",
+				Region:   "myregion",
+				VPCVolume: provider.VPCVolume{
+					VPCFileVolume: provider.VPCFileVolume{
+						VolumeAccessPoints: &[]provider.VolumeAccessPoint{
+							{
+								ID: "testVolumeAccessPointId",
+							},
+						},
+					},
+				},
+			},
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
+			expErrCode:                    codes.OK,
+			libVolumeError:                nil,
+			libVolumeAccessPointError:     nil,
+			libVolumeAccessPointWaitError: nil,
+		},
+		{
+			name: "Success securityGroup mode default",
+			req: &csi.CreateVolumeRequest{
+				Name:               volName,
+				CapacityRange:      stdCapRange,
+				VolumeCapabilities: stdVolCap,
+				Parameters:         stdENIParams,
+			},
+			expVol: &csi.Volume{
+				CapacityBytes:      20 * 1024 * 1024 * 1024, // In byte
+				VolumeId:           "testVolumeId:testVolumeAccessPointId",
+				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", VolumeIDLabel: "testVolumeId:testVolumeAccessPointId", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
+				AccessibleTopology: stdENITopology,
 			},
 
 			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
