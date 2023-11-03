@@ -26,10 +26,8 @@ import (
 	libMetrics "github.com/IBM/ibmcloud-volume-interface/lib/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"math/rand"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
@@ -59,7 +57,6 @@ var (
 
 func main() {
 	flag.Parse()
-	rand.Seed(time.Now().UnixNano())
 	handle(logger)
 	os.Exit(0)
 }
