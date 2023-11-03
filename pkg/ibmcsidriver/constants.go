@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-//Package ibmcsidriver ...
+// Package ibmcsidriver ...
 package ibmcsidriver
 
 const (
