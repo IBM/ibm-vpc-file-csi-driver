@@ -1,2 +1,2 @@
-docker://hub.docker.com/r/ubuntu,18.04
-docker://hub.docker.com/r/golang,1.19
+docker://hub.docker.com/r/ubuntu,16.04
+docker://hub.docker.com/r/golang,1.20
