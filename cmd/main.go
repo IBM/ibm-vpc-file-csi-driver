@@ -26,10 +26,8 @@ import (
 	libMetrics "github.com/IBM/ibmcloud-volume-interface/lib/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"math/rand"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
@@ -59,7 +57,6 @@ var (
 
 func main() {
 	flag.Parse()
-	rand.Seed(time.Now().UnixNano())
 	handle(logger)
 	os.Exit(0)
 }
@@ -128,7 +125,7 @@ func serveMetrics() {
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
 		//http.Handle("/health-check", healthCheck)
-		err := http.ListenAndServe(*metricsAddress, nil) // #nosec G114: use default timeout.
+		err := http.ListenAndServe(*metricsAddress, nil) // #nosec G114: Use of net/http serve function that has no support for setting timeouts.
 		logger.Error("Failed to start metrics service:", zap.Error(err))
 	}()
 	metrics.RegisterAll(csiConfig.CSIDriverGithubName)
