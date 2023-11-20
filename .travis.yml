@@ -1,7 +1,7 @@
 language: go
 
 go:
-- 1.20.11
+- "1.19"
 
 group: bluezone
 dist: trusty
