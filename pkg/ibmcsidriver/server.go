@@ -174,4 +174,5 @@ func removeCSISocket(endPoint string) {
 		glog.Errorf("failed to remove socket: %s with error: %+v", endPoint, err)
 		os.Exit(1)
 	}
+	os.Exit(0)
 }
