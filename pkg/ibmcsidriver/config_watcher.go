@@ -20,6 +20,7 @@
 package ibmcsidriver
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -47,6 +48,10 @@ func NewConfigWatcher(client kubernetes.Interface, log *zap.Logger) *ConfigWatch
 
 func (cw *ConfigWatcher) Start() {
 	watchlist := cache.NewListWatchFromClient(cw.kclient.CoreV1().RESTClient(), "configmaps", ConfigmapNamespace, fields.Set{"metadata.name": ConfigmapName}.AsSelector())
+	if watchlist == nil {
+		fmt.Println("watchlist is nil ")
+		return
+	}
 	_, controller := cache.NewInformer(watchlist, &v1.ConfigMap{}, time.Second*0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    nil,
@@ -54,9 +59,15 @@ func (cw *ConfigWatcher) Start() {
 			UpdateFunc: cw.updateSubnetList,
 		},
 	)
+
+	if controller == nil {
+		fmt.Println("controller is nil ")
+		return
+	}
+
 	cw.logger.Info("ConfigWatcher starting - start watching for any updates in subnet list", zap.Any("configmap name", ConfigmapName), zap.Any("configmap namespace", ConfigmapNamespace))
 	stopch := wait.NeverStop
-	go controller.Run(stopch)
+	//go controller.Run(stopch)
 	cw.logger.Info("ConfigWatcher started...")
 	<-stopch
 }
