@@ -77,7 +77,7 @@ func TestNodePublishVolume(t *testing.T) {
 		expErrCode codes.Code
 	}{
 		{
-			name: "Valid request",
+			name: "Valid request with already mounted target path",
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:          defaultVolumeID,
 				TargetPath:        defaultTargetPath,
@@ -89,6 +89,30 @@ func TestNodePublishVolume(t *testing.T) {
 			expErrCode: codes.OK,
 		},
 		{
+			name: "Valid request with new mount",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        "fake-volPath-1",
+				StagingTargetPath: defaultStagingPath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz"},
+			},
+			expErrCode: codes.OK,
+		},
+		{
+			name: "IsLikelyNotMountPoint failure",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        "fake-volPath",
+				StagingTargetPath: defaultStagingPath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz"},
+			},
+			expErrCode: codes.FailedPrecondition,
+		},
+		{
 			name: "Empty volume ID",
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:          "",
@@ -96,6 +120,7 @@ func TestNodePublishVolume(t *testing.T) {
 				StagingTargetPath: defaultStagingPath,
 				Readonly:          false,
 				VolumeCapability:  stdVolCap[0],
+				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.InvalidArgument,
 		},
@@ -118,6 +143,7 @@ func TestNodePublishVolume(t *testing.T) {
 				StagingTargetPath: defaultTargetPath,
 				Readonly:          false,
 				VolumeCapability:  stdVolCap[0],
+				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.InvalidArgument,
 		},
@@ -129,6 +155,7 @@ func TestNodePublishVolume(t *testing.T) {
 				StagingTargetPath: defaultStagingPath,
 				Readonly:          false,
 				VolumeCapability:  nil,
+				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.InvalidArgument,
 		},
@@ -140,6 +167,7 @@ func TestNodePublishVolume(t *testing.T) {
 				StagingTargetPath: defaultStagingPath,
 				Readonly:          false,
 				VolumeCapability:  stdVolCapNotSupported[0],
+				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.InvalidArgument,
 		},
