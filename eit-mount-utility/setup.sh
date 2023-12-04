@@ -12,10 +12,7 @@
 set -ex
 
 if [ "$IS_NODE_SERVER" = "true" ]; then
-    echo "Copying mount-helper-container files..."
-    cp  /home/ibm-csi-drivers/eitserver-linux /host/usr/local/bin/
-    cp /home/ibm-csi-drivers/mount-helper-container.service /host/etc/systemd/system/
-    echo "Inside node-server. Enabling mount-helper-container service..."
+    echo "Enabling mount-helper-container service..."
     /home/ibm-csi-drivers/systemutil -action reload
     /home/ibm-csi-drivers/systemutil -target mount-helper-container.service -action start
     # echo "Checking if the service is enabled..."
@@ -27,7 +24,7 @@ if [ "$IS_NODE_SERVER" = "true" ]; then
     # fi
 
     # Add logic to retry the service and confirm if ready. Try to handle it in a way to log the problem. 
-    # Try 2-3 retries for 5 min. 
+    # Try 2-3 retries for 5 min.
     # how it can be fixed.
     # Node-server should show in events.
 fi
