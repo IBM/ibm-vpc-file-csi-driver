@@ -3,21 +3,9 @@ module github.com/IBM/ibm-vpc-file-csi-driver
 go 1.20
 
 require (
-	github.com/IBM/ibm-csi-common v1.1.9
+	github.com/IBM/ibm-csi-common v1.1.11-0.20231204150600-946edf4ce138
 	github.com/IBM/ibmcloud-volume-file-vpc v1.2.0
 	github.com/IBM/ibmcloud-volume-interface v1.2.1
-	github.com/IBM/secret-utils-lib v1.1.4
-	github.com/container-storage-interface/spec v1.7.0
-	github.com/golang/glog v1.0.0
-	github.com/google/uuid v1.1.2
-	github.com/kubernetes-csi/csi-test/v4 v4.2.0
-	github.com/IBM/ibm-csi-common v1.1.6
-	github.com/IBM/ibmcloud-volume-file-vpc v1.1.1-beta
-	github.com/IBM/ibmcloud-volume-interface v1.1.3
-	github.com/IBM/secret-utils-lib v1.1.3
-	github.com/IBM/ibm-csi-common v1.1.8-0.20230619082608-764137af6a4e
-	github.com/IBM/ibmcloud-volume-file-vpc v1.1.0-beta.0.20230710090430-37651ba57cb4
-	github.com/IBM/ibmcloud-volume-interface v1.1.5-0.20230608131157-06c798a3597f
 	github.com/IBM/secret-utils-lib v1.1.4
 	github.com/container-storage-interface/spec v1.7.0
 	github.com/golang/glog v1.0.0
@@ -40,7 +28,7 @@ require (
 	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7 // indirect
 	github.com/IBM/go-sdk-core/v5 v5.9.1 // indirect
-	github.com/IBM/secret-common-lib v1.1.3 // indirect
+	github.com/IBM/secret-common-lib v1.1.4 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -64,7 +52,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
@@ -84,8 +72,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/onsi/ginkgo v1.16.4 // indirect
-	github.com/onsi/gomega v1.23.0 // indirect
-	github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
@@ -102,7 +88,7 @@ require (
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
