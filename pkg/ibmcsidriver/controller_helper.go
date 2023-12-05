@@ -179,6 +179,8 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case IsENIEnabled:
 			err = setISENIEnabled(volume, key, strings.ToLower(value))
+		case IsEITEnabled:
+			err = setISEITEnabled(volume, key, strings.ToLower(value))
 		case ResourceGroup:
 			if len(value) > ResourceGroupIDMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ResourceGroupIDMaxLen)
@@ -369,6 +371,7 @@ func setISENIEnabled(volume *provider.Volume, key string, value string) error {
 	return err
 }
 
+// setISEITEnabled
 func setISEITEnabled(volume *provider.Volume, key string, value string) error {
 	var err error
 	if value != TrueStr && value != FalseStr {
