@@ -248,7 +248,8 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 	// Prepare input for WaitForCreateVolumeAccessPoint
 	volumeAccesspointReq := provider.VolumeAccessPointRequest{
-		VolumeID: volumeObj.VolumeID,
+		VolumeID:            volumeObj.VolumeID,
+		EncryptionInTransit: volumeObj.EncryptionInTransit,
 	}
 
 	volumeAccessPoints := volumeObj.VolumeAccessPoints
