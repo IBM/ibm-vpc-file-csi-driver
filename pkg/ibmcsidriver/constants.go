@@ -143,9 +143,6 @@ const (
 	// PrimaryIPId
 	PrimaryIPID = "primaryIPID"
 
-	// IsEITRequired
-	IsEITRequired = "isEITRequired"
-
 	// PrimaryIPAddress
 	PrimaryIPAddress = "primaryIPAddress"
 
