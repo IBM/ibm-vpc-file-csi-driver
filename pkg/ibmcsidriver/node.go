@@ -137,6 +137,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		2) Check volume capability matches for ALREADY_EXISTS
 		3) Readonly MUST match
 		*/
+		ctxLogger.Warn("target Path is already mounted")
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 	mnt := volumeCapability.GetMount()
