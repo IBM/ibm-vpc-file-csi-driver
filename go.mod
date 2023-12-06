@@ -3,7 +3,7 @@ module github.com/IBM/ibm-vpc-file-csi-driver
 go 1.20
 
 require (
-	github.com/IBM/ibm-csi-common v1.1.11-0.20231205064059-04feb168aba9
+	github.com/IBM/ibm-csi-common v1.1.11-0.20231206112333-2d30023569a5
 	github.com/IBM/ibmcloud-volume-file-vpc v1.2.1-0.20231205111510-dd041027bb7f
 	github.com/IBM/ibmcloud-volume-interface v1.2.2-0.20231205061252-427c6be888b0
 	github.com/IBM/secret-utils-lib v1.1.4
