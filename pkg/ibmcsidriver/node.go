@@ -80,11 +80,12 @@ const (
 )
 
 var _ csi.NodeServer = &CSINodeServer{}
-var mountmgr MountUtils
+
+/*var mountmgr MountUtils
 
 func init() {
 	mountmgr = &VolumeMountUtils{}
-}
+}*/
 
 // NodePublishVolume ...
 func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -314,9 +315,13 @@ func (csiNS *CSINodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeE
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyDevicePath, requestID, err)
 	}
 
-	if _, err := mountmgr.Resize(csiNS.Mounter, devicePath, deviceMountPath); err != nil {
+	if _, err := csiNS.Mounter.ResizeFileShare(devicePath, deviceMountPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.FileSystemResizeFailed, requestID, err)
 	}
+	/*
+		if _, err := mountmgr.Resize(csiNS.Mounter, devicePath, deviceMountPath); err != nil {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.FileSystemResizeFailed, requestID, err)
+		}*/
 	return &csi.NodeExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes}, nil
 }
 

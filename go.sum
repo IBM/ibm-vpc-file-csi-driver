@@ -39,14 +39,12 @@ github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7 h1:eHgfQl6IeSmzWUyiSi13CvoFYsovoyq
 github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7/go.mod h1:RiUvKuHKTBmBApDMUQzBL14pQUGKcx/IioKQPIcRQjs=
 github.com/IBM/go-sdk-core/v5 v5.9.1 h1:06pXbD9Rgmqqe2HA5YAeQbB4eYRRFgIoOT+Kh3cp1zo=
 github.com/IBM/go-sdk-core/v5 v5.9.1/go.mod h1:axE2JrRq79gIJTjKPBwV6gWHswvVptBjbcvvCPIxARM=
-github.com/IBM/ibm-csi-common v1.1.9 h1:oxEcPWyfPQtaIxGfdwtvFiR+7sCShKJ0HA/AVVp8EM0=
-github.com/IBM/ibm-csi-common v1.1.9/go.mod h1:OlzltoDlcH8iWqDJizX4yuoGoIzqvTciWAu228f9ViA=
+github.com/IBM/ibm-csi-common v1.1.11-0.20231207025338-d5aa98ef61de h1:e33jvn60zm9XOSMo5D0vYOjeScsfkZJ6es4jZDpJ1s0=
+github.com/IBM/ibm-csi-common v1.1.11-0.20231207025338-d5aa98ef61de/go.mod h1:OlzltoDlcH8iWqDJizX4yuoGoIzqvTciWAu228f9ViA=
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.0 h1:9SQbQPt3RTXd1k2bF129en8s61Nx137awHnijnh47oM=
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.0/go.mod h1:GlUHqdDEhi5Lbw2fHq48DH68s7pZfOwH/h/dE6bXX18=
 github.com/IBM/ibmcloud-volume-interface v1.2.1 h1:h7bi/fQzFFvqN2nGxtAfnbYIw3CQetZ8YPAF/g7IQ2Y=
 github.com/IBM/ibmcloud-volume-interface v1.2.1/go.mod h1:646HOeq8dAKbgpr7jRehGKckhgduJyII2uN5T6RDLww=
-github.com/IBM/ibmcloud-volume-vpc v1.1.5 h1:dN/LxVxtkiK0g4JzDP2VnHoh+LfHwPyzB+TgUZbhVyU=
-github.com/IBM/ibmcloud-volume-vpc v1.1.5/go.mod h1:+UTHGrGzjyA2VjaozhB1xOjAcJ1lsi9mFqfGsqmuCOQ=
 github.com/IBM/secret-common-lib v1.1.4 h1:gKpKnaP45Y6u7VpSlFfXjjTAHpu4bz9Ofy+aR0t2RcI=
 github.com/IBM/secret-common-lib v1.1.4/go.mod h1:0L/lLfwi5jwTTmNYE2246HzBIdGz0m6wu/5tXoRp/Lc=
 github.com/IBM/secret-utils-lib v1.1.4 h1:8WPG9KBrLLRhGbQn34NWzrFKlyfIIaUfLeDg+iRJkes=
@@ -319,6 +317,8 @@ github.com/onsi/gomega v1.17.0/go.mod h1:HnhC7FXeEQY45zxNK3PPoIUhzk/80Xly9PcubAl
 github.com/onsi/gomega v1.19.0/go.mod h1:LY+I3pBVzYsTBU1AnDwOSxaYi9WoWiqgwooUqq9yPro=
 github.com/onsi/gomega v1.23.0 h1:/oxKu9c2HVap+F3PfKort2Hw5DEU+HGlW8n+tguWsys=
 github.com/onsi/gomega v1.23.0/go.mod h1:Z/NWtiqwBrwUt4/2loMmHL63EDLnYHmVbuBpDr2vQAg=
+github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0 h1:i5VIxp6QB8oWZ8IkK8zrDgeT6ORGIUeiN+61iETwJbI=
+github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0/go.mod h1:4xpMLz7RBWyB+ElzHu8Llua96TRCB3YwX+l5EP1wmHk=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
