@@ -285,9 +285,10 @@ func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.Nod
 
 // NodeExpandVolume ...
 func (csiNS *CSINodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
-	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	ctxLogger, _ := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeExpandVolume", zap.Reflect("Request", *req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeExpandVolume")
+	return &csi.NodeExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes}, nil
+	//return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeExpandVolume")
 	// ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// ctxLogger.Info("CSINodeServer-NodeExpandVolume", zap.Reflect("Request", *req))
 	// volumeID := req.GetVolumeId()
