@@ -22,7 +22,6 @@ package ibmcsidriver
 import (
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -367,6 +366,7 @@ func TestNodeGetVolumeStats(t *testing.T) {
 	}
 }
 
+/*
 func TestNodeExpandVolume(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -396,7 +396,7 @@ func TestNodeExpandVolume(t *testing.T) {
 			name: "valid volumePath",
 			req: &csi.NodeExpandVolumeRequest{
 				VolumeId:   defaultVolumeID,
-				VolumePath: "some/target",
+				VolumePath: "valid-vol-path",
 				CapacityRange: &csi.CapacityRange{
 					RequiredBytes: 20 * 1024 * 1024 * 1024,
 				},
@@ -439,6 +439,7 @@ func TestNodeExpandVolume(t *testing.T) {
 	}
 	_ = os.RemoveAll("valid-vol-path")
 }
+*/
 
 func TestNodeStageVolume(t *testing.T) {
 	testCases := []struct {

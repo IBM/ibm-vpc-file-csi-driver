@@ -27,15 +27,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"go.uber.org/zap"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
+	"github.com/google/uuid"
 	sanity "github.com/kubernetes-csi/csi-test/v4/pkg/sanity"
+	"go.uber.org/zap"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"path"
 
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
@@ -65,11 +65,13 @@ var (
 
 	// TargetPath ...
 	// TargetPath = path.Join(TempDir, "target")
-	TargetPath = "target"
+	//TargetPath = "target"
+	TargetPath = path.Join(TempDir, "target")
 
 	// StagePath ...
 	//StagePath = path.Join(TempDir, "staging")
-	StagePath = "staging"
+	//StagePath = "staging"
+	StagePath = path.Join(TempDir, "staging")
 )
 
 func TestSanity(t *testing.T) {
@@ -99,20 +101,22 @@ func TestSanity(t *testing.T) {
 
 	// Run sanity test
 	config := sanity.TestConfig{
-		TargetPath:               "some",
-		StagingPath:              "some",
+		TargetPath:               TargetPath,
+		StagingPath:              StagePath,
 		Address:                  CSIEndpoint,
 		DialOptions:              []grpc.DialOption{grpc.WithInsecure()}, //nolint
 		IDGen:                    &providerIDGenerator{},
 		TestVolumeParametersFile: os.Getenv("SANITY_PARAMS_FILE"),
 		TestVolumeSize:           10737418240, // i.e 10 GB
 		CreateTargetDir: func(targetPath string) (string, error) {
-			// targetPath = path.Join(TempDir, targetPath)
-			return targetPath, createTargetDir(TempDir)
+			targetPath = path.Join(TempDir, targetPath)
+			return targetPath, createTargetDir(targetPath)
+			//return targetPath, createTargetDir(TempDir)
 		},
 		CreateStagingDir: func(stagePath string) (string, error) {
-			// stagePath = path.Join(TempDir, stagePath)
-			return stagePath, createTargetDir(TempDir)
+			stagePath = path.Join(TempDir, stagePath)
+			return stagePath, createTargetDir(stagePath)
+			//return stagePath, createTargetDir(TempDir)
 		},
 	}
 	sanity.Test(t, config)
