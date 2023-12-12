@@ -65,17 +65,21 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 				return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
 			}
 		}
+		var errorCode string
 		errRemovePath := os.Remove(targetPath)
 		if errRemovePath != nil {
 			ctxLogger.Warn("processMount: Remove targePath failed", zap.String("targetPath", targetPath), zap.Error(errRemovePath))
+			errorCode = commonError.CreateMountTargetFailed
 		}
-		errorCode := checkMountResponse(err)
-		// If there is any unknown error while mounting, collect mount-helper-container logs for debugging
-		if errorCode == commonError.MountingTargetFailed {
-			ctxLogger.Warn("Collecting mount-helper-container logs...")
-			errDebug := csiNS.Mounter.DebugLogsEITBasedFileShare(requestID)
-			if errDebug != nil {
-				ctxLogger.Warn("Failed to collect logs from mount-helper-container service...", zap.Error(errDebug))
+		if fsType == eitFsType {
+			errorCode = checkMountResponse(err)
+			// If there is any unknown error while mounting, collect mount-helper-container logs for debugging
+			if errorCode == commonError.MountingTargetFailed {
+				ctxLogger.Warn("Collecting mount-helper-container logs...")
+				errDebug := csiNS.Mounter.DebugLogsEITBasedFileShare(requestID)
+				if errDebug != nil {
+					ctxLogger.Warn("Failed to collect logs from mount-helper-container service...", zap.Error(errDebug))
+				}
 			}
 		}
 		return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)
