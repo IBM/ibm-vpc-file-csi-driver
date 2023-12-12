@@ -22,7 +22,6 @@ package ibmcsidriver
 import (
 	"fmt"
 	"os"
-	"sync"
 
 	"time"
 
@@ -45,8 +44,6 @@ type CSINodeServer struct {
 	Mounter  mountmanager.Mounter
 	Metadata nodeMetadata.NodeMetadata
 	Stats    StatsUtils
-	// TODO: Only lock mutually exclusive calls and make locking more fine grained
-	mux sync.Mutex
 }
 
 // StatsUtils ...
@@ -93,9 +90,6 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	ctxLogger, requestID := utils.GetContextLoggerWithRequestID(ctx, false, &controlleRequestID)
 	ctxLogger.Info("CSINodeServer-NodePublishVolume...", zap.Reflect("Request", *req))
 	metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
-
-	csiNS.mux.Lock()
-	defer csiNS.mux.Unlock()
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -158,9 +152,8 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeUnpublishVolume...", zap.Reflect("Request", *req))
-	metrics.UpdateDurationFromStart(ctxLogger, "NodeUnpublishVolume", time.Now())
-	csiNS.mux.Lock()
-	defer csiNS.mux.Unlock()
+	defer metrics.UpdateDurationFromStart(ctxLogger, "NodeUnpublishVolume", time.Now())
+
 	// Validate Arguments
 	targetPath := req.GetTargetPath()
 	volID := req.GetVolumeId()
@@ -241,7 +234,7 @@ func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.Nod
 	var resp *csi.NodeGetVolumeStatsResponse
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeGetVolumeStats... ", zap.Reflect("Request", req))
-	metrics.UpdateDurationFromStart(ctxLogger, "NodeGetVolumeStats", time.Now())
+	defer metrics.UpdateDurationFromStart(ctxLogger, "NodeGetVolumeStats", time.Now())
 	if req == nil || req.VolumeId == "" { //nolint
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
