@@ -44,6 +44,8 @@ type CSINodeServer struct {
 	Mounter  mountmanager.Mounter
 	Metadata nodeMetadata.NodeMetadata
 	Stats    StatsUtils
+	// TODO: Only lock mutually exclusive calls and make locking more fine grained
+	mutex utils.LockStore
 }
 
 // StatsUtils ...
@@ -89,7 +91,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	controlleRequestID := publishContext[PublishInfoRequestID]
 	ctxLogger, requestID := utils.GetContextLoggerWithRequestID(ctx, false, &controlleRequestID)
 	ctxLogger.Info("CSINodeServer-NodePublishVolume...", zap.Reflect("Request", *req))
-	metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
+	defer metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -142,6 +144,11 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	var nodePublishResponse *csi.NodePublishVolumeResponse
 	var mountErr error
 
+	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
+	//This will not hold other volumes and target path processing.
+	csiNS.mutex.Lock(target)
+	defer csiNS.mutex.Unlock(target)
+
 	nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, source, target, fsType, options)
 
 	ctxLogger.Info("CSINodeServer-NodePublishVolume response...", zap.Reflect("Response", nodePublishResponse), zap.Error(mountErr))
@@ -163,6 +170,11 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 	if len(targetPath) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
 	}
+
+	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
+	//This will not hold other volumes and target path processing.
+	csiNS.mutex.Lock(targetPath)
+	defer csiNS.mutex.Unlock(targetPath)
 
 	ctxLogger.Info("Unmounting  target path", zap.String("targetPath", targetPath))
 	err := mount.CleanupMountPoint(targetPath, csiNS.Mounter, false /* bind mount */)
