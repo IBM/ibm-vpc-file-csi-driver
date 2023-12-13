@@ -22,7 +22,6 @@ package ibmcsidriver
 import (
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -375,51 +374,15 @@ func TestNodeExpandVolume(t *testing.T) {
 		expErrCode codes.Code
 	}{
 		{
-			name: "Empty volumePath",
-			req: &csi.NodeExpandVolumeRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: "",
-			},
-			res:        nil,
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Invalid volumePath",
-			req: &csi.NodeExpandVolumeRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: "/invalid-volPath",
-			},
-			res:        nil,
-			expErrCode: codes.NotFound,
-		},
-		{
-			name: "valid volumePath",
-			req: &csi.NodeExpandVolumeRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: "some/target",
-				CapacityRange: &csi.CapacityRange{
-					RequiredBytes: 20 * 1024 * 1024 * 1024,
-				},
-			},
-			res:        &csi.NodeExpandVolumeResponse{CapacityBytes: stdCapRange.RequiredBytes},
-			expErrCode: codes.OK,
-		},
-		{
-			name: "volumePath not mounted",
-			req: &csi.NodeExpandVolumeRequest{
-				VolumeId:   defaultVolumeID,
-				VolumePath: "fake-volPath",
-			},
-			res:        nil,
-			expErrCode: codes.NotFound,
+			name:       "Unsupported operation",
+			req:        &csi.NodeExpandVolumeRequest{},
+			expErrCode: codes.Unimplemented,
 		},
 	}
 	icDriver := initIBMCSIDriver(t)
-	_ = os.MkdirAll("valid-vol-path", os.FileMode(0755))
-	_ = icDriver.ns.Mounter.Mount("valid-devicePath", "valid-vol-path", "nfs", []string{"hard", "nfsvers=4.1", "sec=sys"})
 	for _, tc := range testCases {
 		t.Logf("Test case: %s", tc.name)
-		response, err := icDriver.ns.NodeExpandVolume(context.Background(), tc.req)
+		_, err := icDriver.ns.NodeExpandVolume(context.Background(), tc.req)
 		if err != nil {
 			serverError, ok := status.FromError(err)
 			if !ok {
@@ -428,16 +391,12 @@ func TestNodeExpandVolume(t *testing.T) {
 			if serverError.Code() != tc.expErrCode {
 				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
 			}
-			if response != tc.res {
-				t.Fatalf("Expected response: %v, got: %v.", tc.res, response)
-			}
 			continue
 		}
 		if tc.expErrCode != codes.OK {
 			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
 		}
 	}
-	_ = os.RemoveAll("valid-vol-path")
 }
 
 func TestNodeStageVolume(t *testing.T) {
