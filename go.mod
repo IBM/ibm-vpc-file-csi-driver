@@ -3,7 +3,7 @@ module github.com/IBM/ibm-vpc-file-csi-driver
 go 1.20
 
 require (
-	github.com/IBM/ibm-csi-common v1.1.9
+	github.com/IBM/ibm-csi-common v1.1.11-0.20231211135647-bd8143ee63ef
 	github.com/IBM/ibmcloud-volume-file-vpc v1.2.0
 	github.com/IBM/ibmcloud-volume-interface v1.2.1
 	github.com/IBM/secret-utils-lib v1.1.4
@@ -76,6 +76,7 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/onsi/gomega v1.23.0 // indirect
+	github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
