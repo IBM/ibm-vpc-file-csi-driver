@@ -30,60 +30,60 @@ import (
 func TestProcessMount(t *testing.T) {
 	// test cases
 	testCases := []struct {
-		name              string
-		stagingTargetPath string
-		targetPath        string
-		fsType            string
-		options           []string
-		expectedErr       error
+		name        string
+		source      string
+		targetPath  string
+		fsType      string
+		options     []string
+		expectedErr error
 	}{
 		{
-			name:              "success",
-			stagingTargetPath: "/staging",
-			targetPath:        "/targetpath",
-			fsType:            "ext4",
-			options:           []string{"ro,sync"},
-			expectedErr:       nil,
+			name:        "success",
+			source:      "/source",
+			targetPath:  "/targetpath",
+			fsType:      "ext4",
+			options:     []string{"ro,sync"},
+			expectedErr: nil,
 		},
 		{
-			name:              "Invalid staging path",
-			stagingTargetPath: "./error_mount_source",
-			targetPath:        "/targetpath",
-			fsType:            "ext4",
-			options:           []string{"ro,sync"},
-			expectedErr:       fmt.Errorf("fake Mount: source error"),
+			name:        "Invalid source path",
+			source:      "./error_mount_source",
+			targetPath:  "/targetpath",
+			fsType:      "ext4",
+			options:     []string{"ro,sync"},
+			expectedErr: fmt.Errorf("fake Mount: source error"),
 		},
 		{
-			name:              "Invalid target path",
-			stagingTargetPath: "./error_mount_target",
-			targetPath:        "fake-volPath",
-			fsType:            "ext4",
-			options:           []string{"ro,sync"},
-			expectedErr:       fmt.Errorf("fake Mount: target error"),
+			name:        "Invalid target path",
+			source:      "./error_mount_target",
+			targetPath:  "fake-volPath",
+			fsType:      "ext4",
+			options:     []string{"ro,sync"},
+			expectedErr: fmt.Errorf("fake Mount: target error"),
 		},
 		{
-			name:              "Make directory fails",
-			stagingTargetPath: "/staging",
-			targetPath:        "invalid-volPath-dir",
-			fsType:            "ext4",
-			options:           []string{"ro,sync"},
-			expectedErr:       fmt.Errorf("Path Creation failed"),
+			name:        "Make directory fails",
+			source:      "/source",
+			targetPath:  "invalid-volPath-dir",
+			fsType:      "ext4",
+			options:     []string{"ro,sync"},
+			expectedErr: fmt.Errorf("Path Creation failed"),
 		},
 		{
-			name:              "IsLikelyNotMountPoint returns true and nil error",
-			stagingTargetPath: "./error_mount_source",
-			targetPath:        "fake-volPath-1",
-			fsType:            "ext4",
-			options:           []string{"ro,sync"},
-			expectedErr:       fmt.Errorf("fake Mount: target error"),
+			name:        "IsLikelyNotMountPoint returns true and nil error",
+			source:      "./error_mount_source",
+			targetPath:  "fake-volPath-1",
+			fsType:      "ext4",
+			options:     []string{"ro,sync"},
+			expectedErr: fmt.Errorf("fake Mount: target error"),
 		},
 		{
-			name:              "Umount Fails",
-			stagingTargetPath: "./error_mount_source",
-			targetPath:        "error_umount",
-			fsType:            "ext4",
-			options:           []string{"ro,sync"},
-			expectedErr:       fmt.Errorf("Unmount Failed"),
+			name:        "Umount Fails",
+			source:      "./error_mount_source",
+			targetPath:  "error_umount",
+			fsType:      "ext4",
+			options:     []string{"ro,sync"},
+			expectedErr: fmt.Errorf("Unmount Failed"),
 		},
 	}
 
@@ -97,7 +97,7 @@ func TestProcessMount(t *testing.T) {
 		// Setup new driver each time so no interference
 		icDriver := initIBMCSIDriver(t)
 		// Call processMound
-		_, err := icDriver.ns.processMount(logger, "processMount", tc.stagingTargetPath, tc.targetPath, tc.fsType, tc.options)
+		_, err := icDriver.ns.processMount(logger, "processMount", tc.source, tc.targetPath, tc.fsType, tc.options)
 		if tc.expectedErr != nil {
 			t.Logf("Error code")
 			assert.NotNil(t, err)
