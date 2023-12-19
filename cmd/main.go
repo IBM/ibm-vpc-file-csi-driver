@@ -115,7 +115,7 @@ func handle(logger *zap.Logger) {
 		go pvwatcher.Start()
 	}
 
-	driver.WatchClusterConfigMap(k8sClient, logger)
+	driver.WatchClusterConfigMap(k8sClient.Clientset.CoreV1().RESTClient(), logger)
 
 	ibmCSIDriver.Run(*endpoint)
 }

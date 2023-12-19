@@ -24,29 +24,28 @@ import (
 	"strings"
 	"time"
 
-	k8sUtils "github.com/IBM/secret-utils-lib/pkg/k8s_utils"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
 type ConfigWatcher struct {
-	logger  *zap.Logger
-	kclient kubernetes.Interface
+	logger *zap.Logger
+	client rest.Interface
 }
 
-func NewConfigWatcher(client kubernetes.Interface, log *zap.Logger) *ConfigWatcher {
+func NewConfigWatcher(client rest.Interface, log *zap.Logger) *ConfigWatcher {
 	return &ConfigWatcher{
-		logger:  log,
-		kclient: client,
+		logger: log,
+		client: client,
 	}
 }
 
 func (cw *ConfigWatcher) Start() {
-	watchlist := cache.NewListWatchFromClient(cw.kclient.CoreV1().RESTClient(), "configmaps", ConfigmapNamespace, fields.Set{"metadata.name": ConfigmapName}.AsSelector())
+	watchlist := cache.NewListWatchFromClient(cw.client, "configmaps", ConfigmapNamespace, fields.Set{"metadata.name": ConfigmapName}.AsSelector())
 	_, controller := cache.NewInformer(watchlist, &v1.ConfigMap{}, time.Second*0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    nil,
@@ -72,22 +71,17 @@ func (cw *ConfigWatcher) updateSubnetList(oldObj, newObj interface{}) {
 		// Env variable VPC_SUBNET_IDS will be updated only when there is
 		// non empty data and there is change in configmap
 		if newConfig != "" && (newConfig != oldConfig) {
-			VPC_SUBNET_IDS := newData.Data[ConfigmapDataKey]
-			err := os.Setenv("VPC_SUBNET_IDS", VPC_SUBNET_IDS)
+			err := os.Setenv("VPC_SUBNET_IDS", newConfig)
 			if err != nil {
-				cw.logger.Warn("Config watcher is unable to update the subnet list..", zap.Any("Updated list", VPC_SUBNET_IDS), zap.Error(err))
+				cw.logger.Warn("Config watcher is unable to update the subnet list..", zap.Any("Updated list", newConfig), zap.Error(err))
 				return
 			}
-			cw.logger.Info("Updated the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", VPC_SUBNET_IDS))
+			cw.logger.Info("Updated the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", newConfig))
 		}
 	}
 }
 
-func WatchClusterConfigMap(client k8sUtils.KubernetesClient, log *zap.Logger) {
-	configWatcher := NewConfigWatcher(client.Clientset, log)
-	if configWatcher == nil {
-		log.Error("ConfigWatcher not started ")
-		return
-	}
+func WatchClusterConfigMap(client rest.Interface, log *zap.Logger) {
+	configWatcher := NewConfigWatcher(client, log)
 	go configWatcher.Start()
 }
