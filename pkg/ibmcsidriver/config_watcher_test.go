@@ -22,14 +22,11 @@ import (
 	"os"
 	"testing"
 
-	k8sUtils "github.com/IBM/secret-utils-lib/pkg/k8s_utils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.org/x/net/context"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
 	restfake "k8s.io/client-go/rest/fake"
 )
 
@@ -51,12 +48,6 @@ func TestWatchClusterConfigMap(t *testing.T) {
 
 	for _, testcase := range testcases {
 		t.Run(testcase.testcasename, func(t *testing.T) {
-			clientset := fake.NewSimpleClientset()
-			kubernetesClient := k8sUtils.KubernetesClient{
-				Namespace: "kube-system",
-				Clientset: clientset,
-			}
-			FakeCreateCM(kubernetesClient)
 			c := new(restfake.RESTClient)
 			WatchClusterConfigMap(c, logger)
 		})
@@ -121,7 +112,7 @@ func TestUpdateSubnetList(t *testing.T) {
 
 	c := new(restfake.RESTClient)
 	cw := NewConfigWatcher(c, logger)
-	WatchClusterConfigMap(c, logger)
+	//WatchClusterConfigMap(c, logger)
 
 	for _, testcase := range testcases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
@@ -131,21 +122,6 @@ func TestUpdateSubnetList(t *testing.T) {
 			assert.Equal(t, testcase.expectedSubnetID, os.Getenv("VPC_SUBNET_IDS"))
 		})
 	}
-}
-
-// FakeCreateCM ...
-func FakeCreateCM(kc k8sUtils.KubernetesClient) error {
-	data := make(map[string]string)
-	data["vpc_subnet_ids"] = "0757-229d3fcd-41da-42fc-a770-fddf5f415d9c,0767-d6884d9a-57ba-49a4-8914-4ac120b70a21"
-	cm := new(v1.ConfigMap)
-	cm.Data = data
-	cm.Name = "ibm-cloud-provider-data"
-
-	_, err := kc.Clientset.CoreV1().ConfigMaps(kc.Namespace).Create(context.TODO(), cm, metav1.CreateOptions{})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // GetTestLogger ...
