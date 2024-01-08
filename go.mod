@@ -11,12 +11,11 @@ require (
 	github.com/golang/glog v1.0.0
 	github.com/google/uuid v1.3.0
 	github.com/kubernetes-csi/csi-test/v4 v4.4.0
-	github.com/onsi/gomega v1.23.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/zap v1.20.0
 	golang.org/x/net v0.17.0
-	golang.org/x/sys v0.13.0
+	golang.org/x/sys v0.15.0
 	google.golang.org/grpc v1.49.0
 	k8s.io/api v0.26.4
 	k8s.io/apimachinery v0.26.4
@@ -30,7 +29,6 @@ require (
 	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7 // indirect
 	github.com/IBM/go-sdk-core/v5 v5.9.1 // indirect
-	github.com/IBM/ibmcloud-volume-vpc v1.1.5 // indirect
 	github.com/IBM/secret-common-lib v1.1.4 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -77,6 +75,7 @@ require (
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
+	github.com/onsi/gomega v1.23.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
@@ -86,10 +85,10 @@ require (
 	go.mongodb.org/mongo-driver v1.7.5 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
-	golang.org/x/term v0.13.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/term v0.15.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 // indirect

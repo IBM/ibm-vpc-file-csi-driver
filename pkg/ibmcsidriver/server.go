@@ -99,7 +99,9 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 
 	var addr string
 	if u.Scheme == "unix" {
+		s.logger.Info("unix socket scheme")
 		addr = u.Path
+		s.logger.Info("addr:", zap.Any("addr:", addr))
 		if err := os.Remove(addr); err != nil && !os.IsNotExist(err) {
 			s.logger.Error("Failed to remove", zap.Reflect("addr", addr), zap.Error(err))
 			return nil, err
@@ -114,10 +116,28 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 
 	s.logger.Info("Start listening GRPC Server", zap.Reflect("Scheme", u.Scheme), zap.Reflect("Addr", addr))
 
+	// Create listener
 	listener, err := net.Listen(u.Scheme, addr)
 	if err != nil {
 		msg := "failed to listen GRPC Server"
 		s.logger.Error(msg, zap.Reflect("Error", err))
+		return nil, errors.New(msg)
+	}
+
+	// Change group of csi socket to non-root user for enabling the csi sidecar
+	err = os.Chown(addr, -1, 2121)
+	if err != nil {
+		msg := "unable to update owner of the csi socket"
+		s.logger.Error(msg, zap.Reflect("error:", err))
+		return nil, errors.New(msg)
+	}
+
+	// Modify permissions of csi socket
+	// Only the users and the group owners will have read/write access to csi socket
+	err = os.Chmod(addr, 0660)
+	if err != nil {
+		msg := "permissions not updated"
+		s.logger.Error(msg, zap.Reflect("error:", err))
 		return nil, errors.New(msg)
 	}
 
