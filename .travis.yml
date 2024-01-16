@@ -39,7 +39,6 @@ script:
 - make driver
 
 after_success:
-- export GHE_TOKEN="${TEMP_TOKEN}"
 - git config credential.helper "store --file=.git/credentials"
 - echo "https://${GHE_TOKEN}:@github.com" > .git/credentials
 - "./scripts/calculateCoverage.sh"
