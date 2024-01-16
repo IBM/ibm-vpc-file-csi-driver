@@ -88,6 +88,7 @@ if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
 	git status
 	git add .
 	git commit -m "Coverage result for commit $TRAVIS_COMMIT from build $TRAVIS_BUILD_NUMBER"
+        git remote set-url origin https://$GHE_USER:$GHE_TOKEN@github.com/IBM/ibm-vpc-file-csi-driver.git
 	git push origin
 else
         # Updates PR with coverage
