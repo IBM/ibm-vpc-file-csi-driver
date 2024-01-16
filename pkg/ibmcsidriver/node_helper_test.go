@@ -96,7 +96,7 @@ func TestProcessMount(t *testing.T) {
 		t.Logf("test case: %s", tc.name)
 		// Setup new driver each time so no interference
 		icDriver := initIBMCSIDriver(t)
-		// Call processMound
+		// Call processMount
 		_, err := icDriver.ns.processMount(logger, "processMount", tc.source, tc.targetPath, tc.fsType, tc.options)
 		if tc.expectedErr != nil {
 			t.Logf("Error code")
