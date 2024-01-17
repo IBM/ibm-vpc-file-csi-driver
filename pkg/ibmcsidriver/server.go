@@ -124,21 +124,23 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 		return nil, errors.New(msg)
 	}
 
-	// Change group of csi socket to non-root user for enabling the csi sidecar
-	err = os.Chown(addr, -1, 2121)
-	if err != nil {
-		msg := "unable to update owner of the csi socket"
-		s.logger.Error(msg, zap.Reflect("error:", err))
-		return nil, errors.New(msg)
-	}
+	if os.Getenv("IS_NODE_SERVER") == "true" {
+		// Change group of csi socket to non-root user for enabling the csi sidecar
+		err = os.Chown(addr, -1, 2121)
+		if err != nil {
+			msg := "unable to update owner of the csi socket"
+			s.logger.Error(msg, zap.Reflect("error:", err))
+			return nil, errors.New(msg)
+		}
 
-	// Modify permissions of csi socket
-	// Only the users and the group owners will have read/write access to csi socket
-	err = os.Chmod(addr, 0660)
-	if err != nil {
-		msg := "permissions not updated"
-		s.logger.Error(msg, zap.Reflect("error:", err))
-		return nil, errors.New(msg)
+		// Modify permissions of csi socket
+		// Only the users and the group owners will have read/write access to csi socket
+		err = os.Chmod(addr, 0660)
+		if err != nil {
+			msg := "permissions not updated"
+			s.logger.Error(msg, zap.Reflect("error:", err))
+			return nil, errors.New(msg)
+		}
 	}
 
 	server := grpc.NewServer(opts...)

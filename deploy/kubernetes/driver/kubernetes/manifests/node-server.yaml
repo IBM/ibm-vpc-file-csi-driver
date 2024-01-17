@@ -94,6 +94,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: IS_NODE_SERVER
+              value: "true"
           resources:
             limits:
               cpu: 200m
