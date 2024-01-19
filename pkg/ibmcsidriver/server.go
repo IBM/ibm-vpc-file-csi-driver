@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -125,8 +126,15 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 	}
 
 	if os.Getenv("IS_NODE_SERVER") == "true" {
+		groupSt := os.Getenv("SIDECAR_GROUP_ID")
+		s.logger.Info("GroupID of sidecar: ", zap.Any("ID:", groupSt))
+		group, err := strconv.Atoi(groupSt)
+		if err != nil {
+			return nil, err
+		}
+
 		// Change group of csi socket to non-root user for enabling the csi sidecar
-		err = os.Chown(addr, -1, 2121)
+		err = os.Chown(addr, -1, group)
 		if err != nil {
 			msg := "unable to update owner of the csi socket"
 			s.logger.Error(msg, zap.Reflect("error:", err))
