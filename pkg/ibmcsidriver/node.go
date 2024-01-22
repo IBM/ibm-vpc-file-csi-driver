@@ -22,7 +22,6 @@ package ibmcsidriver
 import (
 	"fmt"
 	"os"
-	"sync"
 
 	"time"
 
@@ -46,7 +45,7 @@ type CSINodeServer struct {
 	Metadata nodeMetadata.NodeMetadata
 	Stats    StatsUtils
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
-	mux sync.Mutex
+	mutex utils.LockStore
 }
 
 // StatsUtils ...
@@ -92,10 +91,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	controlleRequestID := publishContext[PublishInfoRequestID]
 	ctxLogger, requestID := utils.GetContextLoggerWithRequestID(ctx, false, &controlleRequestID)
 	ctxLogger.Info("CSINodeServer-NodePublishVolume...", zap.Reflect("Request", *req))
-	metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
-
-	csiNS.mux.Lock()
-	defer csiNS.mux.Unlock()
+	defer metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -148,6 +144,11 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	var nodePublishResponse *csi.NodePublishVolumeResponse
 	var mountErr error
 
+	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
+	//This will not hold other volumes and target path processing.
+	csiNS.mutex.Lock(target)
+	defer csiNS.mutex.Unlock(target)
+
 	nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, source, target, fsType, options)
 
 	ctxLogger.Info("CSINodeServer-NodePublishVolume response...", zap.Reflect("Response", nodePublishResponse), zap.Error(mountErr))
@@ -158,9 +159,8 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeUnpublishVolume...", zap.Reflect("Request", *req))
-	metrics.UpdateDurationFromStart(ctxLogger, "NodeUnpublishVolume", time.Now())
-	csiNS.mux.Lock()
-	defer csiNS.mux.Unlock()
+	defer metrics.UpdateDurationFromStart(ctxLogger, "NodeUnpublishVolume", time.Now())
+
 	// Validate Arguments
 	targetPath := req.GetTargetPath()
 	volID := req.GetVolumeId()
@@ -170,6 +170,11 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 	if len(targetPath) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
 	}
+
+	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
+	//This will not hold other volumes and target path processing.
+	csiNS.mutex.Lock(targetPath)
+	defer csiNS.mutex.Unlock(targetPath)
 
 	ctxLogger.Info("Unmounting  target path", zap.String("targetPath", targetPath))
 	err := mount.CleanupMountPoint(targetPath, csiNS.Mounter, false /* bind mount */)
@@ -241,7 +246,7 @@ func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.Nod
 	var resp *csi.NodeGetVolumeStatsResponse
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeGetVolumeStats... ", zap.Reflect("Request", req))
-	metrics.UpdateDurationFromStart(ctxLogger, "NodeGetVolumeStats", time.Now())
+	defer metrics.UpdateDurationFromStart(ctxLogger, "NodeGetVolumeStats", time.Now())
 	if req == nil || req.VolumeId == "" { //nolint
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
