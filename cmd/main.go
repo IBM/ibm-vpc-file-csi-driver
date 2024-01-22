@@ -53,7 +53,6 @@ var (
 	vendorVersion        string
 	extraVolumeLabelsStr = flag.String("extra-labels", "", "Extra labels to tag all volumes created by driver. It is a comma separated list of key value pairs like '<key1>:<value1>,<key2>:<value2>'.")
 	logger               *zap.Logger
-	// socketUser           = flag.Int64("socketUser", 2121, "csi endpoint ownership")
 )
 
 func main() {

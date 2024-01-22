@@ -20,12 +20,29 @@
 package ibmcsidriver
 
 import (
+	"errors"
 	"flag"
+	"fmt"
+	"os"
 	"testing"
 
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/stretchr/testify/assert"
 )
+
+// mockFileOps is a mock implementation of FileOps for testing setupSidecar
+type mockFileOps struct {
+	chownErr error
+	chmodErr error
+}
+
+func (m *mockFileOps) Chown(name string, uid, gid int) error {
+	return m.chownErr
+}
+
+func (m *mockFileOps) Chmod(name string, mode os.FileMode) error {
+	return m.chmodErr
+}
 
 func TestSetup(t *testing.T) {
 	goodEndpoint := flag.String("endpoint", "unix:/tmp/testcsi.sock", "Test CSI endpoint")
@@ -88,4 +105,73 @@ func TestSetup(t *testing.T) {
 
 func TestLogGRPC(t *testing.T) {
 	t.Logf("TODO:~ TestLogGRPC")
+}
+
+func TestSetupSidecar(t *testing.T) {
+	tests := []struct {
+		name             string
+		groupID          string
+		fileOps          FileOps
+		expectedErr      bool
+		expectedChownErr error
+		expectedChmodErr error
+	}{
+		{
+			name:             "Successful setupSidecar",
+			groupID:          "123",
+			fileOps:          &mockFileOps{},
+			expectedErr:      false,
+			expectedChownErr: nil,
+			expectedChmodErr: nil,
+		},
+		{
+			name:    "Chown failure",
+			groupID: "123",
+			fileOps: &mockFileOps{
+				chownErr: errors.New("Chown failed"),
+			},
+			expectedErr:      true,
+			expectedChownErr: errors.New("Chown failed"),
+			expectedChmodErr: nil,
+		},
+		{
+			name:    "Chmod failure",
+			groupID: "123",
+			fileOps: &mockFileOps{
+				chmodErr: errors.New("Chmod failed"),
+			},
+			expectedErr:      true,
+			expectedChownErr: nil,
+			expectedChmodErr: errors.New("Chmod failed"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variable
+			os.Setenv("SIDECAR_GROUP_ID", tt.groupID)
+
+			// Call setupSidecar
+			err := setupSidecar("someAddr", tt.fileOps)
+
+			// Check the expected error
+			if (err != nil) != tt.expectedErr {
+				t.Errorf("Expected error: %v, got error: %v", tt.expectedErr, err)
+			}
+
+			// Check the expected Chown error
+			actualErrStr := fmt.Sprintf("%v", tt.fileOps.(*mockFileOps).chownErr)
+			expectedErrStr := fmt.Sprintf("%v", tt.expectedChownErr)
+			if actualErrStr != expectedErrStr {
+				t.Errorf("Expected Chown error: %v, got Chown error: %v", expectedErrStr, actualErrStr)
+			}
+
+			// Check the expected Chmod error
+			actualErrStr = fmt.Sprintf("%v", tt.fileOps.(*mockFileOps).chmodErr)
+			expectedErrStr = fmt.Sprintf("%v", tt.expectedChmodErr)
+			if actualErrStr != expectedErrStr {
+				t.Errorf("Expected Chmod error: %v, got Chmod error: %v", expectedErrStr, actualErrStr)
+			}
+		})
+	}
 }

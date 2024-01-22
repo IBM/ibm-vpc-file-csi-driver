@@ -48,6 +48,12 @@ type NonBlockingGRPCServer interface {
 	ForceStop()
 }
 
+// FileOps represents file system operations
+type FileOps interface {
+	Chown(name string, uid, gid int) error
+	Chmod(name string, mode os.FileMode) error
+}
+
 // NewNonBlockingGRPCServer ...
 func NewNonBlockingGRPCServer(logger *zap.Logger) NonBlockingGRPCServer {
 	return &nonBlockingGRPCServer{logger: logger}
@@ -59,6 +65,9 @@ type nonBlockingGRPCServer struct {
 	server *grpc.Server
 	logger *zap.Logger
 }
+
+// realFileOps implements FileOps
+type realFileOps struct{}
 
 // Start ...
 func (s *nonBlockingGRPCServer) Start(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) {
@@ -126,28 +135,10 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 	}
 
 	if os.Getenv("IS_NODE_SERVER") == "true" {
-		groupSt := os.Getenv("SIDECAR_GROUP_ID")
-		s.logger.Info("GroupID of sidecar: ", zap.Any("ID:", groupSt))
-		group, err := strconv.Atoi(groupSt)
-		if err != nil {
+		fileops := &realFileOps{}
+		if err := setupSidecar(addr, fileops); err != nil {
+			s.logger.Error("setupSidecar failed.", zap.Error(err))
 			return nil, err
-		}
-
-		// Change group of csi socket to non-root user for enabling the csi sidecar
-		err = os.Chown(addr, -1, group)
-		if err != nil {
-			msg := "unable to update owner of the csi socket"
-			s.logger.Error(msg, zap.Reflect("error:", err))
-			return nil, errors.New(msg)
-		}
-
-		// Modify permissions of csi socket
-		// Only the users and the group owners will have read/write access to csi socket
-		err = os.Chmod(addr, 0660)
-		if err != nil {
-			msg := "permissions not updated"
-			s.logger.Error(msg, zap.Reflect("error:", err))
-			return nil, errors.New(msg)
 		}
 	}
 
@@ -165,6 +156,35 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 	}
 	go removeCSISocket(addr)
 	return listener, nil
+}
+
+func (f *realFileOps) Chown(name string, uid, gid int) error {
+	return os.Chown(name, uid, gid)
+}
+
+func (f *realFileOps) Chmod(name string, mode os.FileMode) error {
+	return os.Chmod(name, mode)
+}
+
+func setupSidecar(addr string, fileOps FileOps) error {
+	groupSt := os.Getenv("SIDECAR_GROUP_ID")
+	group, err := strconv.Atoi(groupSt)
+	if err != nil {
+		return err
+	}
+
+	// Change group of csi socket to non-root user for enabling the csi sidecar
+	if err := fileOps.Chown(addr, -1, group); err != nil {
+		return err
+	}
+
+	// Modify permissions of csi socket
+	// Only the users and the group owners will have read/write access to csi socket
+	if err := fileOps.Chmod(addr, 0660); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // serve ...
