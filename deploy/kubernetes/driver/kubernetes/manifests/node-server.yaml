@@ -96,6 +96,8 @@ spec:
                   fieldPath: spec.nodeName
             - name: IS_NODE_SERVER
               value: "true"
+            - name: SIDECAR_GROUP_ID
+              value: "2121"
           resources:
             limits:
               cpu: 200m
