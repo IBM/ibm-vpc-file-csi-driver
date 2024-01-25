@@ -108,7 +108,7 @@ func handle(logger *zap.Logger) {
 	logger.Info("Successfully initialized driver...")
 	serveMetrics()
 
-	driver.WatchClusterConfigMap(k8sClient, logger)
+	driver.WatchClusterConfigMap(k8sClient.Clientset.CoreV1().RESTClient(), logger)
 
 	ibmCSIDriver.Run(*endpoint)
 }
