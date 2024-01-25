@@ -66,7 +66,7 @@ func TestUpdateSubnetList(t *testing.T) {
 		currentSubnetID  string
 		expectedSubnetID string
 	}{
-		/*{
+		{
 			testCaseName: "Same subentID",
 			oldConfigMap: &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
@@ -86,7 +86,7 @@ func TestUpdateSubnetList(t *testing.T) {
 			},
 			currentSubnetID:  "subnetid-1",
 			expectedSubnetID: "subnetid-1",
-		},*/
+		},
 		{
 			testCaseName: "Different subnetID",
 			oldConfigMap: &v1.ConfigMap{
@@ -112,7 +112,6 @@ func TestUpdateSubnetList(t *testing.T) {
 
 	c := new(restfake.RESTClient)
 	cw := NewConfigWatcher(c, logger)
-	//WatchClusterConfigMap(c, logger)
 
 	for _, testcase := range testcases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
