@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -99,20 +100,20 @@ func TestSanity(t *testing.T) {
 
 	// Run sanity test
 	config := sanity.TestConfig{
-		TargetPath:               "some",
-		StagingPath:              "some",
+		TargetPath:               TargetPath,
+		StagingPath:              StagePath,
 		Address:                  CSIEndpoint,
 		DialOptions:              []grpc.DialOption{grpc.WithInsecure()}, //nolint
 		IDGen:                    &providerIDGenerator{},
 		TestVolumeParametersFile: os.Getenv("SANITY_PARAMS_FILE"),
 		TestVolumeSize:           10737418240, // i.e 10 GB
 		CreateTargetDir: func(targetPath string) (string, error) {
-			// targetPath = path.Join(TempDir, targetPath)
-			return targetPath, createTargetDir(TempDir)
+			targetPath = path.Join(TempDir, targetPath)
+			return targetPath, createTargetDir(targetPath)
 		},
 		CreateStagingDir: func(stagePath string) (string, error) {
-			// stagePath = path.Join(TempDir, stagePath)
-			return stagePath, createTargetDir(TempDir)
+			stagePath = path.Join(TempDir, stagePath)
+			return stagePath, createTargetDir(stagePath)
 		},
 	}
 	sanity.Test(t, config)
