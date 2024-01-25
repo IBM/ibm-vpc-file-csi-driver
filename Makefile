@@ -55,7 +55,6 @@ deps:
 
 .PHONY: fmt
 fmt: lint
-	go mod tidy
 	$(GOPATH)/bin/golangci-lint run --disable-all --enable=gofmt --timeout 600s
 	@if [ -n "$$($(GOPATH)/bin/golangci-lint run)" ]; then echo 'Please run ${COLOR_YELLOW}make dofmt${COLOR_RESET} on your code.' && exit 1; fi
 
@@ -73,7 +72,6 @@ build:
 
 .PHONY: test
 test:
-	go mod tidy
 	$(GOPATH)/bin/gotestcover -v -race -short -coverprofile=cover.out ${GOPACKAGES}
 	go tool cover -html=cover.out -o=cover.html  # Uncomment this line when UT in place.
 
