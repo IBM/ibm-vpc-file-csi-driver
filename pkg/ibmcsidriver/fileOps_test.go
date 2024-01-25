@@ -29,16 +29,16 @@ import (
 )
 
 // Mock implementation of the socketPermission interface
-type MockSocketPermission struct {
+type mockSocketPermission struct {
 	mock.Mock
 }
 
-func (m *MockSocketPermission) chown(name string, uid, gid int) error {
+func (m *mockSocketPermission) chown(name string, uid, gid int) error {
 	args := m.Called(name, uid, gid)
 	return args.Error(0)
 }
 
-func (m *MockSocketPermission) chmod(name string, mode os.FileMode) error {
+func (m *mockSocketPermission) chmod(name string, mode os.FileMode) error {
 	args := m.Called(name, mode)
 	return args.Error(0)
 }
@@ -56,7 +56,7 @@ func TestSetupSidecar(t *testing.T) {
 	}{
 		{
 			name:               "ValidGroupID",
-			socketPermission:   &MockSocketPermission{},
+			socketPermission:   &mockSocketPermission{},
 			groupID:            "2121",
 			expectedErr:        false,
 			chownErr:           nil,
@@ -66,7 +66,7 @@ func TestSetupSidecar(t *testing.T) {
 		},
 		{
 			name:               "EmptyGroupID",
-			socketPermission:   &MockSocketPermission{},
+			socketPermission:   &mockSocketPermission{},
 			groupID:            "",
 			expectedErr:        false,
 			chownErr:           nil,
@@ -76,7 +76,7 @@ func TestSetupSidecar(t *testing.T) {
 		},
 		{
 			name:               "ChownError",
-			socketPermission:   &MockSocketPermission{},
+			socketPermission:   &mockSocketPermission{},
 			groupID:            "1000",
 			expectedErr:        true,
 			chownErr:           errors.New("chown error"),
@@ -86,7 +86,7 @@ func TestSetupSidecar(t *testing.T) {
 		},
 		{
 			name:               "ChmodError",
-			socketPermission:   &MockSocketPermission{},
+			socketPermission:   &mockSocketPermission{},
 			groupID:            "1000",
 			expectedErr:        true,
 			chownErr:           nil,
@@ -103,7 +103,7 @@ func TestSetupSidecar(t *testing.T) {
 			defer os.Unsetenv("SIDECAR_GROUP_ID")
 
 			// Create mock object
-			mockSocketPermission := tc.socketPermission.(*MockSocketPermission)
+			mockSocketPermission := tc.socketPermission.(*mockSocketPermission)
 
 			// Set expectations for chown and chmod methods
 			mockSocketPermission.On("chown", mock.Anything, -1, mock.AnythingOfType("int")).Return(tc.chownErr).Times(tc.expectedChownCalls)
