@@ -1036,7 +1036,7 @@ func TestControllerExpandVolume(t *testing.T) {
 		{
 			name:                 "Success controller expand volume",
 			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: stdCapRange},
-			expResponse:          &csi.ControllerExpandVolumeResponse{CapacityBytes: stdCapRange.RequiredBytes, NodeExpansionRequired: true},
+			expResponse:          &csi.ControllerExpandVolumeResponse{CapacityBytes: stdCapRange.RequiredBytes, NodeExpansionRequired: false},
 			expErrCode:           codes.OK,
 			libExpandResponse:    &http.Response{StatusCode: http.StatusOK},
 			libVolumeResponse:    &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "volumeid", Iops: &iopsStr, Az: "myzone", Region: "myregion"},

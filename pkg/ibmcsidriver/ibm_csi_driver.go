@@ -97,7 +97,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	ns := []csi.NodeServiceCapability_RPC_Type{
 		//csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 		csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
-		csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
+		//csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
 	}
 	_ = icDriver.AddNodeServiceCapabilities(ns) // #nosec G104: Attempt to AddNodeServiceCapabilities only on best-effort basis. Error cannot be usefully handled.
 
