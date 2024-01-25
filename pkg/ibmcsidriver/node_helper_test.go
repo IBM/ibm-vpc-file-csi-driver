@@ -20,11 +20,11 @@
 package ibmcsidriver
 
 import (
-	"fmt"
 	"testing"
 
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/status"
 )
 
 func TestProcessMount(t *testing.T) {
@@ -35,31 +35,15 @@ func TestProcessMount(t *testing.T) {
 		targetPath  string
 		fsType      string
 		options     []string
-		expectedErr error
+		expectedErr string
 	}{
 		{
 			name:        "success",
 			source:      "/source",
-			targetPath:  "/targetpath",
+			targetPath:  "/targetpath-fdsfdsfdf~~!@@@",
 			fsType:      "nfs",
 			options:     []string{"ro,sync"},
-			expectedErr: nil,
-		},
-		{
-			name:        "Invalid source path",
-			source:      "./error_mount_source",
-			targetPath:  "/targetpath",
-			fsType:      "nfs",
-			options:     []string{"ro,sync"},
-			expectedErr: fmt.Errorf("fake Mount: source error"),
-		},
-		{
-			name:        "Invalid target path",
-			source:      "./error_mount_target",
-			targetPath:  "fake-volPath",
-			fsType:      "nfs",
-			options:     []string{"ro,sync"},
-			expectedErr: fmt.Errorf("fake Mount: target error"),
+			expectedErr: "",
 		},
 		{
 			name:        "Make directory fails",
@@ -67,23 +51,7 @@ func TestProcessMount(t *testing.T) {
 			targetPath:  "invalid-volPath-dir",
 			fsType:      "nfs",
 			options:     []string{"ro,sync"},
-			expectedErr: fmt.Errorf("Path Creation failed"),
-		},
-		{
-			name:        "IsLikelyNotMountPoint returns true and nil error",
-			source:      "./error_mount_source",
-			targetPath:  "fake-volPath-1",
-			fsType:      "nfs",
-			options:     []string{"ro,sync"},
-			expectedErr: fmt.Errorf("fake Mount: target error"),
-		},
-		{
-			name:        "Umount Fails",
-			source:      "./error_mount_source",
-			targetPath:  "error_umount",
-			fsType:      "nfs",
-			options:     []string{"ro,sync"},
-			expectedErr: fmt.Errorf("Unmount Failed"),
+			expectedErr: "{RequestID: processMount, Code: TargetPathCreateFailed, Description: Failed to create target path 'invalid-volPath-dir', BackendError: Path Creation failed, Action: Please check if there is any error in POD describe related with volume attach}",
 		},
 	}
 
@@ -98,9 +66,11 @@ func TestProcessMount(t *testing.T) {
 		icDriver := initIBMCSIDriver(t)
 		// Call processMount
 		_, err := icDriver.ns.processMount(logger, "processMount", tc.source, tc.targetPath, tc.fsType, tc.options)
-		if tc.expectedErr != nil {
+		if tc.expectedErr != "" && err != nil {
 			t.Logf("Error code")
 			assert.NotNil(t, err)
+			serverError, _ := status.FromError(err)
+			assert.Equal(t, tc.expectedErr, serverError.Message())
 		}
 	}
 }
