@@ -27,6 +27,7 @@ spec:
         runAsNonRoot: true
         runAsUser: 2121
         runAsGroup: 2121
+        privileged: false
       containers:
         - name: csi-driver-registrar
           image: MUSTPATCHWITHKUSTOMIZE
