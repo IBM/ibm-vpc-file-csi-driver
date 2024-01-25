@@ -53,10 +53,9 @@ func (cw *ConfigWatcher) Start() {
 			UpdateFunc: cw.updateSubnetList,
 		},
 	)
-	cw.logger.Info("ConfigWatcher starting - start watching for any updates in subnet list", zap.Any("configmap name", ConfigmapName), zap.Any("configmap namespace", ConfigmapNamespace))
 	stopch := wait.NeverStop
 	go controller.Run(stopch)
-	cw.logger.Info("ConfigWatcher started...")
+	cw.logger.Info("ConfigWatcher started - start watching for any updates in subnet list", zap.Any("configmap name", ConfigmapName), zap.Any("configmap namespace", ConfigmapNamespace))
 	<-stopch
 }
 
@@ -66,17 +65,17 @@ func (cw *ConfigWatcher) updateSubnetList(oldObj, newObj interface{}) {
 	oldData, _ := oldObj.(*v1.ConfigMap)
 	// Confirm if the event recieved is for ibm-cloud-provider-data configmap or not.
 	if strings.TrimSpace(newData.Name) == ConfigmapName {
-		newConfig := newData.Data[ConfigmapDataKey]
-		oldConfig := oldData.Data[ConfigmapDataKey]
+		newSubnetList := newData.Data[ConfigmapDataKey]
+		oldSubnetList := oldData.Data[ConfigmapDataKey]
 		// Env variable VPC_SUBNET_IDS will be updated only when there is
 		// non empty data and there is change in configmap
-		if newConfig != "" && (newConfig != oldConfig) {
-			err := os.Setenv("VPC_SUBNET_IDS", newConfig)
+		if newSubnetList != "" && (newSubnetList != oldSubnetList) {
+			err := os.Setenv("VPC_SUBNET_IDS", newSubnetList)
 			if err != nil {
-				cw.logger.Warn("Config watcher is unable to update the subnet list..", zap.Any("Updated list", newConfig), zap.Error(err))
+				cw.logger.Warn("Error updating the subnet list..", zap.Any("Subnet list update request", newSubnetList), zap.Error(err))
 				return
 			}
-			cw.logger.Info("Updated the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", newConfig))
+			cw.logger.Info("Updated the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", newSubnetList))
 		}
 	}
 }

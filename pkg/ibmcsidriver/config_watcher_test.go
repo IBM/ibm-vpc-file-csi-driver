@@ -41,7 +41,7 @@ func TestWatchClusterConfigMap(t *testing.T) {
 		expectedError error
 	}{
 		{
-			testcasename:  "Success",
+			testcasename:  "Successful Initialisation of watcher for config map",
 			expectedError: nil,
 		},
 	}
@@ -67,7 +67,7 @@ func TestUpdateSubnetList(t *testing.T) {
 		expectedSubnetID string
 	}{
 		{
-			testCaseName: "Same subentID",
+			testCaseName: "No difference seen in old subnet ID and new subnet ID",
 			oldConfigMap: &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: ConfigmapName,
@@ -88,7 +88,7 @@ func TestUpdateSubnetList(t *testing.T) {
 			expectedSubnetID: "subnetid-1",
 		},
 		{
-			testCaseName: "Different subnetID",
+			testCaseName: "Difference seen in old subnetID and new subnet ID",
 			oldConfigMap: &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: ConfigmapName,
