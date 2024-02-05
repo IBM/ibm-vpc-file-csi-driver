@@ -4,6 +4,7 @@ metadata:
   name: vpc.file.csi.ibm.io
 spec:
   attachRequired: false
+  fsGroupPolicy: File
   podInfoOnMount: true
   volumeLifecycleModes:
   - Persistent
