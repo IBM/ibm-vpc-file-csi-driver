@@ -24,29 +24,28 @@ import (
 	"strings"
 	"time"
 
-	k8sUtils "github.com/IBM/secret-utils-lib/pkg/k8s_utils"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
 type ConfigWatcher struct {
-	logger  *zap.Logger
-	kclient kubernetes.Interface
+	logger *zap.Logger
+	client rest.Interface
 }
 
-func NewConfigWatcher(client kubernetes.Interface, log *zap.Logger) *ConfigWatcher {
+func NewConfigWatcher(client rest.Interface, log *zap.Logger) *ConfigWatcher {
 	return &ConfigWatcher{
-		logger:  log,
-		kclient: client,
+		logger: log,
+		client: client,
 	}
 }
 
 func (cw *ConfigWatcher) Start() {
-	watchlist := cache.NewListWatchFromClient(cw.kclient.CoreV1().RESTClient(), "configmaps", ConfigmapNamespace, fields.Set{"metadata.name": ConfigmapName}.AsSelector())
+	watchlist := cache.NewListWatchFromClient(cw.client, "configmaps", ConfigmapNamespace, fields.Set{"metadata.name": ConfigmapName}.AsSelector())
 	_, controller := cache.NewInformer(watchlist, &v1.ConfigMap{}, time.Second*0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    nil,
@@ -54,10 +53,9 @@ func (cw *ConfigWatcher) Start() {
 			UpdateFunc: cw.updateSubnetList,
 		},
 	)
-	cw.logger.Info("ConfigWatcher starting - start watching for any updates in subnet list", zap.Any("configmap name", ConfigmapName), zap.Any("configmap namespace", ConfigmapNamespace))
 	stopch := wait.NeverStop
 	go controller.Run(stopch)
-	cw.logger.Info("ConfigWatcher started...")
+	cw.logger.Info("ConfigWatcher started - start watching for any updates in subnet list", zap.Any("configmap name", ConfigmapName), zap.Any("configmap namespace", ConfigmapNamespace))
 	<-stopch
 }
 
@@ -67,27 +65,22 @@ func (cw *ConfigWatcher) updateSubnetList(oldObj, newObj interface{}) {
 	oldData, _ := oldObj.(*v1.ConfigMap)
 	// Confirm if the event recieved is for ibm-cloud-provider-data configmap or not.
 	if strings.TrimSpace(newData.Name) == ConfigmapName {
-		newConfig := newData.Data[ConfigmapDataKey]
-		oldConfig := oldData.Data[ConfigmapDataKey]
+		newSubnetList := newData.Data[ConfigmapDataKey]
+		oldSubnetList := oldData.Data[ConfigmapDataKey]
 		// Env variable VPC_SUBNET_IDS will be updated only when there is
 		// non empty data and there is change in configmap
-		if newConfig != "" && (newConfig != oldConfig) {
-			VPC_SUBNET_IDS := newData.Data[ConfigmapDataKey]
-			err := os.Setenv("VPC_SUBNET_IDS", VPC_SUBNET_IDS)
+		if newSubnetList != "" && (newSubnetList != oldSubnetList) {
+			err := os.Setenv("VPC_SUBNET_IDS", newSubnetList)
 			if err != nil {
-				cw.logger.Warn("Config watcher is unable to update the subnet list..", zap.Any("Updated list", VPC_SUBNET_IDS), zap.Error(err))
+				cw.logger.Warn("Error updating the subnet list..", zap.Any("Subnet list update request", newSubnetList), zap.Error(err))
 				return
 			}
-			cw.logger.Info("Updated the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", VPC_SUBNET_IDS))
+			cw.logger.Info("Updated the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", newSubnetList))
 		}
 	}
 }
 
-func WatchClusterConfigMap(client k8sUtils.KubernetesClient, log *zap.Logger) {
-	configWatcher := NewConfigWatcher(client.Clientset, log)
-	if configWatcher == nil {
-		log.Error("ConfigWatcher not started ")
-		return
-	}
+func WatchClusterConfigMap(client rest.Interface, log *zap.Logger) {
+	configWatcher := NewConfigWatcher(client, log)
 	go configWatcher.Start()
 }
