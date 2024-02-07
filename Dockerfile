@@ -1,6 +1,6 @@
 #FROM alpine:3.7
 ARG PROXY_IMAGE_URL=blank
-FROM ubuntu:20.04
+FROM ubuntu:16.04
 
 # Default values
 ARG git_commit_id=unknown
@@ -27,8 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends nfs-common && \
 
 RUN mkdir -p /home/ibm-csi-drivers/
 ADD ibm-vpc-file-csi-driver /home/ibm-csi-drivers
-ADD ./eit-mount-utility /home/ibm-csi-drivers/
+RUN chmod +x /home/ibm-csi-drivers/ibm-vpc-file-csi-driver
 
 USER 2121:2121
 
-ENTRYPOINT ["/home/ibm-csi-drivers/setup.sh"]
+ENTRYPOINT ["/home/ibm-csi-drivers/ibm-vpc-file-csi-driver"]

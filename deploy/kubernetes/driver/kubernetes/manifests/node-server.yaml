@@ -89,8 +89,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: IS_NODE_SERVER
-              value: "true"
             - name: SOCKET_PATH
               value: "/tmp/mysocket.sock"
           resources:
@@ -112,8 +110,6 @@ spec:
             timeoutSeconds: 3
             periodSeconds: 10
             failureThreshold: 5
-          redinessProbe:
-            
           volumeMounts:
             - name: secret-sidecar-sock-dir
               mountPath: /sidecardir
@@ -138,21 +134,6 @@ spec:
             - name: cluster-info
               readOnly: true
               mountPath: /etc/storage_ibmc/cluster_info
-            - mountPath: /tmp
-              name: soc-dir
-              mountPropagation: "Bidirectional"
-            - mountPath: /host
-              name: host-root
-            - mountPath: /host/usr
-              name: host-usr
-            - mountPath: /run/systemd
-              name: sysd-run
-            - mountPath: /host/etc
-              name: host-etc
-            - mountPath: /host/lib
-              name: host-lib
-            - mountPath: /host/var/log
-              name: host-var-log
         - name: liveness-probe
           image: MUSTPATCHWITHKUSTOMIZE
           securityContext:
@@ -240,25 +221,3 @@ spec:
             - serviceAccountToken:
                 path: vault-token
                 expirationSeconds: 600
-        - hostPath:
-            path: /tmp
-          name: soc-dir
-        - hostPath:
-            path: /
-            type: ""
-          name: host-root
-        - name: host-usr
-          hostPath:
-             path: /usr/
-        - name: sysd-run
-          hostPath:
-             path: /run/systemd
-        - name: host-etc
-          hostPath:
-             path: /etc/
-        - name: host-lib
-          hostPath:
-             path: /lib/
-        - name: host-var-log
-          hostPath:
-             path: /var/log
