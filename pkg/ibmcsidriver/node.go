@@ -22,7 +22,6 @@ package ibmcsidriver
 import (
 	"fmt"
 	"os"
-	"sync"
 
 	"time"
 
@@ -46,18 +45,13 @@ type CSINodeServer struct {
 	Metadata nodeMetadata.NodeMetadata
 	Stats    StatsUtils
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
-	mux sync.Mutex
+	mutex utils.LockStore
 }
 
 // StatsUtils ...
 type StatsUtils interface {
 	FSInfo(path string) (int64, int64, int64, int64, int64, int64, error)
 	IsDevicePathNotExist(devicePath string) bool
-}
-
-// MountUtils ...
-type MountUtils interface {
-	Resize(mounter mountmanager.Mounter, devicePath string, deviceMountPath string) (bool, error)
 }
 
 // VolumeMountUtils ...
@@ -81,20 +75,12 @@ const (
 )
 
 var _ csi.NodeServer = &CSINodeServer{}
-var mountmgr MountUtils
-
-func init() {
-	mountmgr = &VolumeMountUtils{}
-}
 
 // NodePublishVolume ...
 func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodePublishVolume...", zap.Reflect("Request", *req))
 	defer metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
-
-	csiNS.mux.Lock()
-	defer csiNS.mux.Unlock()
 
 	volumeID := req.GetVolumeId()
 	if len(volumeID) == 0 {
@@ -154,6 +140,11 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	var nodePublishResponse *csi.NodePublishVolumeResponse
 	var mountErr error
 
+	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
+	//This will not hold other volumes and target path processing.
+	csiNS.mutex.Lock(target)
+	defer csiNS.mutex.Unlock(target)
+
 	nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, source, target, fsType, options)
 
 	ctxLogger.Info("CSINodeServer-NodePublishVolume response...", zap.Reflect("Response", nodePublishResponse), zap.Error(mountErr))
@@ -165,8 +156,7 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeUnpublishVolume...", zap.Reflect("Request", *req))
 	defer metrics.UpdateDurationFromStart(ctxLogger, "NodeUnpublishVolume", time.Now())
-	csiNS.mux.Lock()
-	defer csiNS.mux.Unlock()
+  
 	// Validate Arguments
 	targetPath := req.GetTargetPath()
 	volID := req.GetVolumeId()
@@ -177,7 +167,12 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
 	}
 
-	ctxLogger.Info("Unmounting target path", zap.String("targetPath", targetPath))
+	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
+	//This will not hold other volumes and target path processing.
+	csiNS.mutex.Lock(targetPath)
+	defer csiNS.mutex.Unlock(targetPath)
+
+	ctxLogger.Info("Unmounting  target path", zap.String("targetPath", targetPath))
 	err := mount.CleanupMountPoint(targetPath, csiNS.Mounter, false /* bind mount */)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
@@ -292,38 +287,7 @@ func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.Nod
 func (csiNS *CSINodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeExpandVolume", zap.Reflect("Request", *req))
-	volumeID := req.GetVolumeId()
-	if len(volumeID) == 0 {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
-	}
-
-	deviceMountPath := req.GetVolumePath()
-	if len(deviceMountPath) == 0 {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumePath, requestID, nil)
-	}
-
-	notMounted, err := csiNS.Mounter.IsLikelyNotMountPoint(deviceMountPath)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, deviceMountPath)
-	}
-
-	if notMounted {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumePathNotMounted, requestID, nil, deviceMountPath)
-	}
-
-	devicePath, _, err := mount.GetDeviceNameFromMount(csiNS.Mounter, deviceMountPath)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.GetDeviceInfoFailed, requestID, err, deviceMountPath)
-	}
-
-	if devicePath == "" {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyDevicePath, requestID, err)
-	}
-
-	if _, err := mountmgr.Resize(csiNS.Mounter, devicePath, deviceMountPath); err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.FileSystemResizeFailed, requestID, err)
-	}
-	return &csi.NodeExpandVolumeResponse{CapacityBytes: req.CapacityRange.RequiredBytes}, nil
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeExpandVolume")
 }
 
 // IsDevicePathNotExist ...
@@ -336,13 +300,4 @@ func (su *VolumeStatUtils) IsDevicePathNotExist(devicePath string) bool {
 		}
 	}
 	return false
-}
-
-// Resize expands the fs
-func (volMountUtils *VolumeMountUtils) Resize(mounter mountmanager.Mounter, devicePath string, deviceMountPath string) (bool, error) {
-	r := mount.NewResizeFs(mounter.GetSafeFormatAndMount().Exec)
-	if _, err := r.Resize(devicePath, deviceMountPath); err != nil {
-		return false, err
-	}
-	return true, nil
 }
