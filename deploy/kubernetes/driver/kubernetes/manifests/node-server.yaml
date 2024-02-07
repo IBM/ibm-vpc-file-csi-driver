@@ -24,6 +24,10 @@ spec:
       serviceAccountName: ibm-vpc-file-node-sa
       tolerations:
       - operator: Exists
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2121
+        runAsGroup: 2121
       containers:
         - name: csi-driver-registrar
           image: MUSTPATCHWITHKUSTOMIZE
@@ -31,6 +35,7 @@ spec:
           securityContext:
             runAsNonRoot: false
             runAsUser: 0
+            runAsGroup: 0
             privileged: false
           args:
             - "--v=5"
@@ -64,6 +69,7 @@ spec:
           securityContext:
             runAsNonRoot: false
             runAsUser: 0
+            runAsGroup: 0
             privileged: true
           image: MUSTPATCHWITHKUSTOMIZE
           imagePullPolicy: Always
@@ -89,6 +95,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: IS_NODE_SERVER
+              value: "true"
+            - name: SIDECAR_GROUP_ID
+              value: "2121"
           resources:
             limits:
               cpu: 200m
@@ -134,10 +144,6 @@ spec:
               mountPath: /etc/storage_ibmc/cluster_info
         - name: liveness-probe
           image: MUSTPATCHWITHKUSTOMIZE
-          securityContext:
-            runAsNonRoot: false
-            runAsUser: 0
-            privileged: false
           args:
             - "--csi-address=$(CSI_ADDRESS)"
           env:
