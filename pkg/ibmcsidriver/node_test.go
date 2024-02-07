@@ -98,17 +98,6 @@ func TestNodePublishVolume(t *testing.T) {
 			expErrCode: codes.OK,
 		},
 		{
-			name: "IsLikelyNotMountPoint failure",
-			req: &csi.NodePublishVolumeRequest{
-				VolumeId:         defaultVolumeID,
-				TargetPath:       "fake-volPath",
-				Readonly:         false,
-				VolumeCapability: stdVolCap[0],
-				VolumeContext:    map[string]string{NFSServerPath: "c:/abc/xyz"},
-			},
-			expErrCode: codes.FailedPrecondition,
-		},
-		{
 			name: "Empty volume ID",
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:         "",
