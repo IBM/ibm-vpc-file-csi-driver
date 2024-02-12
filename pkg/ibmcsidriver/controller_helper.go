@@ -321,7 +321,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	// For enabling EIT, check if ENI is enabled or not. If not, fail with error as to enable encryption in transit, accessControlMode must be set to security_group.
-	if volume.VPCVolume.EncryptionInTransit == EncryptionTransit && volume.VPCVolume.AccessControlMode != SecurityGroup {
+	if volume.VPCVolume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.AccessControlMode != SecurityGroup {
 		err = fmt.Errorf("ENI must be enabled i.e accessControlMode must be set to security_group for creating EIT enabled fileShare. Set 'isENIEnabled' to 'true' in storage class parameters.")
 		logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 		return volume, err
@@ -378,7 +378,7 @@ func setISEITEnabled(volume *provider.Volume, key string, value string) error {
 		err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
 	} else {
 		if value == TrueStr {
-			volume.VPCVolume.EncryptionInTransit = EncryptionTransit
+			volume.VPCVolume.TransitEncryption = EncryptionTransitMode
 		}
 	}
 
@@ -609,7 +609,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
 
 	// Update label in case EIT is enabled
-	if vol.EncryptionInTransit == EncryptionTransit {
+	if vol.TransitEncryption == EncryptionTransitMode {
 		labels[IsEITEnabled] = TrueStr
 	}
 

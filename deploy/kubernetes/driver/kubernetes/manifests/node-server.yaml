@@ -134,6 +134,9 @@ spec:
             - name: cluster-info
               readOnly: true
               mountPath: /etc/storage_ibmc/cluster_info
+            - mountPath: /tmp
+              name: soc-dir
+              mountPropagation: "Bidirectional"
         - name: liveness-probe
           image: MUSTPATCHWITHKUSTOMIZE
           securityContext:
@@ -221,3 +224,6 @@ spec:
             - serviceAccountToken:
                 path: vault-token
                 expirationSeconds: 600
+        - hostPath:
+            path: /tmp
+          name: soc-dir
