@@ -70,7 +70,7 @@ func (su *VolumeStatUtils) FSInfo(path string) (int64, int64, int64, int64, int6
 const (
 	// default file system type to be used when it is not provided
 	defaultFsType = "nfs"
-	// files system in case encryption in transit is enabled
+	// file system in case transit encryption is enabled
 	eitFsType = "ibmshare"
 )
 
@@ -131,7 +131,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 
 	// find  FS type
 	fsType := defaultFsType
-	// InCase EIT is enabled, use eitFsType
+	// In case EIT is enabled, use eitFsType
 	isEITEnabled := req.GetVolumeContext()[IsEITEnabled]
 	if isEITEnabled == TrueStr {
 		fsType = eitFsType

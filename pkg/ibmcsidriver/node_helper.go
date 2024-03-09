@@ -34,6 +34,7 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 	fsTypeField := zap.String("fsType", fsType)
 	optionsField := zap.Reflect("options", options)
 	ctxLogger.Info("CSINodeServer-processMount...", stagingTargetPathField, targetPathField, fsTypeField, optionsField)
+
 	if err := csiNS.Mounter.MakeDir(targetPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, targetPath)
 	}
@@ -68,18 +69,19 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 		var errorCode string
 		errRemovePath := os.Remove(targetPath)
 		if errRemovePath != nil {
-			ctxLogger.Warn("processMount: Remove targePath failed", zap.String("targetPath", targetPath), zap.Error(errRemovePath))
+			ctxLogger.Warn("processMount: Remove targetPath failed", zap.String("targetPath", targetPath), zap.Error(errRemovePath))
 			errorCode = commonError.CreateMountTargetFailed
 		}
 		if fsType == eitFsType {
 			errorCode = checkMountResponse(err)
-			// If there is any unknown error while mounting, collect mount-helper-container logs for debugging
-			if errorCode == commonError.MountingTargetFailed {
+			// Collect mount-helper-container logs for debugging
+			if errorCode != commonError.UnresponsiveMountHelperContainerUtility {
 				ctxLogger.Warn("Collecting mount-helper-container logs...")
 				errDebug := csiNS.Mounter.DebugLogsEITBasedFileShare(requestID)
 				if errDebug != nil {
 					ctxLogger.Warn("Failed to collect logs from mount-helper-container service...", zap.Error(errDebug))
 				}
+				ctxLogger.Warn("Check mount failure response inside node server pod '/tmp/mount-helper-container.log'")
 			}
 		}
 		return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)
@@ -94,10 +96,7 @@ func checkMountResponse(err error) string {
 	errorString := err.Error()
 
 	errorMap := map[string]string{
-		"exit status 32":        commonError.UnresponsiveMountHelperUtility,
 		"exit status 1":         commonError.MetadataServiceNotEnabled,
-		"exit status 132":       commonError.MountHelperCertificatesMissing,
-		"exit status 5":         commonError.MountHelperCertificatesExpired,
 		"connect: no such file": commonError.UnresponsiveMountHelperContainerUtility,
 	}
 

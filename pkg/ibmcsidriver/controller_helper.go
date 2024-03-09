@@ -322,7 +322,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	// For enabling EIT, check if ENI is enabled or not. If not, fail with error as to enable encryption in transit, accessControlMode must be set to security_group.
 	if volume.VPCVolume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.AccessControlMode != SecurityGroup {
-		err = fmt.Errorf("ENI must be enabled i.e accessControlMode must be set to security_group for creating EIT enabled fileShare. Set 'isENIEnabled' to 'true' in storage class parameters.")
+		err = fmt.Errorf("ENI must be enabled i.e accessControlMode must be set to security_group for creating EIT enabled fileShare. Set 'isENIEnabled' to 'true' in storage class parameters")
 		logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 		return volume, err
 	}
@@ -525,6 +525,8 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case IsENIEnabled:
 			err = setISENIEnabled(volume, key, strings.ToLower(value))
+		case IsEITEnabled:
+			err = setISEITEnabled(volume, key, strings.ToLower(value))
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}

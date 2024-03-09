@@ -125,7 +125,7 @@ const (
 	// SecurityGroup
 	SecurityGroup = "security_group"
 
-	// EncryptionTransit
+	// EncryptionTransitMode
 	EncryptionTransitMode = "user_managed"
 
 	// VPC
