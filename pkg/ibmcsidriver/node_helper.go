@@ -21,7 +21,7 @@ package ibmcsidriver
 
 import (
 	"os"
-	"strings"
+	"regexp"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -96,12 +96,13 @@ func checkMountResponse(err error) string {
 	errorString := err.Error()
 
 	errorMap := map[string]string{
-		"exit status 1":         commonError.MetadataServiceNotEnabled,
+		"^exit status 1$":       commonError.MetadataServiceNotEnabled,
 		"connect: no such file": commonError.UnresponsiveMountHelperContainerUtility,
 	}
 
 	for code, message := range errorMap {
-		if strings.Contains(errorString, code) {
+		regex := regexp.MustCompile(code)
+		if regex.MatchString(errorString) {
 			return message
 		}
 	}
