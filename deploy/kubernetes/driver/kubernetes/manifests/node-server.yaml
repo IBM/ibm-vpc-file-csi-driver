@@ -137,6 +137,8 @@ spec:
             - mountPath: /tmp
               name: soc-dir
               mountPropagation: "Bidirectional"
+            - mountPath: /tmp/mount-helper
+              name: mh-logs
         - name: liveness-probe
           image: MUSTPATCHWITHKUSTOMIZE
           securityContext:
@@ -227,3 +229,6 @@ spec:
         - hostPath:
             path: /tmp
           name: soc-dir
+        - name: mh-logs
+          hostPath:
+            path: /opt/ibm/mount-ibmshare/
