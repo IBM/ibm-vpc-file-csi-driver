@@ -96,8 +96,8 @@ func checkMountResponse(err error) string {
 	errorString := err.Error()
 
 	errorMap := map[string]string{
-		"^exit status 1$":       commonError.MetadataServiceNotEnabled,
-		"connect: no such file": commonError.UnresponsiveMountHelperContainerUtility,
+		`exit status 1\b`:         commonError.MetadataServiceNotEnabled,
+		`connect: no such file\b`: commonError.UnresponsiveMountHelperContainerUtility,
 	}
 
 	for code, message := range errorMap {
