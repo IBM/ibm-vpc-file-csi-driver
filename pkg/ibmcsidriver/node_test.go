@@ -89,6 +89,18 @@ func TestNodePublishVolume(t *testing.T) {
 			expErrCode: codes.OK,
 		},
 		{
+			name: "Valid request with transit encryption enabled",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultStagingPath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz", IsEITEnabled: "true"},
+			},
+			expErrCode: codes.OK,
+		},
+		{
 			name: "Empty volume ID",
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:          "",

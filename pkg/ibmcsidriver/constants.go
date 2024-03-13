@@ -125,11 +125,17 @@ const (
 	// SecurityGroup
 	SecurityGroup = "security_group"
 
+	// EncryptionTransitMode
+	EncryptionTransitMode = "user_managed"
+
 	// VPC
 	VPC = "vpc"
 
 	// IsENIEnabled
 	IsENIEnabled = "isENIEnabled"
+
+	// IsEITEnabled
+	IsEITEnabled = "isEITEnabled"
 
 	// SecurityGroupIDs
 	SecurityGroupIDs = "securityGroupIDs"

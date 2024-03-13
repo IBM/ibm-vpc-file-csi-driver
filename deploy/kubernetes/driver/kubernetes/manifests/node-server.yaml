@@ -89,6 +89,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: SOCKET_PATH
+              value: "/tmp/mysocket.sock"
           resources:
             limits:
               cpu: 200m
@@ -132,6 +134,10 @@ spec:
             - name: cluster-info
               readOnly: true
               mountPath: /etc/storage_ibmc/cluster_info
+            - mountPath: /tmp
+              name: soc-dir
+            - mountPath: /tmp/mount-helper
+              name: mh-logs
         - name: liveness-probe
           image: MUSTPATCHWITHKUSTOMIZE
           securityContext:
@@ -219,3 +225,9 @@ spec:
             - serviceAccountToken:
                 path: vault-token
                 expirationSeconds: 600
+        - hostPath:
+            path: /tmp
+          name: soc-dir
+        - name: mh-logs
+          hostPath:
+            path: /opt/ibm/mount-ibmshare/
