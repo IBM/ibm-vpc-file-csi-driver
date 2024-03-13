@@ -136,7 +136,6 @@ spec:
               mountPath: /etc/storage_ibmc/cluster_info
             - mountPath: /tmp
               name: soc-dir
-              mountPropagation: "Bidirectional"
             - mountPath: /tmp/mount-helper
               name: mh-logs
         - name: liveness-probe
