@@ -37,5 +37,5 @@ const (
 	CSIProviderName = "VPC"
 
 	// CSIProviderVolumeType ... same is used to update the volume
-	CSIProviderVolumeType = "share"
+	CSIProviderVolumeType = "file"
 )
