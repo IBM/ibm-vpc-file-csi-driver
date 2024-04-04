@@ -38,7 +38,7 @@ import (
 
 const defaultVolumeID = "csiprovidervolumeid"
 const defaultTargetPath = "/mnt/test"
-const defaultStagingPath = "/staging"
+const defaultSourcePath = "/staging"
 const defaultVolumePath = "/var/volpath"
 
 const notBlockDevice = "/for/notblocktest"
@@ -81,7 +81,7 @@ func TestNodePublishVolume(t *testing.T) {
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:          defaultVolumeID,
 				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
+				StagingTargetPath: defaultSourcePath,
 				Readonly:          false,
 				VolumeCapability:  stdVolCap[0],
 				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz"},
@@ -93,7 +93,7 @@ func TestNodePublishVolume(t *testing.T) {
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:          defaultVolumeID,
 				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
+				StagingTargetPath: defaultSourcePath,
 				Readonly:          false,
 				VolumeCapability:  stdVolCap[0],
 				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz", IsEITEnabled: "true"},
@@ -105,7 +105,7 @@ func TestNodePublishVolume(t *testing.T) {
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:          "",
 				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
+				StagingTargetPath: defaultSourcePath,
 				Readonly:          false,
 				VolumeCapability:  stdVolCap[0],
 			},
@@ -138,7 +138,7 @@ func TestNodePublishVolume(t *testing.T) {
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:          "testvolumeid",
 				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
+				StagingTargetPath: defaultSourcePath,
 				Readonly:          false,
 				VolumeCapability:  nil,
 			},
@@ -149,7 +149,7 @@ func TestNodePublishVolume(t *testing.T) {
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:          "testvolumeid",
 				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
+				StagingTargetPath: defaultSourcePath,
 				Readonly:          false,
 				VolumeCapability:  stdVolCapNotSupported[0],
 			},

@@ -28,12 +28,12 @@ import (
 	"go.uber.org/zap"
 )
 
-func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagingTargetPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) {
-	stagingTargetPathField := zap.String("stagingTargetPath", stagingTargetPath)
+func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mountPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) {
+	mountPathField := zap.String("mountPath", mountPath)
 	targetPathField := zap.String("targetPath", targetPath)
 	fsTypeField := zap.String("fsType", fsType)
 	optionsField := zap.Reflect("options", options)
-	ctxLogger.Info("CSINodeServer-processMount...", stagingTargetPathField, targetPathField, fsTypeField, optionsField)
+	ctxLogger.Info("CSINodeServer-processMount...", mountPathField, targetPathField, fsTypeField, optionsField)
 
 	if err := csiNS.Mounter.MakeDir(targetPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, targetPath)
@@ -44,9 +44,9 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 
 	ctxLogger.Info("Creating request for mounting volume...")
 	if fsType != eitFsType {
-		err = csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
+		err = csiNS.Mounter.Mount(mountPath, targetPath, fsType, options)
 	} else {
-		errResponse, err = csiNS.Mounter.MountEITBasedFileShare(stagingTargetPath, targetPath, fsType, requestID)
+		errResponse, err = csiNS.Mounter.MountEITBasedFileShare(mountPath, targetPath, fsType, requestID)
 	}
 
 	if err != nil {
@@ -75,21 +75,14 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 		}
 		if fsType == eitFsType {
 			errorCode = checkMountResponse(err)
-			// Collect mount-helper-container logs for debugging and return backend response of mount.
 			if errorCode != commonError.UnresponsiveMountHelperContainerUtility {
-				ctxLogger.Warn("Collecting mount-helper-container logs...")
-				_, errDebug := csiNS.Mounter.DebugLogsEITBasedFileShare(requestID)
-				if errDebug != nil {
-					ctxLogger.Warn("Failed to collect logs from mount-helper-container service...", zap.Error(errDebug))
-				}
-				ctxLogger.Warn("Check mount failure response inside node server pod '/tmp/mount-helper-container.log'")
 				ctxLogger.Error("Mount backend output: ", zap.String("Reponse:", errResponse))
 			}
 		}
 		return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)
 	}
 
-	ctxLogger.Info("CSINodeServer-processMount successfully mounted", stagingTargetPathField, targetPathField, fsTypeField, optionsField)
+	ctxLogger.Info("CSINodeServer-processMount successfully mounted", mountPathField, targetPathField, fsTypeField, optionsField)
 	return &csi.NodePublishVolumeResponse{}, nil
 }
 
