@@ -376,13 +376,13 @@ func setISEITEnabled(volume *provider.Volume, key string, value string) error {
 	var err error
 	if value != TrueStr && value != FalseStr {
 		err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+		return err
 	} else {
 		if value == TrueStr {
 			volume.VPCVolume.TransitEncryption = EncryptionTransitMode
 		}
 	}
-
-	return err
+	return nil
 }
 
 // setPrimaryIPID
