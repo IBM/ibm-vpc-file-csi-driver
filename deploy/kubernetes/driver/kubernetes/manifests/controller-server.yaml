@@ -63,6 +63,7 @@ spec:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
             - "--timeout=600s"
+            - "--handle-volume-inuse-error=false"
           env:
             - name: ADDRESS
               value: /csi/csi-vpc-file.sock
