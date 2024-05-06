@@ -584,6 +584,7 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 // createCSIVolumeResponse ...
 func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string) *csi.CreateVolumeResponse {
 	labels := map[string]string{}
+	warningMessage := ""
 
 	// Update labels for PV objects
 	labels[VolumeIDLabel] = vol.VolumeID + ":" + volAccessPointResponse.AccessPointID
@@ -612,6 +613,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	// Update label in case EIT is enabled
 	if vol.TransitEncryption == EncryptionTransitMode {
 		labels[IsEITEnabled] = TrueStr
+		warningMessage = "This volume has EIT enabled. To use in your application make sure to set 'ENABLE_EIT' flag to 'true' in 'addon-vpc-file-csi-driver-configmap'."
 	}
 
 	// Create csi volume response
@@ -624,6 +626,12 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 			AccessibleTopology: []*csi.Topology{topology},
 		},
 	}
+
+	// Set warning in case EIT enabled volume.
+	if warningMessage != "" {
+		volResp.Volume.VolumeContext["Warning"] = warningMessage
+	}
+
 	return volResp
 }
 
