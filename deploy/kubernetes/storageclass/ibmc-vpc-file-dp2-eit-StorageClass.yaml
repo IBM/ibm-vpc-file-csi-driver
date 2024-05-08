@@ -1,7 +1,7 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: ibmc-vpc-file-custom1
+  name: ibmc-vpc-file-dp2-eit
 provisioner: vpc.file.csi.ibm.io
 parameters:
   profile: "dp2"            # The VPC Storage profile used. /docs/vpc?topic=vpc-block-storage-profiles&interface=ui#tiers-beta
