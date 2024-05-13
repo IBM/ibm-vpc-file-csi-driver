@@ -178,9 +178,9 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
-			err = setISENIEnabled(volume, key, strings.ToLower(value))
+			err = checkAndSetISENIEnabled(volume, key, strings.ToLower(value))
 		case IsEITEnabled:
-			err = setISEITEnabled(volume, key, strings.ToLower(value))
+			err = checkAndSetISEITEnabled(volume, key, strings.ToLower(value))
 		case ResourceGroup:
 			if len(value) > ResourceGroupIDMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ResourceGroupIDMaxLen)
@@ -355,8 +355,8 @@ func setSecurityGroupList(volume *provider.Volume, value string) {
 	volume.VPCVolume.SecurityGroups = &securityGroups
 }
 
-// setISENIEnabled
-func setISENIEnabled(volume *provider.Volume, key string, value string) error {
+// checkAndSetISENIEnabled
+func checkAndSetISENIEnabled(volume *provider.Volume, key string, value string) error {
 	var err error
 	if value != TrueStr && value != FalseStr {
 		err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
@@ -371,8 +371,8 @@ func setISENIEnabled(volume *provider.Volume, key string, value string) error {
 	return err
 }
 
-// setISEITEnabled
-func setISEITEnabled(volume *provider.Volume, key string, value string) error {
+// checkAndSetISEITEnabled
+func checkAndSetISEITEnabled(volume *provider.Volume, key string, value string) error {
 	var err error
 	if value != TrueStr && value != FalseStr {
 		err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
@@ -523,9 +523,9 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 				volume.VPCVolume.SubnetID = value
 			}
 		case IsENIEnabled:
-			err = setISENIEnabled(volume, key, strings.ToLower(value))
+			err = checkAndSetISENIEnabled(volume, key, strings.ToLower(value))
 		case IsEITEnabled:
-			err = setISEITEnabled(volume, key, strings.ToLower(value))
+			err = checkAndSetISEITEnabled(volume, key, strings.ToLower(value))
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
@@ -584,7 +584,6 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 // createCSIVolumeResponse ...
 func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string) *csi.CreateVolumeResponse {
 	labels := map[string]string{}
-	warningMessage := ""
 
 	// Update labels for PV objects
 	labels[VolumeIDLabel] = vol.VolumeID + ":" + volAccessPointResponse.AccessPointID
@@ -613,7 +612,6 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	// Update label in case EIT is enabled
 	if vol.TransitEncryption == EncryptionTransitMode {
 		labels[IsEITEnabled] = TrueStr
-		warningMessage = "This volume has EIT enabled. To use in your application make sure to set 'ENABLE_EIT' flag to 'true' in 'addon-vpc-file-csi-driver-configmap'."
 	}
 
 	// Create csi volume response
@@ -625,11 +623,6 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 			VolumeContext:      labels,
 			AccessibleTopology: []*csi.Topology{topology},
 		},
-	}
-
-	// Set warning in case EIT enabled volume.
-	if warningMessage != "" {
-		volResp.Volume.VolumeContext["Warning"] = warningMessage
 	}
 
 	return volResp
