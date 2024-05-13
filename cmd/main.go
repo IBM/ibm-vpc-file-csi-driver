@@ -21,6 +21,7 @@ package main
 
 import (
 	"flag"
+	"strings"
 
 	libMetrics "github.com/IBM/ibmcloud-volume-interface/lib/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -34,6 +35,7 @@ import (
 	csiConfig "github.com/IBM/ibm-vpc-file-csi-driver/config"
 	driver "github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+	"github.com/IBM/ibmcloud-volume-file-vpc/pkg/watcher"
 	k8sUtils "github.com/IBM/secret-utils-lib/pkg/k8s_utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -107,6 +109,12 @@ func handle(logger *zap.Logger) {
 
 	logger.Info("Successfully initialized driver...")
 	serveMetrics()
+
+	// Start PV watcher if its controller POD
+	if strings.Contains(os.Getenv("POD_NAME"), "csi-controller") && strings.Contains(os.Getenv("IKS_ENABLED"), "True") {
+		pvwatcher := watcher.New(logger, csiConfig.CSIDriverName, csiConfig.CSIProviderVolumeType, ibmcloudProvider)
+		go pvwatcher.Start()
+	}
 
 	driver.WatchClusterConfigMap(k8sClient.Clientset.CoreV1().RESTClient(), logger)
 
