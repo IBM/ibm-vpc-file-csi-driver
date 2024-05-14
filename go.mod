@@ -3,7 +3,7 @@ module github.com/IBM/ibm-vpc-file-csi-driver
 go 1.20
 
 require (
-	github.com/IBM/ibm-csi-common v1.1.12
+	github.com/IBM/ibm-csi-common v1.1.13
 	github.com/IBM/ibmcloud-volume-file-vpc v1.2.2
 	github.com/IBM/ibmcloud-volume-interface v1.2.4
 	github.com/IBM/secret-utils-lib v1.1.8
@@ -29,7 +29,6 @@ require (
 	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7 // indirect
 	github.com/IBM/go-sdk-core/v5 v5.9.1 // indirect
-	github.com/IBM/ibmcloud-volume-vpc v1.1.7 // indirect
 	github.com/IBM/secret-common-lib v1.1.8 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
