@@ -38,7 +38,6 @@ import (
 
 const defaultVolumeID = "csiprovidervolumeid"
 const defaultTargetPath = "/mnt/test"
-const defaultStagingPath = "/staging"
 const defaultVolumePath = "/var/volpath"
 
 const notBlockDevice = "/for/notblocktest"
@@ -77,69 +76,68 @@ func TestNodePublishVolume(t *testing.T) {
 		expErrCode codes.Code
 	}{
 		{
-			name: "Valid request",
+			name: "Valid request with already mounted target path",
 			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          defaultVolumeID,
-				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
-				Readonly:          false,
-				VolumeCapability:  stdVolCap[0],
-				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz"},
+				VolumeId:         defaultVolumeID,
+				TargetPath:       defaultTargetPath,
+				Readonly:         false,
+				VolumeCapability: stdVolCap[0],
+				VolumeContext:    map[string]string{NFSServerPath: "c:/abc/xyz"},
+			},
+			expErrCode: codes.OK,
+		},
+		{
+			name: "Valid request with new mount",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:         defaultVolumeID,
+				TargetPath:       "fake-volPath-1",
+				Readonly:         false,
+				VolumeCapability: stdVolCap[0],
+				VolumeContext:    map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.OK,
 		},
 		{
 			name: "Empty volume ID",
 			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          "",
-				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
-				Readonly:          false,
-				VolumeCapability:  stdVolCap[0],
-			},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name: "Empty staging target path",
-			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          "testvolumeid",
-				TargetPath:        defaultTargetPath,
-				StagingTargetPath: "",
-				Readonly:          false,
-				VolumeCapability:  stdVolCap[0],
+				VolumeId:         "",
+				TargetPath:       defaultTargetPath,
+				Readonly:         false,
+				VolumeCapability: stdVolCap[0],
+				VolumeContext:    map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.InvalidArgument,
 		},
 		{
 			name: "Empty target path",
 			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          "testvolumeid",
-				TargetPath:        "",
-				StagingTargetPath: defaultTargetPath,
-				Readonly:          false,
-				VolumeCapability:  stdVolCap[0],
+				VolumeId:         "testvolumeid",
+				TargetPath:       "",
+				Readonly:         false,
+				VolumeCapability: stdVolCap[0],
+				VolumeContext:    map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.InvalidArgument,
 		},
 		{
 			name: "Empty volume capabilities",
 			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          "testvolumeid",
-				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
-				Readonly:          false,
-				VolumeCapability:  nil,
+				VolumeId:         "testvolumeid",
+				TargetPath:       defaultTargetPath,
+				Readonly:         false,
+				VolumeCapability: nil,
+				VolumeContext:    map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.InvalidArgument,
 		},
 		{
 			name: "Not supported volume capabilities",
 			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          "testvolumeid",
-				TargetPath:        defaultTargetPath,
-				StagingTargetPath: defaultStagingPath,
-				Readonly:          false,
-				VolumeCapability:  stdVolCapNotSupported[0],
+				VolumeId:         "testvolumeid",
+				TargetPath:       defaultTargetPath,
+				Readonly:         false,
+				VolumeCapability: stdVolCapNotSupported[0],
+				VolumeContext:    map[string]string{NFSServerPath: "c:/abc/xyz"},
 			},
 			expErrCode: codes.InvalidArgument,
 		},

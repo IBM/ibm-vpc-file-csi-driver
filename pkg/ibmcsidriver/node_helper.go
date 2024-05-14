@@ -27,16 +27,16 @@ import (
 	"go.uber.org/zap"
 )
 
-func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagingTargetPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) {
-	stagingTargetPathField := zap.String("stagingTargetPath", stagingTargetPath)
+func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, source, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) {
+	sourceField := zap.String("source", source)
 	targetPathField := zap.String("targetPath", targetPath)
 	fsTypeField := zap.String("fsType", fsType)
 	optionsField := zap.Reflect("options", options)
-	ctxLogger.Info("CSINodeServer-processMount...", stagingTargetPathField, targetPathField, fsTypeField, optionsField)
+	ctxLogger.Info("CSINodeServer-processMount...", sourceField, targetPathField, fsTypeField, optionsField)
 	if err := csiNS.Mounter.MakeDir(targetPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, targetPath)
 	}
-	err := csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
+	err := csiNS.Mounter.Mount(source, targetPath, fsType, options)
 	if err != nil {
 		notMnt, mntErr := csiNS.Mounter.IsLikelyNotMountPoint(targetPath)
 		if mntErr != nil {
@@ -62,6 +62,6 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 		return nil, commonError.GetCSIError(ctxLogger, commonError.CreateMountTargetFailed, requestID, err, targetPath)
 	}
 
-	ctxLogger.Info("CSINodeServer-processMount successfully mounted", stagingTargetPathField, targetPathField, fsTypeField, optionsField)
+	ctxLogger.Info("CSINodeServer-processMount successfully mounted", sourceField, targetPathField, fsTypeField, optionsField)
 	return &csi.NodePublishVolumeResponse{}, nil
 }
