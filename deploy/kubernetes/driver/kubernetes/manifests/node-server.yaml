@@ -90,7 +90,7 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: SOCKET_PATH
-              value: "/var/liibmshare.sock"
+              value: "/var/lib/ibmshare.sock"
           resources:
             limits:
               cpu: 200m
