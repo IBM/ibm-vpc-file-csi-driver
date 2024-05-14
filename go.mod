@@ -3,9 +3,9 @@ module github.com/IBM/ibm-vpc-file-csi-driver
 go 1.20
 
 require (
-	github.com/IBM/ibm-csi-common v1.1.11
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.1
-	github.com/IBM/ibmcloud-volume-interface v1.2.2
+	github.com/IBM/ibm-csi-common v1.1.13
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.2
+	github.com/IBM/ibmcloud-volume-interface v1.2.4
 	github.com/IBM/secret-utils-lib v1.1.8
 	github.com/container-storage-interface/spec v1.8.0
 	github.com/golang/glog v1.1.0
@@ -53,12 +53,14 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
+	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.0 // indirect
+	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
