@@ -68,18 +68,17 @@ func (su *VolumeStatUtils) FSInfo(path string) (int64, int64, int64, int64, int6
 }
 
 const (
-
 	// default file system type to be used when it is not provided
 	defaultFsType = "nfs"
+	// file system in case transit encryption is enabled
+	eitFsType = "ibmshare"
 )
 
 var _ csi.NodeServer = &CSINodeServer{}
 
 // NodePublishVolume ...
 func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-	publishContext := req.GetPublishContext()
-	controlleRequestID := publishContext[PublishInfoRequestID]
-	ctxLogger, requestID := utils.GetContextLoggerWithRequestID(ctx, false, &controlleRequestID)
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodePublishVolume...", zap.Reflect("Request", *req))
 	defer metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
 
@@ -124,12 +123,19 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		2) Check volume capability matches for ALREADY_EXISTS
 		3) Readonly MUST match
 		*/
+		ctxLogger.Warn("target Path is already mounted")
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 	mnt := volumeCapability.GetMount()
 	options := mnt.MountFlags
+
 	// find  FS type
 	fsType := defaultFsType
+	// In case EIT is enabled, use eitFsType
+	isEITEnabled := req.GetVolumeContext()[IsEITEnabled]
+	if isEITEnabled == TrueStr {
+		fsType = eitFsType
+	}
 
 	var nodePublishResponse *csi.NodePublishVolumeResponse
 	var mountErr error
@@ -173,7 +179,7 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 	}
 
 	nodeUnpublishVolumeResponse := &csi.NodeUnpublishVolumeResponse{}
-	ctxLogger.Info("Successfully unmounted  target path", zap.String("targetPath", targetPath), zap.Error(err))
+	ctxLogger.Info("Successfully unmounted target path", zap.String("targetPath", targetPath), zap.Error(err))
 	return nodeUnpublishVolumeResponse, err
 }
 

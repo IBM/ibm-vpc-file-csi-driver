@@ -21,22 +21,34 @@ package ibmcsidriver
 
 import (
 	"os"
+	"regexp"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
 )
 
-func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagingTargetPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) {
-	stagingTargetPathField := zap.String("stagingTargetPath", stagingTargetPath)
+func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mountPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) {
+	mountPathField := zap.String("mountPath", mountPath)
 	targetPathField := zap.String("targetPath", targetPath)
 	fsTypeField := zap.String("fsType", fsType)
 	optionsField := zap.Reflect("options", options)
-	ctxLogger.Info("CSINodeServer-processMount...", stagingTargetPathField, targetPathField, fsTypeField, optionsField)
+	ctxLogger.Info("CSINodeServer-processMount...", mountPathField, targetPathField, fsTypeField, optionsField)
+
 	if err := csiNS.Mounter.MakeDir(targetPath); err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, targetPath)
 	}
-	err := csiNS.Mounter.Mount(stagingTargetPath, targetPath, fsType, options)
+
+	var err error
+	var errResponse string
+
+	ctxLogger.Info("Creating request for mounting volume...")
+	if fsType != eitFsType {
+		err = csiNS.Mounter.Mount(mountPath, targetPath, fsType, options)
+	} else {
+		errResponse, err = csiNS.Mounter.MountEITBasedFileShare(mountPath, targetPath, fsType, requestID)
+	}
+
 	if err != nil {
 		notMnt, mntErr := csiNS.Mounter.IsLikelyNotMountPoint(targetPath)
 		if mntErr != nil {
@@ -55,13 +67,40 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, stagi
 				return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
 			}
 		}
-		err = os.Remove(targetPath)
-		if err != nil {
-			ctxLogger.Warn("processMount: Remove targePath Failed", zap.String("targetPath", targetPath), zap.Error(err))
+		var errorCode string
+		errRemovePath := os.Remove(targetPath)
+		if errRemovePath != nil {
+			ctxLogger.Warn("processMount: Remove targetPath failed", zap.String("targetPath", targetPath), zap.Error(errRemovePath))
+			errorCode = commonError.CreateMountTargetFailed
 		}
-		return nil, commonError.GetCSIError(ctxLogger, commonError.CreateMountTargetFailed, requestID, err, targetPath)
+		if fsType == eitFsType {
+			errorCode = checkMountResponse(err)
+			if errorCode != commonError.UnresponsiveMountHelperContainerUtility {
+				ctxLogger.Error("Mount backend output: ", zap.String("Reponse:", errResponse))
+			}
+		}
+		return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)
 	}
 
-	ctxLogger.Info("CSINodeServer-processMount successfully mounted", stagingTargetPathField, targetPathField, fsTypeField, optionsField)
+	ctxLogger.Info("CSINodeServer-processMount successfully mounted", mountPathField, targetPathField, fsTypeField, optionsField)
 	return &csi.NodePublishVolumeResponse{}, nil
+}
+
+// checkMountResponse checks for known errors while mounting and return appropriate user error codes.
+func checkMountResponse(err error) string {
+	errorString := err.Error()
+
+	errorMap := map[string]string{
+		`exit status 1\b`:         commonError.MetadataServiceNotEnabled,
+		`connect: no such file\b`: commonError.UnresponsiveMountHelperContainerUtility,
+	}
+
+	for code, message := range errorMap {
+		regex := regexp.MustCompile(code)
+		if regex.MatchString(errorString) {
+			return message
+		}
+	}
+
+	return commonError.MountingTargetFailed
 }

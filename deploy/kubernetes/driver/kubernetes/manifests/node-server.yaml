@@ -89,6 +89,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: SOCKET_PATH
+              value: "/var/lib/ibmshare.sock"
           resources:
             limits:
               cpu: 200m
@@ -132,6 +134,10 @@ spec:
             - name: cluster-info
               readOnly: true
               mountPath: /etc/storage_ibmc/cluster_info
+            - mountPath: /var/lib
+              name: libpath
+            - mountPath: /tmp/mount-helper
+              name: mh-logs
         - name: liveness-probe
           image: MUSTPATCHWITHKUSTOMIZE
           securityContext:
@@ -219,3 +225,10 @@ spec:
             - serviceAccountToken:
                 path: vault-token
                 expirationSeconds: 600
+        - name: libpath
+          hostPath:
+            path: /var/lib
+            type: Directory
+        - name: mh-logs
+          hostPath:
+            path: /opt/ibm/mount-ibmshare/

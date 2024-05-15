@@ -20,9 +20,12 @@
 package ibmcsidriver
 
 import (
+	"errors"
 	"testing"
 
+	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestProcessMount(t *testing.T) {
@@ -34,4 +37,38 @@ func TestProcessMount(t *testing.T) {
 	ops := []string{"a", "b"}
 	response, err := icDriver.ns.processMount(logger, "processMount", "/staging", "/targetpath", "ext4", ops)
 	t.Logf("Response %v, error %v", response, err)
+
+	response, err = icDriver.ns.processMount(logger, "processMount", "/staging", "/targetpath", "ibmshare", ops)
+	t.Logf("Response %v, error %v", response, err)
+}
+
+func TestCheckMountResponse(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{
+			name:     "Test MetadataServiceNotEnabled",
+			err:      errors.New("exit status 1"),
+			expected: commonError.MetadataServiceNotEnabled,
+		},
+		{
+			name:     "Test UnresponsiveMountHelperContainerUtility",
+			err:      errors.New("connect: no such file"),
+			expected: commonError.UnresponsiveMountHelperContainerUtility,
+		},
+		{
+			name:     "Test Default",
+			err:      errors.New("some other error"),
+			expected: commonError.MountingTargetFailed,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := checkMountResponse(tc.err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
 }

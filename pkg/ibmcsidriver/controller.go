@@ -269,6 +269,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", volumeAccessPointObj.AccessPointID))
 
 	volumeObj.AccessControlMode = requestedVolume.AccessControlMode
+	volumeObj.TransitEncryption = requestedVolume.TransitEncryption
 
 	// return csi volume object
 	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterID()), nil
