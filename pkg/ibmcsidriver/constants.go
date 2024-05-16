@@ -105,7 +105,7 @@ const (
 	ENISubnetID = "ENISubnetId"
 
 	//ENISecurityGroupIds ...
-	ENISecurityGroupIds = "ENISecurityGroupIds"
+	ENISecurityGroupIDs = "ENISecurityGroupIds"
 
 	// VolumeCRNLabel ...
 	VolumeCRNLabel = "volumeCRN"

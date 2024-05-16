@@ -596,19 +596,8 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 		labels[IOPSLabel] = *vol.Iops
 	}
 
-	//Default True
-	labels[IsENIEnabled] = TrueStr
 	labels[FileShareIDLabel] = vol.VolumeID
 	labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
-	labels[ENISubnetID] = vol.SubnetID
-
-	var securityGroupList []string
-	if vol.SecurityGroups != nil {
-		for _, securityGroup := range *vol.SecurityGroups {
-			securityGroupList = append(securityGroupList, securityGroup.ID)
-		}
-		labels[ENISecurityGroupIds] = strings.Join(securityGroupList, ",")
-	}
 
 	labels[utils.NodeRegionLabel] = vol.Region
 
@@ -622,6 +611,18 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 		labels[IsENIEnabled] = FalseStr
 		labels[utils.NodeZoneLabel] = vol.Az
 		topology.Segments[utils.NodeZoneLabel] = labels[utils.NodeZoneLabel]
+	} else {
+		//Set ENI labels
+		labels[IsENIEnabled] = TrueStr
+		labels[ENISubnetID] = vol.SubnetID
+
+		var securityGroupList []string
+		if vol.SecurityGroups != nil {
+			for _, securityGroup := range *vol.SecurityGroups {
+				securityGroupList = append(securityGroupList, securityGroup.ID)
+			}
+			labels[ENISecurityGroupIDs] = strings.Join(securityGroupList, ",")
+		}
 	}
 
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
