@@ -270,6 +270,8 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 	volumeObj.AccessControlMode = requestedVolume.AccessControlMode
 	volumeObj.TransitEncryption = requestedVolume.TransitEncryption
+	volumeObj.SecurityGroups = requestedVolume.SecurityGroups
+	volumeObj.SubnetID = requestedVolume.SubnetID
 
 	// return csi volume object
 	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterID()), nil

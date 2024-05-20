@@ -589,10 +589,15 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[VolumeIDLabel] = vol.VolumeID + ":" + volAccessPointResponse.AccessPointID
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
+	labels[VolumeCRNLabel] = vol.CRN
+	labels[ClusterIDLabel] = clusterID
 	labels[Tag] = strings.Join(vol.Tags, ",")
 	if vol.Iops != nil && len(*vol.Iops) > 0 {
 		labels[IOPSLabel] = *vol.Iops
 	}
+
+	labels[FileShareIDLabel] = vol.VolumeID
+	labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
 
 	labels[utils.NodeRegionLabel] = vol.Region
 
@@ -603,8 +608,21 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	}
 	//As cross zone mounting is supported for ENI/VNI lets not populate this for securityGroup Mode.
 	if vol.AccessControlMode == VPC {
+		labels[IsENIEnabled] = FalseStr
 		labels[utils.NodeZoneLabel] = vol.Az
 		topology.Segments[utils.NodeZoneLabel] = labels[utils.NodeZoneLabel]
+	} else {
+		//Set ENI labels
+		labels[IsENIEnabled] = TrueStr
+		labels[ENISubnetID] = vol.SubnetID
+
+		var securityGroupList []string
+		if vol.SecurityGroups != nil {
+			for _, securityGroup := range *vol.SecurityGroups {
+				securityGroupList = append(securityGroupList, securityGroup.ID)
+			}
+			labels[ENISecurityGroupIDs] = strings.Join(securityGroupList, ",")
+		}
 	}
 
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
