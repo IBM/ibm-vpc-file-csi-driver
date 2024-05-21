@@ -945,8 +945,8 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 			expectedVolume: &csi.CreateVolumeResponse{
 				Volume: &csi.Volume{
 					CapacityBytes: 20,
-					VolumeId:      volumeID + ":" + volumeAPID,
-					VolumeContext: map[string]string{VolumeIDLabel: volumeID + ":" + volumeAPID, IOPSLabel: threeIops, utils.NodeRegionLabel: "us-south-test", utils.NodeZoneLabel: "testzone"},
+					VolumeId:      volumeID + VolumeIDSeperator + volumeAPID,
+					VolumeContext: map[string]string{VolumeIDLabel: volumeID + VolumeIDSeperator + volumeAPID, IOPSLabel: threeIops, utils.NodeRegionLabel: "us-south-test", utils.NodeZoneLabel: "testzone"},
 					AccessibleTopology: []*csi.Topology{{
 						Segments: map[string]string{
 							utils.NodeRegionLabel: "us-south-test",
@@ -978,8 +978,8 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 			expectedVolume: &csi.CreateVolumeResponse{
 				Volume: &csi.Volume{
 					CapacityBytes: 20,
-					VolumeId:      volumeID + ":" + volumeAPID,
-					VolumeContext: map[string]string{VolumeIDLabel: volumeID + ":" + volumeAPID, IOPSLabel: threeIops, utils.NodeRegionLabel: "us-south-test"},
+					VolumeId:      volumeID + VolumeIDSeperator + volumeAPID,
+					VolumeContext: map[string]string{VolumeIDLabel: volumeID + VolumeIDSeperator + volumeAPID, IOPSLabel: threeIops, utils.NodeRegionLabel: "us-south-test"},
 					AccessibleTopology: []*csi.Topology{{
 						Segments: map[string]string{
 							utils.NodeRegionLabel: "us-south-test",

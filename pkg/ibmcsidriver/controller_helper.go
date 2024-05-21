@@ -637,7 +637,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	volResp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			CapacityBytes:      capBytes,
-			VolumeId:           vol.VolumeID + ":" + volAccessPointResponse.AccessPointID,
+			VolumeId:           vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID,
 			VolumeContext:      labels,
 			AccessibleTopology: []*csi.Topology{topology},
 		},
