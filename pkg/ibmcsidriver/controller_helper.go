@@ -586,7 +586,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels := map[string]string{}
 
 	// Update labels for PV objects
-	labels[VolumeIDLabel] = vol.VolumeID + ":" + volAccessPointResponse.AccessPointID
+	labels[VolumeIDLabel] = vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
 	labels[VolumeCRNLabel] = vol.CRN

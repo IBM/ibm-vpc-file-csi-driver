@@ -107,6 +107,9 @@ const (
 	//ENISecurityGroupIds ...
 	ENISecurityGroupIDs = "ENISecurityGroupIds"
 
+	//VolumeIDSeperator ...
+	VolumeIDSeperator = "#"
+
 	// VolumeCRNLabel ...
 	VolumeCRNLabel = "volumeCRN"
 
