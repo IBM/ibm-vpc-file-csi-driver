@@ -305,7 +305,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 		return nil, commonError.GetCSIError(ctxLogger, commonError.FailedPrecondition, requestID, err)
 	}
 
-	//Volume ID is in format volumeID:volumeAccessPointID, to assist the deletion of volume access point
+	//Volume ID is in format volumeID#volumeAccessPointID, to assist the deletion of volume access point
 	tokens := strings.Split(volumeID, VolumeIDSeperator)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-DeleteVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID", tokens))
@@ -375,7 +375,7 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 
-	//Volume ID is in format volumeID:volumeAccessPointID
+	//Volume ID is in format volumeID#volumeAccessPointID
 	tokens := strings.Split(volumeID, VolumeIDSeperator)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities...", zap.Reflect("Volume ID is not in format volumeID:accesspointID", tokens))
@@ -478,7 +478,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	}
 	requestedVolume := &provider.Volume{}
 
-	//Volume ID is in format volumeID:volumeAccessPointID, to assist the deletion of volume access point
+	//Volume ID is in format volumeID#volumeAccessPointID, to assist the deletion of volume access point
 	tokens := strings.Split(volumeID, VolumeIDSeperator)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-ExpandVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID", tokens))
