@@ -228,8 +228,8 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 			expVol: &csi.Volume{
 				CapacityBytes:      20 * 1024 * 1024 * 1024, // In byte
-				VolumeId:           "testVolumeId:testVolumeAccessPointId",
-				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId:testVolumeAccessPointId", FileShareIDLabel: "testVolumeId", FileShareTargetIDLabel: "testVolumeAccessPointId", IsENIEnabled: "false", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
+				VolumeId:           "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId",
+				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId", FileShareIDLabel: "testVolumeId", FileShareTargetIDLabel: "testVolumeAccessPointId", IsENIEnabled: "false", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
 				AccessibleTopology: stdTopology,
 			},
 
@@ -277,8 +277,8 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 			expVol: &csi.Volume{
 				CapacityBytes:      20 * 1024 * 1024 * 1024, // In byte
-				VolumeId:           "testVolumeId:testVolumeAccessPointId",
-				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", VolumeIDLabel: "testVolumeId:testVolumeAccessPointId", FileShareIDLabel: "testVolumeId", FileShareTargetIDLabel: "testVolumeAccessPointId", IsENIEnabled: "true", ENISecurityGroupIDs: "kube-fake-cluster-id", ENISubnetID: "sub-1", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
+				VolumeId:           "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId",
+				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", VolumeIDLabel: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId", FileShareIDLabel: "testVolumeId", FileShareTargetIDLabel: "testVolumeAccessPointId", IsENIEnabled: "true", ENISecurityGroupIDs: "kube-fake-cluster-id", ENISubnetID: "sub-1", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
 				AccessibleTopology: stdENITopology,
 			},
 
@@ -531,7 +531,7 @@ func TestDeleteVolume(t *testing.T) {
 	}{
 		{
 			name:              "Success volume delete",
-			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
+			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId"},
 			expResponse:       &csi.DeleteVolumeResponse{},
 			expErrCode:        codes.OK,
 			libVolumeResponse: &provider.Volume{VolumeID: "testVolumeId", Az: "myzone", Region: "myregion"},
@@ -548,7 +548,7 @@ func TestDeleteVolume(t *testing.T) {
 		},
 		{
 			name:              "Failure to delete volume access Point delete",
-			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
+			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId"},
 			expResponse:       nil,
 			expErrCode:        codes.OK,
 			libVolumeResponse: &provider.Volume{VolumeID: "testVolumeId", Az: "myzone", Region: "myregion"},
@@ -564,7 +564,7 @@ func TestDeleteVolume(t *testing.T) {
 		},
 		{
 			name:              "Failure to delete volume access Point due to stuck in deleting state",
-			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
+			req:               &csi.DeleteVolumeRequest{VolumeId: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId"},
 			expResponse:       nil,
 			expErrCode:        codes.OK,
 			libVolumeResponse: &provider.Volume{VolumeID: "testVolumeId", Az: "myzone", Region: "myregion"},
@@ -581,7 +581,7 @@ func TestDeleteVolume(t *testing.T) {
 		},
 		{
 			name:        "Success volume delete in case volume not found",
-			req:         &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
+			req:         &csi.DeleteVolumeRequest{VolumeId: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId"},
 			expResponse: &csi.DeleteVolumeResponse{},
 			expErrCode:  codes.OK,
 		},
@@ -593,7 +593,7 @@ func TestDeleteVolume(t *testing.T) {
 		},
 		{
 			name:               "Failed from lib volume delete failed",
-			req:                &csi.DeleteVolumeRequest{VolumeId: "testVolumeId:testVolumeAccessPointId"},
+			req:                &csi.DeleteVolumeRequest{VolumeId: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId"},
 			expResponse:        nil,
 			expErrCode:         codes.Internal,
 			libVolumeRespError: providerError.Message{Code: "FailedToDeleteVolume", Description: "Volume deletion failed", Type: providerError.DeletionFailed},
@@ -650,7 +650,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 	}{
 		{
 			name: "Success validate volume capabilities",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID",
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			},
 			expResponse: &csi.ValidateVolumeCapabilitiesResponse{
@@ -663,7 +663,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		},
 		{
 			name: "Passing nil volume capabilities",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID",
 				VolumeCapabilities: nil,
 			},
 			expResponse:       nil,
@@ -703,7 +703,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		},
 		{
 			name: "Internal error while getting volume details",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID",
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			},
 			expResponse: nil,
@@ -1035,7 +1035,7 @@ func TestControllerExpandVolume(t *testing.T) {
 	}{
 		{
 			name:                 "Success controller expand volume",
-			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: stdCapRange},
+			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID", CapacityRange: stdCapRange},
 			expResponse:          &csi.ControllerExpandVolumeResponse{CapacityBytes: stdCapRange.RequiredBytes, NodeExpansionRequired: false},
 			expErrCode:           codes.OK,
 			libExpandResponse:    &http.Response{StatusCode: http.StatusOK},
@@ -1045,7 +1045,7 @@ func TestControllerExpandVolume(t *testing.T) {
 		},
 		{
 			name:                 "Nil capacity",
-			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: nil},
+			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID", CapacityRange: nil},
 			expResponse:          nil,
 			expErrCode:           codes.InvalidArgument,
 			libExpandResponse:    nil,
@@ -1065,7 +1065,7 @@ func TestControllerExpandVolume(t *testing.T) {
 		},
 		{
 			name:              "Expand volume failed",
-			req:               &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: stdCapRange},
+			req:               &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID", CapacityRange: stdCapRange},
 			expResponse:       nil,
 			expErrCode:        codes.Internal,
 			libExpandResponse: nil,

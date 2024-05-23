@@ -586,7 +586,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels := map[string]string{}
 
 	// Update labels for PV objects
-	labels[VolumeIDLabel] = vol.VolumeID + ":" + volAccessPointResponse.AccessPointID
+	labels[VolumeIDLabel] = vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
 	labels[VolumeCRNLabel] = vol.CRN
@@ -637,7 +637,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	volResp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			CapacityBytes:      capBytes,
-			VolumeId:           vol.VolumeID + ":" + volAccessPointResponse.AccessPointID,
+			VolumeId:           vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID,
 			VolumeContext:      labels,
 			AccessibleTopology: []*csi.Topology{topology},
 		},
