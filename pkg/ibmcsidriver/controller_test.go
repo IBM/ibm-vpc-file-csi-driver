@@ -650,7 +650,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 	}{
 		{
 			name: "Success validate volume capabilities",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID",
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			},
 			expResponse: &csi.ValidateVolumeCapabilitiesResponse{
@@ -663,7 +663,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		},
 		{
 			name: "Passing nil volume capabilities",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID",
 				VolumeCapabilities: nil,
 			},
 			expResponse:       nil,
@@ -703,7 +703,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		},
 		{
 			name: "Internal error while getting volume details",
-			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid:accessPointID",
+			req: &csi.ValidateVolumeCapabilitiesRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID",
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 			},
 			expResponse: nil,
@@ -1035,7 +1035,7 @@ func TestControllerExpandVolume(t *testing.T) {
 	}{
 		{
 			name:                 "Success controller expand volume",
-			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: stdCapRange},
+			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID", CapacityRange: stdCapRange},
 			expResponse:          &csi.ControllerExpandVolumeResponse{CapacityBytes: stdCapRange.RequiredBytes, NodeExpansionRequired: false},
 			expErrCode:           codes.OK,
 			libExpandResponse:    &http.Response{StatusCode: http.StatusOK},
@@ -1045,7 +1045,7 @@ func TestControllerExpandVolume(t *testing.T) {
 		},
 		{
 			name:                 "Nil capacity",
-			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: nil},
+			req:                  &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID", CapacityRange: nil},
 			expResponse:          nil,
 			expErrCode:           codes.InvalidArgument,
 			libExpandResponse:    nil,
@@ -1065,7 +1065,7 @@ func TestControllerExpandVolume(t *testing.T) {
 		},
 		{
 			name:              "Expand volume failed",
-			req:               &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid:accesspointID", CapacityRange: stdCapRange},
+			req:               &csi.ControllerExpandVolumeRequest{VolumeId: "volumeid" + VolumeIDSeperator + "accesspointID", CapacityRange: stdCapRange},
 			expResponse:       nil,
 			expErrCode:        codes.Internal,
 			libExpandResponse: nil,
