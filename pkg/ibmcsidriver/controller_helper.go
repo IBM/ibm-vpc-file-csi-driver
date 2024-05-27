@@ -633,7 +633,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	}
 
 	// Create csi volume response
-	//Volume ID is in format volumeID:volumeAccessPointID, to assist the deletion of access point in delete volume
+	//Volume ID is in format volumeID#volumeAccessPointID, to assist the deletion of access point in delete volume
 	volResp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
 			CapacityBytes:      capBytes,
@@ -644,6 +644,16 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	}
 
 	return volResp
+}
+
+func getTokens(volumeID string) []string {
+	if strings.Contains(volumeID, VolumeIDSeperator) {
+		//Volume ID is in format volumeID#volumeAccessPointID
+		return strings.Split(volumeID, VolumeIDSeperator)
+	} else {
+		//Deprecated -- Try for volumeID:volumeAccessPointID, support for old format for few releases.
+		return strings.Split(volumeID, DeprecatedVolumeIDSeperator)
+	}
 }
 
 func pickTargetTopologyParams(top *csi.TopologyRequirement) (map[string]string, error) {

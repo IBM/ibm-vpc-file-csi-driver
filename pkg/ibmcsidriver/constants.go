@@ -110,6 +110,9 @@ const (
 	//VolumeIDSeperator ...
 	VolumeIDSeperator = "#"
 
+	//DeprecatedVolumeIDSeperator ...
+	DeprecatedVolumeIDSeperator = ":"
+
 	// VolumeCRNLabel ...
 	VolumeCRNLabel = "volumeCRN"
 
