@@ -478,6 +478,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 		fakeStructSession.GetSecurityGroupForVolumeAccessPointReturns(tc.securityGroupID, tc.securityGroupError)
 		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeError)
 		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
+		fakeStructSession.CreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, nil)
 		fakeStructSession.WaitForCreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointWaitError)
 
 		// Call CSI CreateVolume

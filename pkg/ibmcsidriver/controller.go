@@ -256,7 +256,19 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
 		volumeAccesspointReq.AccessPointID = (*volumeAccessPoints)[0].ID
 	} else { // This will not hit as we should always have one VolumeAccessPoint on sucessfull Volume creation. If this occurs then something is really wrong.
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		//Try Creating VolumeAccess Point
+		//No need to check for access point existence as library takes care of the same
+		ctxLogger.Info("Creating VolumeAccessPoint...")
+
+		//Pass in the VPC ID for filtering VolumeAccesspoint within volume.
+		volumeAccesspointReq.VPCID = os.Getenv("VPC_ID")
+		repsonse, err := session.CreateVolumeAccessPoint(volumeAccesspointReq)
+		if err != nil {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		}
+
+		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
+		volumeAccesspointReq.AccessPointID = repsonse.AccessPointID
 	}
 
 	ctxLogger.Info("Waiting for VolumeAccessPoint stable state...")
