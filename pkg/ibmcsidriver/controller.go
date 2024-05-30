@@ -255,7 +255,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	if volumeAccessPoints != nil && len(*volumeAccessPoints) != 0 {
 		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
 		volumeAccesspointReq.AccessPointID = (*volumeAccessPoints)[0].ID
-	} else { // This will not hit as we should always have one VolumeAccessPoint on sucessfull Volume creation. If this occurs then something is really wrong.
+	} else { // This will only hit if Volume is created without VolumeAccessPoint which is rare case.
 		//Try Creating VolumeAccess Point
 		//No need to check for access point existence as library takes care of the same
 		ctxLogger.Info("Re attempting to create VolumeAccessPoint...")
