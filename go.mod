@@ -108,6 +108,7 @@ require (
 )
 
 replace (
+	github.com/onsi/gomega => github.com/onsi/gomega v1.27.6
 	k8s.io/api => k8s.io/api v0.28.6
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.28.6
 	k8s.io/apimachinery => k8s.io/apimachinery v0.28.6
