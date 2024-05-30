@@ -258,7 +258,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	} else { // This will not hit as we should always have one VolumeAccessPoint on sucessfull Volume creation. If this occurs then something is really wrong.
 		//Try Creating VolumeAccess Point
 		//No need to check for access point existence as library takes care of the same
-		ctxLogger.Info("Creating VolumeAccessPoint...")
+		ctxLogger.Info("Re attempting to create VolumeAccessPoint...")
 
 		//Pass in the VPC ID for filtering VolumeAccesspoint within volume.
 		volumeAccesspointReq.VPCID = os.Getenv("VPC_ID")
