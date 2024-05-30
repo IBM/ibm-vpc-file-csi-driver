@@ -262,6 +262,12 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 		//Pass in the VPC ID for filtering VolumeAccesspoint within volume.
 		volumeAccesspointReq.VPCID = os.Getenv("VPC_ID")
+		volumeAccesspointReq.AccessControlMode = requestedVolume.AccessControlMode
+		volumeAccesspointReq.SecurityGroups = requestedVolume.SecurityGroups
+		volumeAccesspointReq.ResourceGroup = requestedVolume.ResourceGroup
+		volumeAccesspointReq.PrimaryIP = requestedVolume.PrimaryIP
+		volumeAccesspointReq.SubnetID = requestedVolume.SubnetID
+
 		repsonse, err := session.CreateVolumeAccessPoint(volumeAccesspointReq)
 		if err != nil {
 			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
