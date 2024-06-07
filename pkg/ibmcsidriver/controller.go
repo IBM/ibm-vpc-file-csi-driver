@@ -240,7 +240,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 		volumeObj, err = session.CreateVolume(*requestedVolume)
 		if err != nil {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "creation")
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, nil)
 		}
 
 		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
