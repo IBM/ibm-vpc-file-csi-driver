@@ -24,10 +24,6 @@ spec:
       serviceAccountName: ibm-vpc-file-node-sa
       tolerations:
       - operator: Exists
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 2121
-        runAsGroup: 2121
       containers:
         - name: csi-driver-registrar
           image: MUSTPATCHWITHKUSTOMIZE
@@ -149,6 +145,14 @@ spec:
             - mountPath: /tmp/mount-helper
               name: mh-logs
         - name: liveness-probe
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 2121
+            runAsGroup: 2121
+            privileged: false
+            seLinuxOptions: # seLinux label is set as a precaution for accessing csi socket
+              type: spc_t
+              level: s0
           image: MUSTPATCHWITHKUSTOMIZE
           args:
             - "--csi-address=$(CSI_ADDRESS)"
@@ -169,6 +173,11 @@ spec:
             - name: plugin-dir
               mountPath: /csi
         - name: storage-secret-sidecar
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 2121
+            runAsGroup: 2121
+            privileged: false
           image: MUSTPATCHWITHKUSTOMIZE
           imagePullPolicy: Always
           args:
