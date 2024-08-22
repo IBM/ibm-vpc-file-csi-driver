@@ -45,6 +45,7 @@ func (f *opsSocketPermission) chmod(name string, mode os.FileMode) error {
 	return os.Chmod(name, mode)
 }
 
+// setupSidecar updates owner/group and permission of the file given(addr)
 func setupSidecar(addr string, ops socketPermission) error {
 	groupSt := os.Getenv("SIDECAR_GROUP_ID")
 	// If env is not set, set default to 0
