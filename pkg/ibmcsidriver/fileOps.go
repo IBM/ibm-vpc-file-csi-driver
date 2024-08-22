@@ -19,6 +19,8 @@
 // Package ibmcsidriver ...
 package ibmcsidriver
 
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+
 import (
 	"os"
 	"strconv"
@@ -28,20 +30,22 @@ const (
 	filePermission = 0660
 )
 
+//counterfeiter:generate . socketPermission
+
 // socketPermission represents file system operations
 type socketPermission interface {
-	chown(name string, uid, gid int) error
-	chmod(name string, mode os.FileMode) error
+	Chown(name string, uid, gid int) error
+	Chmod(name string, mode os.FileMode) error
 }
 
 // realSocketPermission implements socketPermission
 type opsSocketPermission struct{}
 
-func (f *opsSocketPermission) chown(name string, uid, gid int) error {
+func (f *opsSocketPermission) Chown(name string, uid, gid int) error {
 	return os.Chown(name, uid, gid)
 }
 
-func (f *opsSocketPermission) chmod(name string, mode os.FileMode) error {
+func (f *opsSocketPermission) Chmod(name string, mode os.FileMode) error {
 	return os.Chmod(name, mode)
 }
 
@@ -59,13 +63,13 @@ func setupSidecar(addr string, ops socketPermission) error {
 	}
 
 	// Change group of csi socket to non-root user for enabling the csi sidecar
-	if err := ops.chown(addr, -1, group); err != nil {
+	if err := ops.Chown(addr, -1, group); err != nil {
 		return err
 	}
 
 	// Modify permissions of csi socket
 	// Only the users and the group owners will have read/write access to csi socket
-	if err := ops.chmod(addr, filePermission); err != nil {
+	if err := ops.Chmod(addr, filePermission); err != nil {
 		return err
 	}
 
