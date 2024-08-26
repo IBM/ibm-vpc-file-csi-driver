@@ -24,6 +24,8 @@ package ibmcsidriver
 import (
 	"os"
 	"strconv"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -50,10 +52,14 @@ func (f *opsSocketPermission) Chmod(name string, mode os.FileMode) error {
 }
 
 // setupSidecar updates owner/group and permission of the file given(addr)
-func setupSidecar(addr string, ops socketPermission) error {
+func setupSidecar(addr string, ops socketPermission, logger *zap.Logger) error {
 	groupSt := os.Getenv("SIDECAR_GROUP_ID")
+
+	logger.Info("Setting owner and permissions of csi socket file. SIDECAR_GROUP_ID env must match the sidecar container groupID  socket connection.")
+
 	// If env is not set, set default to 0
 	if groupSt == "" {
+		logger.Warn("Unable to fetch SIDECAR_GROUP_ID environment variable. Sidecar containers might fail...")
 		groupSt = "0"
 	}
 
@@ -72,6 +78,8 @@ func setupSidecar(addr string, ops socketPermission) error {
 	if err := ops.Chmod(addr, filePermission); err != nil {
 		return err
 	}
+
+	logger.Info("Successfully set owner and permissions of csi socket file.")
 
 	return nil
 }

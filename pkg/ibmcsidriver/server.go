@@ -126,7 +126,7 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 	// This is required for running `livenessprobe` container as non-root user/group
 	if os.Getenv("IS_NODE_SERVER") == "true" {
 		fileops := &opsSocketPermission{}
-		if err := setupSidecar(addr, fileops); err != nil {
+		if err := setupSidecar(addr, fileops, s.logger); err != nil {
 			s.logger.Error("setupSidecar failed.", zap.Error(err))
 			return nil, err
 		}

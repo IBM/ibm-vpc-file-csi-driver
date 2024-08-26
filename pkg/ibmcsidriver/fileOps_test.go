@@ -97,8 +97,12 @@ func TestSetupSidecar(t *testing.T) {
 			fakeSocketPermission.ChownReturns(tc.chownErr)
 			fakeSocketPermission.ChmodReturns(tc.chmodErr)
 
+			// Creating test logger
+			logger, teardown := GetTestLogger(t)
+			defer teardown()
+
 			// Call the function under test
-			err := setupSidecar("/path/to/socket", fakeSocketPermission)
+			err := setupSidecar("/path/to/socket", fakeSocketPermission, logger)
 
 			// Verify the result
 			if tc.expectedErr {
