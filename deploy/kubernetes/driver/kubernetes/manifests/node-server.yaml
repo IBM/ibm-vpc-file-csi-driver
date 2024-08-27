@@ -31,6 +31,7 @@ spec:
           securityContext:
             runAsNonRoot: false
             runAsUser: 0
+            runAsGroup: 0
             privileged: false
           args:
             - "--v=5"
@@ -64,6 +65,7 @@ spec:
           securityContext:
             runAsNonRoot: false
             runAsUser: 0
+            runAsGroup: 0
             privileged: true
           image: MUSTPATCHWITHKUSTOMIZE
           imagePullPolicy: Always
@@ -91,6 +93,10 @@ spec:
                   fieldPath: spec.nodeName
             - name: SOCKET_PATH
               value: "/var/lib/ibmshare.sock"
+            - name: IS_NODE_SERVER
+              value: "true"
+            - name: SIDECAR_GROUP_ID
+              value: "2121"
           resources:
             limits:
               cpu: 200m
@@ -139,11 +145,15 @@ spec:
             - mountPath: /tmp/mount-helper
               name: mh-logs
         - name: liveness-probe
-          image: MUSTPATCHWITHKUSTOMIZE
           securityContext:
-            runAsNonRoot: false
-            runAsUser: 0
+            runAsNonRoot: true
+            runAsUser: 2121
+            runAsGroup: 2121
             privileged: false
+            seLinuxOptions: # seLinux label is set as a precaution for accessing csi socket
+              type: spc_t
+              level: s0
+          image: MUSTPATCHWITHKUSTOMIZE
           args:
             - "--csi-address=$(CSI_ADDRESS)"
           env:
@@ -163,6 +173,11 @@ spec:
             - name: plugin-dir
               mountPath: /csi
         - name: storage-secret-sidecar
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 2121
+            runAsGroup: 2121
+            privileged: false
           image: MUSTPATCHWITHKUSTOMIZE
           imagePullPolicy: Always
           args:

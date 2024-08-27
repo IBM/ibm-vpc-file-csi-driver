@@ -114,11 +114,22 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 
 	s.logger.Info("Start listening GRPC Server", zap.Reflect("Scheme", u.Scheme), zap.Reflect("Addr", addr))
 
+	// Create listener
 	listener, err := net.Listen(u.Scheme, addr)
 	if err != nil {
 		msg := "failed to listen GRPC Server"
 		s.logger.Error(msg, zap.Reflect("Error", err))
 		return nil, errors.New(msg)
+	}
+
+	// In case of nodeSerer container, setup desired csi socket permissions and user/group.
+	// This is required for running `livenessprobe` container as non-root user/group
+	if os.Getenv("IS_NODE_SERVER") == "true" {
+		fileops := &opsSocketPermission{}
+		if err := setupSidecar(addr, fileops, s.logger); err != nil {
+			s.logger.Error("setupSidecar failed.", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	server := grpc.NewServer(opts...)
