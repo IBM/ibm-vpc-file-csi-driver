@@ -55,11 +55,11 @@ func (f *opsSocketPermission) Chmod(name string, mode os.FileMode) error {
 func setupSidecar(addr string, ops socketPermission, logger *zap.Logger) error {
 	groupSt := os.Getenv("SIDECAR_GROUP_ID")
 
-	logger.Info("Setting owner and permissions of csi socket file. SIDECAR_GROUP_ID env must match the sidecar container groupID  socket connection.")
+	logger.Info("Setting owner and permissions of csi socket file. SIDECAR_GROUP_ID env must match the 'livenessprobe' sidecar container groupID for csi socket connection.")
 
 	// If env is not set, set default to 0
 	if groupSt == "" {
-		logger.Warn("Unable to fetch SIDECAR_GROUP_ID environment variable. Sidecar containers might fail...")
+		logger.Warn("Unable to fetch SIDECAR_GROUP_ID environment variable. Sidecar container(s) might fail...")
 		groupSt = "0"
 	}
 
