@@ -25,6 +25,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 2121
+        runAsGroup: 2121
       containers:
         - name: csi-provisioner
           image: MUSTPATCHWITHKUSTOMIZE
@@ -187,6 +188,13 @@ spec:
                 configMapKeyRef:
                   name: ibm-vpc-file-csi-configmap
                   key: SIDECAR_ENDPOINT
+          resources:
+            limits:
+              cpu: 12m
+              memory: 20Mi
+            requests:
+              cpu: 3m
+              memory: 5Mi
           volumeMounts:
             - mountPath: /sidecardir
               name: socket-dir
