@@ -591,3 +591,9 @@ func (csiCS *CSIControllerServer) ControllerGetVolume(ctx context.Context, req *
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ControllerGetVolume")
 }
+
+// ControllerModifyVolume ...
+func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
+	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ControllerModifyVolume")
+}

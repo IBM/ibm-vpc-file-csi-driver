@@ -505,13 +505,13 @@ func TestCreateVolumeArguments(t *testing.T) {
 		}
 
 		// Validate output
-		if !reflect.DeepEqual(vol, tc.expVol) {
+		if !reflect.DeepEqual(vol, tc.expVol) { 
 			errStr := fmt.Sprintf("Expected volume-> %#v\nTopology %#v\n\n Actual volume: %#v\nTopology %#v\n\n",
 				tc.expVol, tc.expVol.GetAccessibleTopology()[0], vol, vol.GetAccessibleTopology()[0])
 			for i := 0; i < len(vol.GetAccessibleTopology()); i++ {
 				errStr = errStr + fmt.Sprintf("Actual topology-> %#v\nExpected toplogy-> %#v\n\n", vol.GetAccessibleTopology()[i], tc.expVol.GetAccessibleTopology()[i])
 			}
-			t.Errorf(errStr)
+			t.Error(errStr)
 		}
 	}
 }
