@@ -7,13 +7,13 @@ spec:
     spec:
       containers:
         - name: csi-provisioner
-          image: icr.io/ext/k8scsi/csi-provisioner:v1.6.0
+          image: icr.io/ext/k8scsi/csi-provisioner:v5.0.2
         - name: csi-resizer
-          image: quay.io/k8scsi/csi-resizer:v1.0.0
+          image: quay.io/k8scsi/csi-attacher:v1.11.2
         - name: csi-attacher
-          image: icr.io/ext/k8scsi/csi-attacher:v2.2.0
+          image: icr.io/ext/k8scsi/csi-attacher:v4.6.1
         - name: liveness-probe
-          image: quay.io/k8scsi/livenessprobe:v1.1.0
+          image: quay.io/k8scsi/livenessprobe:v2.13.1
         - name: iks-vpc-file-driver
           imagePullPolicy: Always
           image: icr.io/ibm/ibm-vpc-file-csi-driver:v1.0.0

@@ -10,6 +10,6 @@ spec:
           imagePullPolicy: Always
           image: (( concat "{{ DOCKER_REGISTRY }}/armada-master/ibm-vpc-file-csi-driver:" $RELEASE_TAG ))
         - name: csi-driver-registrar
-          image: icr.io/ext/k8scsi/csi-node-driver-registrar:v1.2.0
+          image: icr.io/ext/k8scsi/csi-node-driver-registrar:v2.11.1
         - name: liveness-probe
-          image: icr.io/ext/k8scsi/livenessprobe:v1.1.0
+          image: icr.io/ext/k8scsi/livenessprobe:v2.13.1

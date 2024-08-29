@@ -12,6 +12,6 @@ spec:
         - name: csi-driver-registrar
           image: icr.io/ext/sig-storage/csi-node-driver-registrar:v2.9.3
         - name: liveness-probe
-          image: icr.io/ext/sig-storage/livenessprobe:v2.11.0
+          image: icr.io/ext/sig-storage/livenessprobe:v2.13.1
         - name: storage-secret-sidecar
           image: icr.io/obs/armada-storage-secret:v1.2.31
