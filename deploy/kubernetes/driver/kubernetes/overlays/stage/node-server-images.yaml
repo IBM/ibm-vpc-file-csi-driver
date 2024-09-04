@@ -10,8 +10,6 @@ spec:
           imagePullPolicy: Always
           image: icr.io/ibm/ibm-vpc-file-csi-driver:v1.2.4-beta
         - name: csi-driver-registrar
-          image: icr.io/ext/sig-storage/csi-node-driver-registrar:v2.9.3
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.9.3
         - name: liveness-probe
-          image: icr.io/ext/sig-storage/livenessprobe:v2.11.0
-        - name: storage-secret-sidecar
-          image: icr.io/obs/armada-storage-secret:v1.2.31
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.13.1
