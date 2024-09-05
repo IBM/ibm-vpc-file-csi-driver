@@ -10,9 +10,6 @@ matrix:
   allow_failures:
   - go: tip
 
-cache:
-  bundler: true
-
 sudo: true
 
 before_install:
