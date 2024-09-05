@@ -3,7 +3,7 @@ language: go
 go:
 - "1.22.0"
 - tip
-group: bluezone
+group: stable
 
 matrix:
   fast_finish: true
