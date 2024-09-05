@@ -3,15 +3,13 @@ language: go
 go:
 - "1.22.0"
 - tip
-group: bluezone
+group: stable
+dist: focal
 
 matrix:
   fast_finish: true
   allow_failures:
   - go: tip
-
-cache:
-  bundler: true
 
 sudo: true
 
