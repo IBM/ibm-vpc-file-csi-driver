@@ -1,9 +1,10 @@
 language: go
 
 go:
-- "1.22.0"
+- "1.21"
 - tip
 group: stable
+dist: focal
 
 matrix:
   fast_finish: true
