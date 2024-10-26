@@ -5,8 +5,10 @@ kind: ServiceAccount
 metadata:
   name: ibm-vpc-file-node-sa
   namespace: default
-#imagePullSecrets:
-#   - name: <Add your image pull secret name here if using image fromm private namespace>
+## Cluster's Secret object name for performing image pull
+## from Private Container Namespace (e.g. IBM Cloud Container Registry)
+# imagePullSecrets:
+#   - name: icr-io-secret
 
 ---
 kind: ClusterRole
@@ -51,8 +53,10 @@ kind: ServiceAccount
 metadata:
   name: ibm-vpc-file-controller-sa
   namespace: default
-#imagePullSecrets:
-#   - name: <Add your image pull secret name here if using image fromm private namespace>
+## Cluster's Secret object name for performing image pull
+## from Private Container Namespace (e.g. IBM Cloud Container Registry)
+# imagePullSecrets:
+#   - name: icr-io-secret
 
 ---
 # xref: https://github.com/kubernetes-csi/external-provisioner/blob/master/deploy/kubernetes/rbac.yaml
