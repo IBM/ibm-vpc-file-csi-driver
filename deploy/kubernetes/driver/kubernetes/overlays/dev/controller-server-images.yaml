@@ -1,3 +1,4 @@
+---
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
@@ -13,5 +14,5 @@ spec:
         - name: csi-resizer
           image: registry.k8s.io/sig-storage/csi-resizer:v1.11.2
         - name: iks-vpc-file-driver
-          imagePullPolicy: Always
           image: icr.io/ibm/ibm-vpc-file-csi-driver:v1.0.0
+          imagePullPolicy: Always

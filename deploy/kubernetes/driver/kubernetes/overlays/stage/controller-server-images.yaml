@@ -1,3 +1,4 @@
+---
 kind: StatefulSet
 apiVersion: apps/v1
 metadata:
@@ -8,10 +9,10 @@ spec:
       containers:
         - name: csi-provisioner
           image: registry.k8s.io/sig-storage/csi-provisioner:v5.0.2
+        - name: csi-resizer
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.11.2
         - name: liveness-probe
           image: registry.k8s.io/sig-storage/livenessprobe:v2.13.1
         - name: iks-vpc-file-driver
-          imagePullPolicy: Always
           image: icr.io/ibm/ibm-vpc-file-csi-driver:v1.2.4-beta
-        - name: csi-resizer
-          image: registry.k8s.io/sig-storage/csi-resizer:v1.11.2
+          imagePullPolicy: Always

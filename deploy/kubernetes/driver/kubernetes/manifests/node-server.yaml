@@ -1,7 +1,9 @@
+---
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
   name: ibm-vpc-file-csi-node
+  namespace: kube-system
   labels:
     app.kubernetes.io/name: ibm-vpc-file-csi-driver
 spec:

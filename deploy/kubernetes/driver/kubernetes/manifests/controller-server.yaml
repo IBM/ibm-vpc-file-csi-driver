@@ -1,7 +1,9 @@
+---
 kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: ibm-vpc-file-csi-controller
+  namespace: kube-system
   labels:
     app.kubernetes.io/name: ibm-vpc-file-csi-driver
 spec:
