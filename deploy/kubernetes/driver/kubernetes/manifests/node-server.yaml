@@ -28,7 +28,7 @@ spec:
       - operator: Exists
       containers:
         - name: csi-driver-registrar
-          image: MUSTPATCHWITHKUSTOMIZE
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           imagePullPolicy: Always
           securityContext:
             runAsNonRoot: false
@@ -69,7 +69,7 @@ spec:
             runAsUser: 0
             runAsGroup: 0
             privileged: true
-          image: MUSTPATCHWITHKUSTOMIZE
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           imagePullPolicy: Always
           args:
             - "--v=5"
@@ -155,7 +155,7 @@ spec:
             seLinuxOptions: # seLinux label is set as a precaution for accessing csi socket
               type: spc_t
               level: s0
-          image: MUSTPATCHWITHKUSTOMIZE
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           args:
             - "--csi-address=$(CSI_ADDRESS)"
           env:
@@ -180,7 +180,7 @@ spec:
             runAsUser: 2121
             runAsGroup: 2121
             privileged: false
-          image: MUSTPATCHWITHKUSTOMIZE
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           imagePullPolicy: Always
           args:
             - "--endpoint=$(SIDECAR_ENDPOINT)"

@@ -30,7 +30,7 @@ spec:
         runAsGroup: 2121
       containers:
         - name: csi-provisioner
-          image: MUSTPATCHWITHKUSTOMIZE
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           imagePullPolicy: Always
           securityContext:
             privileged: false
@@ -57,7 +57,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: csi-resizer
-          image: MUSTPATCHWITHKUSTOMIZE
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           imagePullPolicy: Always
           securityContext:
             privileged: false
@@ -81,7 +81,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: iks-vpc-file-driver
-          image: MUSTPATCHWITHKUSTOMIZE
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           imagePullPolicy: Always
           securityContext:
             privileged: false
@@ -157,7 +157,7 @@ spec:
             - mountPath: /var/run/secrets/tokens
               name: vault-token
         - name: liveness-probe
-          image: MUSTPATCHWITHKUSTOMIZE
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false
@@ -180,7 +180,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: storage-secret-sidecar
-          image: MUSTPATCHWITHKUSTOMIZE
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           imagePullPolicy: Always
           args:
             - "--endpoint=$(SIDECAR_ENDPOINT)"
