@@ -1,0 +1,18 @@
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: ibm-vpc-file-csi-node
+spec:
+  template:
+    spec:
+      containers:
+        - name: iks-vpc-file-node-driver
+          image: icr.io/ibm/ibm-vpc-file-csi-driver:v1.0.0
+          imagePullPolicy: Always
+        - name: csi-driver-registrar
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.11.1
+          imagePullPolicy: IfNotPresent
+        - name: liveness-probe
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.13.1
+          imagePullPolicy: IfNotPresent
