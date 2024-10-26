@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ibm-vpc-file-node-sa
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
 ## Cluster's Secret object name for performing image pull
 ## from Private Container Namespace (e.g. IBM Cloud Container Registry)
 # imagePullSecrets:
@@ -15,7 +15,7 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ibm-vpc-file-driver-registrar-role
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
 rules:
   - apiGroups: [""]
     resources: ["events"]
@@ -35,15 +35,15 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ibm-vpc-file-driver-registrar-binding
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
 subjects:
   - kind: ServiceAccount
     name: ibm-vpc-file-node-sa
-    namespace: default
+    namespace: openshift-cluster-csi-drivers
 roleRef:
   kind: ClusterRole
   name: ibm-vpc-file-driver-registrar-role
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
   apiGroup: rbac.authorization.k8s.io
 
 ---
@@ -52,7 +52,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ibm-vpc-file-controller-sa
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
 ## Cluster's Secret object name for performing image pull
 ## from Private Container Namespace (e.g. IBM Cloud Container Registry)
 # imagePullSecrets:
@@ -64,7 +64,7 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ibm-vpc-file-provisioner-role
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -102,15 +102,15 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ibm-vpc-file-provisioner-binding
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
 subjects:
   - kind: ServiceAccount
     name: ibm-vpc-file-controller-sa
-    namespace: default
+    namespace: openshift-cluster-csi-drivers
 roleRef:
   kind: ClusterRole
   name: ibm-vpc-file-provisioner-role
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
   apiGroup: rbac.authorization.k8s.io
 
 ---
@@ -118,7 +118,7 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ibm-vpc-file-external-resizer-role
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -141,13 +141,13 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ibm-vpc-file-external-resizer-binding
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
 subjects:
   - kind: ServiceAccount
     name: ibm-vpc-file-controller-sa
-    namespace: default
+    namespace: openshift-cluster-csi-drivers
 roleRef:
   kind: ClusterRole
   name: ibm-vpc-file-external-resizer-role
-  namespace: default
+  namespace: openshift-cluster-csi-drivers
   apiGroup: rbac.authorization.k8s.io

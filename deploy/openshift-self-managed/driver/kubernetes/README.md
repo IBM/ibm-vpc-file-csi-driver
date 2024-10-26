@@ -1,4 +1,4 @@
-# CSI Driver deployment developer notes for IBM Cloud Kubernetes service (IKS)
+# CSI Driver deployment for Red Hat OpenShift Container Platform (OCP) Self-Managed
 
 ## Namespaces
 
@@ -6,11 +6,11 @@ In general, the following namespaces are used:
 
 | Object Kind | Namespace |
 | --- | --- |
-| Kustomization | kube-system |
-| ConfigMap | kube-system |
-| ServiceAccount | default |
-| DaemonSet | kube-system |
-| Deployment | kube-system |
+| Kustomization | openshift-cluster-csi-drivers |
+| ConfigMap | openshift-cluster-csi-drivers |
+| ServiceAccount | openshift-cluster-csi-drivers |
+| DaemonSet | openshift-cluster-csi-drivers |
+| Deployment | openshift-cluster-csi-drivers |
 
 N.B. Namespaces are only declared in `/manifests`, they are not declared in `/overlays`
 

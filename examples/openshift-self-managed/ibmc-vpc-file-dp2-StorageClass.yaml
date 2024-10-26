@@ -1,0 +1,39 @@
+---
+# Create Storage Class for IBM Cloud File Storage Share
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ibmc-vpc-file-dp2
+  labels:
+    app.kubernetes.io/name: ibm-vpc-file-csi-driver
+  annotations:
+    version: v2.0
+provisioner: vpc.file.csi.ibm.io
+mountOptions:
+  - nfsvers=4.1
+  - sec=sys
+  - hard
+parameters:
+  # File Storage Share assignment
+  resourceGroup: ""                 # Use resource group if specified here. else use the one mentioned in storage-secrete-store
+  region: ""
+  zone: ""                          # By default, the storage vpc driver will select a zone. The user can override this default
+  # File Storage Share network config
+  subnetID: ""                      # Give subnetID in which the ENI/VNI will be created. If not provided lets use the subnet-id available in the VPC zone same as the one part of the cluster.
+  securityGroupIDs: ""              # Give command separated list of security group ids.Use whatever given else default security group will be used
+  isENIEnabled: "true"              # VPC File Share will use the ENI/VNI feature
+  primaryIPID: ""                   # Existing ID of reserved IP from the same subnet as the file share zone.Subnet-id is not mandatory for this
+  primaryIPAddress: ""              # IPAddress for ENI/VNI to be created in the respective subnet of the zone. Subnet-id is mandatory for this.
+  # File Storage Share resource config
+  billingType: "hourly"             # The default billing policy used. User can override this default
+  profile: "dp2"                    # The VPC Storage profile used. https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles&interface=ui#dp2-profile
+  iops: "100"                       # Default IOPS. User can override from secrets
+  encrypted: "false"                # By default, all PVC using this class will only be provider managed encrypted. The user can override this default
+  encryptionKey: ""                 # If encrypted is true, then a user must specify the encryption key used associated KP instance
+  tags: ""                          # A list of tags "a, b, c" that will be created when the volume is created. This can be overidden by user
+  # File Storage Share other config
+  classVersion: "1"
+  uid: "0"                           # The initial user identifier for the file share.
+  gid: "0"                           # The initial group identifier for the file share.
+allowVolumeExpansion: true
+reclaimPolicy: "Delete"

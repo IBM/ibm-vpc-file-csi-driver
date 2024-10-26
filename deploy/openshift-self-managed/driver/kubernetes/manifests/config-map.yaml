@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ibm-vpc-file-csi-configmap
-  namespace: kube-system
+  namespace: openshift-cluster-csi-drivers
 data:
   SECRET_CONFIG_PATH: "/etc/storage_ibmc"
   CSI_ENDPOINT: "unix:/csi/csi-vpc-file.sock"
@@ -17,4 +17,30 @@ data:
   VPC_RETRY_INTERVAL: "60" # This is max retry Gap in seconds even considering for exponential retry
   VPC_API_VERSION: "2021-04-20"
   VPC_API_GENERATION: "1"
-  IKS_ENABLED: "True"
+  IKS_ENABLED: "False" # must be set to false for Red Hat OpenShift
+
+---
+# This file is only required for usage of the CSI Driver with OCP
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ibm-cloud-provider-data
+  namespace: openshift-cluster-csi-drivers # for K8S use kube-system, for OpenShift use openshift-cluster-csi-drivers
+data:
+  # VPC Subnet IDs used for Compute Worker nodes in each IBM Cloud Availability Zone
+  vpc_id: EDIT_REQUIRED_MANUAL
+  vpc_subnet_ids: EDIT_REQUIRED_MANUAL
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-info
+  namespace: openshift-cluster-csi-drivers
+data:
+  # Obtain Cluster ID using oc get nodes -l node-role.kubernetes.io/master --output json | jq -r '.items[0].metadata.name'
+  # Obtain IBM Cloud Account ID using ibmcloud account show -o json | jq -r .account_id
+  cluster-config.json: |
+    {
+      "cluster_id": "EDIT_REQUIRED_MANUAL",
+      "account_id": "EDIT_REQUIRED_MANUAL",
+    }
