@@ -3,6 +3,7 @@ kind: DaemonSet
 apiVersion: apps/v1
 metadata:
   name: ibm-vpc-file-csi-node
+  namespace: openshift-cluster-csi-drivers
 spec:
   template:
     spec:
