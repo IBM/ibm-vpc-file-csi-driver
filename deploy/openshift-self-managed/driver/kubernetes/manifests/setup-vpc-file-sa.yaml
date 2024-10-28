@@ -43,7 +43,6 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: ibm-vpc-file-driver-registrar-role
-  namespace: openshift-cluster-csi-drivers
   apiGroup: rbac.authorization.k8s.io
 
 ---
@@ -110,7 +109,6 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: ibm-vpc-file-provisioner-role
-  namespace: openshift-cluster-csi-drivers
   apiGroup: rbac.authorization.k8s.io
 
 ---
@@ -149,5 +147,4 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: ibm-vpc-file-external-resizer-role
-  namespace: openshift-cluster-csi-drivers
   apiGroup: rbac.authorization.k8s.io
