@@ -1,5 +1,5 @@
 ---
-kind: StatefulSet
+kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: ibm-vpc-file-csi-controller
