@@ -1,8 +1,9 @@
 ---
+# Kustomize v5.5.0 syntax
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-bases:
+resources:
 - ../../manifests
 patches:
-- controller-server-images.yaml
-- node-server-images.yaml
+- path: controller-server-images.yaml
+- path: node-server-images.yaml
