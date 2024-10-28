@@ -23,8 +23,13 @@ VERSION := latest
 GIT_COMMIT_SHA="$(shell git rev-parse HEAD 2>/dev/null)"
 GIT_REMOTE_URL="$(shell git config --get remote.origin.url 2>/dev/null)"
 BUILD_DATE="$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")"
-ARCH=$(shell docker version -f {{.Client.Arch}})
 OSS_FILES := go.mod Dockerfile
+
+# Search for Client Arch, adjust for docker and podman differences
+# https://github.com/docker/cli/blob/master/cli/command/system/version.go#L32
+# https://github.com/containers/podman/blob/main/cmd/podman/system/version.go#L100
+# ARCH=$(shell docker version -f {{.Client.Arch}})
+ARCH=$(shell docker version -f {{.Client.Arch}} || docker version -f {{.Client.OsArch}} | xargs basename)
 
 # Jenkins vars. Set to `unknown` if the variable is not yet defined
 BUILD_NUMBER?=unknown
