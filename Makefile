@@ -82,9 +82,10 @@ build:
 		-o ${GOPATH}/bin/${EXE_DRIVER_NAME} \
 		./cmd/
 
+# 'go test -race' requires cgo, set CGO_ENABLED=1
 .PHONY: test
 test:
-	$(GOPATH)/bin/gotestcover -v -race -short -coverprofile=cover.out ${GOPACKAGES}
+	CGO_ENABLED=1 $(GOPATH)/bin/gotestcover -v -race -short -coverprofile=cover.out ${GOPACKAGES}
 	go tool cover -html=cover.out -o=cover.html  # Uncomment this line when UT in place.
 
 .PHONY: ut-coverage
