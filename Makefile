@@ -71,9 +71,16 @@ dofmt:
 lint:
 	$(GOPATH)/bin/golangci-lint run --timeout 600s
 
+# Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
 build:
-	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH) go build -mod=vendor -a -ldflags '-X main.vendorVersion='"${DRIVER_NAME}-${GIT_COMMIT_SHA}"' -extldflags "-static"' -o ${GOPATH}/bin/${EXE_DRIVER_NAME} ./cmd/
+	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH) \
+		go mod vendor
+	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH) \
+		go build -mod=vendor -a \
+		-ldflags '-X main.vendorVersion='"${DRIVER_NAME}-${GIT_COMMIT_SHA}"' -extldflags "-static"' \
+		-o ${GOPATH}/bin/${EXE_DRIVER_NAME} \
+		./cmd/
 
 .PHONY: test
 test:
