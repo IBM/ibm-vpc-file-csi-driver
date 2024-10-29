@@ -582,7 +582,7 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 }
 
 // createCSIVolumeResponse ...
-func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string) *csi.CreateVolumeResponse {
+func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string, region string) *csi.CreateVolumeResponse {
 	labels := map[string]string{}
 
 	// Update labels for PV objects
@@ -599,7 +599,11 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[FileShareIDLabel] = vol.VolumeID
 	labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
 
-	labels[utils.NodeRegionLabel] = vol.Region
+	if vol.Region != "" {
+		labels[utils.NodeRegionLabel] = vol.Region
+	} else {
+		labels[utils.NodeRegionLabel] = region
+	}
 
 	topology := &csi.Topology{
 		Segments: map[string]string{

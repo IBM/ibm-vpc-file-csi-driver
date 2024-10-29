@@ -23,7 +23,7 @@ VERSION := latest
 GIT_COMMIT_SHA="$(shell git rev-parse HEAD 2>/dev/null)"
 GIT_REMOTE_URL="$(shell git config --get remote.origin.url 2>/dev/null)"
 BUILD_DATE="$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")"
-ARCH=$(shell docker version -f {{.Client.Arch}})
+ARCH=$(shell podman version -f 'amd64')
 OSS_FILES := go.mod Dockerfile
 
 # Jenkins vars. Set to `unknown` if the variable is not yet defined
@@ -92,6 +92,7 @@ buildimage: build-systemutil
         --build-arg jenkins_build_number=${BUILD_NUMBER} \
         --build-arg REPO_SOURCE_URL=${REPO_SOURCE_URL} \
         --build-arg BUILD_URL=${BUILD_URL} \
+		--platform linux/amd64 \
 	-t $(IMAGE):$(VERSION)-$(ARCH) -f Dockerfile .
 ifeq ($(ARCH), amd64)
 	docker tag $(IMAGE):$(VERSION)-$(ARCH) $(IMAGE):$(VERSION)
