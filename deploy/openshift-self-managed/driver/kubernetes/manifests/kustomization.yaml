@@ -13,3 +13,4 @@ resources:
 - controller-server.yaml
 - setup-vpc-file-sa.yaml
 - csidriver.yaml
+- scc.yaml
