@@ -1,0 +1,809 @@
+apiVersion: v1
+kind: List
+metadata:
+  name: ibm-vpc-file-csi-driver
+  namespace: kube-system
+  annotations:
+    version: (( grab $BUILD_VERSION || "dev" ))
+    razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+    razee.io/build-url: (( grab $BUILD_URL ))
+items:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ibm-vpc-file-csi-configmap
+      namespace: kube-system
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    data:
+      SECRET_CONFIG_PATH: "/etc/storage_ibmc"
+      CSI_ENDPOINT: "unix:/csi/csi-vpc-file.sock"
+      VPC_ENABLED: "True"
+      VPC_API_TIMEOUT: "90s" # 1.5 minutes for API time out its not related with retry
+      VPC_RETRY_ATTEMPT: "10" # Number of retry
+      VPC_RETRY_INTERVAL: "60" # This is max retry Gap in seconds even considering for exponential retry
+      VPC_API_VERSION: "2022-01-27"
+      VPC_API_GENERATION: "1"
+      IKS_ENABLED: "True"
+  # Node Service Account, Roles, RoleBindings
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: ibm-vpc-file-node-sa
+      namespace: kube-system
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    imagePullSecrets:
+      - name: icr-io-secret
+  - kind: ClusterRole
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: vpc-file-driver-registrar-role
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    rules:
+      - apiGroups: [""]
+        resources: ["events"]
+        verbs: ["get", "list", "watch", "create", "update", "patch"]
+      - apiGroups: [""]
+        resources: ["nodes"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["secrets"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["get", "list"]
+  - kind: ClusterRoleBinding
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: vpc-file-driver-registrar-binding
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    subjects:
+      - kind: ServiceAccount
+        name: ibm-vpc-file-node-sa
+        namespace: kube-system
+    roleRef:
+      kind: ClusterRole
+      name: vpc-file-driver-registrar-role
+      apiGroup: rbac.authorization.k8s.io
+  - kind: ClusterRole
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: vpc-file-external-resizer-role
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    rules:
+      - apiGroups: [""]
+        resources: ["persistentvolumes"]
+        verbs: ["get", "list", "watch", "update", "patch"]
+      - apiGroups: [""]
+        resources: ["persistentvolumeclaims"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["pods"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["persistentvolumeclaims/status"]
+        verbs: ["patch", "update"]
+      - apiGroups: [""]
+        resources: ["events"]
+        verbs: ["list", "watch", "create", "update", "patch"]
+  - kind: ClusterRoleBinding
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: vpc-file-external-resizer-binding
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    subjects:
+      - kind: ServiceAccount
+        name: ibm-vpc-file-controller-sa
+        namespace: kube-system
+    roleRef:
+      kind: ClusterRole
+      name: vpc-file-external-resizer-role
+      apiGroup: rbac.authorization.k8s.io
+  # Controller Service Account, Roles, Rolebindings
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: ibm-vpc-file-controller-sa
+      namespace: kube-system
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    imagePullSecrets:
+      - name: icr-io-secret
+  # xref: https://github.com/kubernetes-csi/external-provisioner/blob/master/deploy/kubernetes/rbac.yaml
+  - kind: ClusterRole
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: vpc-file-provisioner-role
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    rules:
+      - apiGroups: [""]
+        resources: ["secrets"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["persistentvolumes"]
+        verbs: ["get", "list", "watch", "create", "delete"]
+      - apiGroups: [""]
+        resources: ["persistentvolumeclaims"]
+        verbs: ["get", "list", "watch", "update"]
+      - apiGroups: ["storage.k8s.io"]
+        resources: ["storageclasses"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["events"]
+        verbs: ["list", "watch", "create", "update", "patch"]
+      - apiGroups: ["storage.k8s.io"]
+        resources: ["csinodes"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["nodes"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["coordination.k8s.io"]
+        resources: ["leases"]
+        verbs: ["get", "list", "watch", "delete", "create", "update"]
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["get", "list"]
+  - kind: ClusterRoleBinding
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: vpc-file-provisioner-binding
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    subjects:
+      - kind: ServiceAccount
+        name: ibm-vpc-file-controller-sa
+        namespace: kube-system
+    roleRef:
+      kind: ClusterRole
+      name: vpc-file-provisioner-role
+      apiGroup: rbac.authorization.k8s.io
+  - kind: CSIDriver
+    apiVersion: storage.k8s.io/v1
+    metadata:
+      name: vpc.file.csi.ibm.io
+    spec:
+      fsGroupPolicy: File
+      attachRequired: false
+      podInfoOnMount: true
+      volumeLifecycleModes:
+        - Persistent
+  - kind: DaemonSet
+    apiVersion: apps/v1
+    metadata:
+      name: ibm-vpc-file-csi-node
+      namespace: kube-system
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    spec:
+      selector:
+        matchLabels:
+          app: ibm-vpc-file-csi-node
+          app.kubernetes.io/name: ibm-vpc-file-csi-driver
+      template:
+        metadata:
+          labels:
+            app: ibm-vpc-file-csi-node
+            app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                    - amd64
+          priorityClassName: system-node-critical
+          hostNetwork: true
+          serviceAccountName: ibm-vpc-file-node-sa
+          tolerations:
+            - operator: Exists
+          containers:
+            - name: csi-driver-registrar
+              image: "icr.io/ext/sig-storage/csi-node-driver-registrar:v2.7.0"
+              imagePullPolicy: Always
+              securityContext:
+                runAsNonRoot: false
+                runAsUser: 0
+                privileged: false
+              args:
+                - "--v=5"
+                - "--csi-address=$(ADDRESS)"
+                - "--kubelet-registration-path=$(DRIVER_REGISTRATION_SOCK)"
+              env:
+                - name: ADDRESS
+                  value: /csi/csi-vpc-file.sock
+                - name: DRIVER_REGISTRATION_SOCK
+                  value: /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/csi-vpc-file.sock
+                - name: KUBE_NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+              resources:
+                limits:
+                  cpu: 40m
+                  memory: 80Mi
+                requests:
+                  cpu: 10m
+                  memory: 20Mi
+              volumeMounts:
+                - name: plugin-dir
+                  mountPath: /csi
+                - name: registration-dir
+                  mountPath: /registration
+            - name: iks-vpc-file-node-driver
+              securityContext:
+                runAsNonRoot: false
+                runAsUser: 0
+                runAsGroup: 0
+                privileged: true
+              #image: icr.io/prankulmahajan/ibm-vpc-package-deployer:eit
+              image: stg.icr.io/prankul/ibm-vpc-file-csi-driver:latest
+              imagePullPolicy: Always
+              args:
+                - "--v=5"
+                - "--endpoint=unix:/csi/csi-vpc-file.sock"
+                - "--sidecarEndpoint=$(SIDECAREP)"
+              env:
+                - name: SIDECAREP
+                  value: "/sidecardir/providerfile.sock"
+                - name: KUBE_NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: IS_NODE_SERVER
+                  value: "true"
+                - name: SOCKET_PATH
+                  value: "/tmp/mysocket.sock"
+              envFrom:
+                - configMapRef:
+                    name: ibm-vpc-file-csi-configmap
+              resources:
+                limits:
+                  cpu: 120m
+                  memory: 300Mi
+                requests:
+                  cpu: 30m
+                  memory: 75Mi
+              ports:
+                - name: healthz
+                  containerPort: 9808
+                  protocol: TCP
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: healthz
+                initialDelaySeconds: 10
+                timeoutSeconds: 3
+                periodSeconds: 10
+                failureThreshold: 5
+              volumeMounts:
+                - name: secret-sidecar-sock-dir
+                  mountPath: /sidecardir
+                - name: kubelet-data-dir
+                  mountPath: /var/data/kubelet
+                  mountPropagation: "Bidirectional"
+                - name: plugin-dir
+                  mountPath: /csi
+                - name: device-dir
+                  mountPath: /dev
+                - name: etcudevpath
+                  mountPath: /etc/udev
+                - name: runudevpath
+                  mountPath: /run/udev
+                - name: libudevpath
+                  mountPath: /lib/udev
+                - name: syspath
+                  mountPath: /sys
+                - name: customer-auth
+                  readOnly: true
+                  mountPath: /etc/storage_ibmc
+                - name: cluster-info
+                  readOnly: true
+                  mountPath: /etc/storage_ibmc/cluster_info
+                - mountPath: /tmp	
+                  name: soc-dir	
+                  #mountPropagation: "Bidirectional"
+            - name: liveness-probe
+              image: "icr.io/ext/sig-storage/livenessprobe:v2.9.0"
+              securityContext:
+                runAsNonRoot: false
+                runAsUser: 0
+                privileged: false
+              args:
+                - --csi-address=/csi/csi-vpc-file.sock
+              resources:
+                limits:
+                  cpu: 20m
+                  memory: 40Mi
+                requests:
+                  cpu: 5m
+                  memory: 10Mi
+              volumeMounts:
+                - name: plugin-dir
+                  mountPath: /csi
+            - name: storage-secret-sidecar
+              image: "icr.io/obs/armada-storage-secret:v1.2.31"
+              imagePullPolicy: Always
+              args:
+                - "--endpoint=$(ENDPOINT)"
+              resources:
+                limits:
+                  cpu: 12m
+                  memory: 20Mi
+                requests:
+                  cpu: 3m
+                  memory: 5Mi
+              env:
+                - name: ENDPOINT
+                  value: "unix:/sidecardir/providerfile.sock"
+              volumeMounts:
+                - mountPath: /sidecardir
+                  name: secret-sidecar-sock-dir
+                - mountPath: /var/run/secrets/tokens
+                  name: vault-token
+          volumes:
+            - name: secret-sidecar-sock-dir
+              emptyDir: {}
+            - name: registration-dir
+              hostPath:
+                path: /var/lib/kubelet/plugins_registry/
+                type: Directory
+            - name: kubelet-data-dir
+              hostPath:
+                path: /var/data/kubelet # IKS worker  POD dir
+                type: Directory
+            - name: plugin-dir
+              hostPath:
+                path: /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/
+                type: DirectoryOrCreate
+            - name: device-dir
+              hostPath:
+                path: /dev
+                type: Directory
+            - name: etcudevpath
+              hostPath:
+                path: /etc/udev
+                type: Directory
+            - name: runudevpath
+              hostPath:
+                path: /run/udev
+                type: Directory
+            - name: libudevpath
+              hostPath:
+                path: /lib/udev
+                type: Directory
+            - name: syspath
+              hostPath:
+                path: /sys
+                type: Directory
+            - name: customer-auth # altough its not required, This is just to finish lib configuration which is a common code in the driver
+              secret:
+                secretName: storage-secret-store
+            - name: cluster-info # To get the cluster info
+              configMap:
+                name: cluster-info
+            - name: vault-token
+              projected:
+                sources:
+                - serviceAccountToken:
+                    path: vault-token
+                    expirationSeconds: 600
+            - hostPath:	
+                path: /tmp	
+              name: soc-dir
+  - kind: Deployment
+    apiVersion: apps/v1
+    metadata:
+      name: ibm-vpc-file-csi-controller
+      namespace: kube-system
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: ibm-vpc-file-csi-controller
+          app.kubernetes.io/name: ibm-vpc-file-csi-driver
+      template:
+        metadata:
+          labels:
+            app: ibm-vpc-file-csi-controller
+            app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                    - amd64
+          priorityClassName: system-cluster-critical
+          serviceAccountName: ibm-vpc-file-controller-sa
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 2121
+          containers:
+            - name: csi-provisioner
+              image: "icr.io/ext/sig-storage/csi-provisioner:v3.4.1"
+              imagePullPolicy: Always
+              securityContext:
+                privileged: false
+                allowPrivilegeEscalation: false
+              args:
+                - "--v=5"
+                - "--csi-address=$(ADDRESS)"
+                - "--timeout=600s"
+                - "--feature-gates=Topology=true"
+                - "--leader-election=true"
+              env:
+                - name: ADDRESS
+                  value: /csi/csi-vpc-file.sock
+              resources:
+                limits:
+                  cpu: 80m
+                  memory: 160Mi
+                requests:
+                  cpu: 20m
+                  memory: 40Mi
+              volumeMounts:
+                - name: socket-dir
+                  mountPath: /csi
+            - name: csi-resizer
+              image: "icr.io/ext/sig-storage/csi-resizer:v1.7.0"
+              imagePullPolicy: Always
+              securityContext:
+                privileged: false
+                allowPrivilegeEscalation: false
+              args:
+                - "--v=5"
+                - "--csi-address=/csi/csi-vpc-file.sock"
+                - "--timeout=900s"
+              resources:
+                limits:
+                  cpu: 80m
+                  memory: 160Mi
+                requests:
+                  cpu: 20m
+                  memory: 40Mi
+              volumeMounts:
+                - name: socket-dir
+                  mountPath: /csi
+            - name: liveness-probe
+              image: "icr.io/ext/sig-storage/livenessprobe:v2.9.0"
+              securityContext:
+                privileged: false
+                allowPrivilegeEscalation: false
+              args:
+                - --csi-address=/csi/csi-vpc-file.sock
+              resources:
+                limits:
+                  cpu: 20m
+                  memory: 40Mi
+                requests:
+                  cpu: 5m
+                  memory: 10Mi
+              volumeMounts:
+                - name: socket-dir
+                  mountPath: /csi
+            - name: iks-vpc-file-driver
+              imagePullPolicy: Always
+              #image: icr.io/prankulmahajan/ibm-vpc-package-deployer:eit
+              image: stg.icr.io/prankul/ibm-vpc-file-csi-driver:latest
+              securityContext:
+                privileged: false
+                allowPrivilegeEscalation: false
+              args:
+                - "--v=5"
+                - "--endpoint=$(CSI_ENDPOINT)"
+                - "--lock_enabled=false"
+                - "--sidecarEndpoint=$(SIDECAREP)"
+              envFrom:
+                - configMapRef:
+                    name: ibm-vpc-file-csi-configmap
+                - configMapRef:
+                    name: ibm-cloud-provider-data
+              env:
+                - name: SIDECAREP
+                  value: "/csi/providerfile.sock"
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: VPC_ID
+                  valueFrom:
+                    configMapKeyRef:
+                      name: ibm-cloud-provider-data
+                      key: vpc_id
+                - name: VPC_SUBNET_IDS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: ibm-cloud-provider-data
+                      key: vpc_subnet_ids
+                      optional: true
+              resources:
+                limits:
+                  cpu: 300m
+                  memory: 600Mi
+                requests:
+                  cpu: 75m
+                  memory: 150Mi
+              ports:
+                - name: healthz
+                  containerPort: 9808
+                  protocol: TCP
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: healthz
+                initialDelaySeconds: 10
+                timeoutSeconds: 3
+                periodSeconds: 10
+                failureThreshold: 5
+              volumeMounts:
+                - name: socket-dir
+                  mountPath: /csi
+                - name: customer-auth
+                  readOnly: true
+                  mountPath: /etc/storage_ibmc
+                - name: cluster-info
+                  readOnly: true
+                  mountPath: /etc/storage_ibmc/cluster_info
+                - mountPath: /var/run/secrets/tokens
+                  name: vault-token
+            - name: storage-secret-sidecar
+              image: "icr.io/obs/armada-storage-secret:v1.2.31"
+              imagePullPolicy: Always
+              args:
+                - "--endpoint=$(ENDPOINT)"
+              env:
+                - name: ENDPOINT
+                  value: "unix:/sidecardir/providerfile.sock"
+              resources:
+                limits:
+                  cpu: 12m
+                  memory: 20Mi
+                requests:
+                  cpu: 3m
+                  memory: 5Mi
+              volumeMounts:
+                - mountPath: /sidecardir
+                  name: socket-dir
+                - mountPath: /etc/storage_ibmc
+                  name: customer-auth
+                  readOnly: true
+                - mountPath: /var/run/secrets/tokens
+                  name: vault-token
+          volumes:
+            - name: socket-dir
+              emptyDir: {}
+            - name: customer-auth
+              secret:
+                secretName: storage-secret-store
+            - name: cluster-info
+              configMap:
+                name: cluster-info
+            - name: vault-token
+              projected:
+                sources:
+                - serviceAccountToken:
+                    path: vault-token
+                    expirationSeconds: 600
+  - apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: ibmc-vpc-file-dp2
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+        razee/force-apply: "true"
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    provisioner: vpc.file.csi.ibm.io
+    mountOptions:
+      - hard
+      - nfsvers=4.1
+      - sec=sys
+    parameters:
+      profile: "dp2"              # The VPC Storage profile used. https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles
+      iops: "100"                         # Default IOPS. User can override from secrets
+      billingType: "hourly"               # The default billing policy used. The uer can override this default
+      encrypted: "false"                  # By default, all PVC using this class will only be provider managed encrypted. The user can override this default
+      encryptionKey: ""                   # If encrypted is true, then a user must specify the encryption key used associated KP instance
+      resourceGroup: ""                   # Use resource group if specified here. else use the one mentioned in storage-secrete-store
+      isENIEnabled: "true" # VPC File Share will use the ENI/VNI feature
+      securityGroupIDs: "" # Give command separated list of security group ids.Use whatever given else cluster security group(kube-<clusterID>) will be used
+      subnetID: "" # Give subnetID in which the ENI/VNI will be created. If not provided lets use the subnet-id available in the VPC zone same as the one part of the cluster.
+      region: ""                          # (applicable only for dev/prestage/stage) By default, the storage vpc driver will select a region. The user can override this default
+      zone: "" # By default, the storage vpc driver will select a zone. The user can override this default
+      primaryIPID: "" # Existing ID of reserved IP from the same subnet as the file share zone.Subnet-id is not mandatory for this
+      primaryIPAddress: "" # IPAddress for ENI/VNI to be created in the respective subnet of the zone. Subnet-id is mandatory for this.
+      tags: ""                            # A list of tags "a, b, c" that will be created when the volume is created. This can be overidden by user
+      uid: "0"                            # The initial user identifier for the file share.
+      gid: "0"                            # The initial group identifier for the file share.
+      classVersion: "1"
+    reclaimPolicy: "Delete"
+    allowVolumeExpansion: true
+  - apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: ibmc-vpc-file-retain-dp2
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+        razee/force-apply: "true"
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    provisioner: vpc.file.csi.ibm.io
+    mountOptions:
+      - hard
+      - nfsvers=4.1
+      - sec=sys
+    parameters:
+      profile: "dp2"              # The VPC Storage profile used. https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles
+      iops: "100"                         # Default IOPS. User can override from secrets
+      billingType: "hourly"               # The default billing policy used. The uer can override this default
+      encrypted: "false"                  # By default, all PVC using this class will only be provider managed encrypted. The user can override this default
+      encryptionKey: ""                   # If encrypted is true, then a user must specify the encryption key used associated KP instance
+      resourceGroup: ""                   # Use resource group if specified here. else use the one mentioned in storage-secrete-store
+      isENIEnabled: "true" # VPC File Share will use the ENI/VNI feature
+      securityGroupIDs: "" # Give command separated list of security group ids.Use whatever given else cluster security group(kube-<clusterID>) will be used
+      subnetID: "" # Give subnetID in which the ENI/VNI will be created. If not provided lets use the subnet-id available in the VPC zone same as the one part of the cluster.
+      region: ""                          # (applicable only for dev/prestage/stage) By default, the storage vpc driver will select a region. The user can override this default
+      zone: "" # By default, the storage vpc driver will select a zone. The user can override this default
+      primaryIPID: "" # Existing ID of reserved IP from the same subnet as the file share zone.Subnet-id is not mandatory for this
+      primaryIPAddress: "" # IPAddress for ENI/VNI to be created in the respective subnet of the zone. Subnet-id is mandatory for this.
+      tags: ""                            # A list of tags "a, b, c" that will be created when the volume is created. This can be overidden by user
+      uid: "0"                            # The initial user identifier for the file share.
+      gid: "0"                            # The initial group identifier for the file share.
+      classVersion: "1"
+    reclaimPolicy: "Retain"
+    allowVolumeExpansion: true
+  - apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: ibmc-vpc-file-metro-dp2
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+        razee/force-apply: "true"
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    provisioner: vpc.file.csi.ibm.io
+    mountOptions:
+      - hard
+      - nfsvers=4.1
+      - sec=sys
+    parameters:
+      profile: "dp2"              # The VPC Storage profile used. https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles
+      iops: "100"                         # Default IOPS. User can override from secrets
+      billingType: "hourly"               # The default billing policy used. The uer can override this default
+      encrypted: "false"                  # By default, all PVC using this class will only be provider managed encrypted. The user can override this default
+      encryptionKey: ""                   # If encrypted is true, then a user must specify the encryption key used associated KP instance
+      resourceGroup: ""                   # Use resource group if specified here. else use the one mentioned in storage-secrete-store
+      isENIEnabled: "true" # VPC File Share will use the ENI/VNI feature
+      securityGroupIDs: "" # Give command separated list of security group ids.Use whatever given else cluster security group(kube-<clusterID>) will be used
+      subnetID: "" # Give subnetID in which the ENI/VNI will be created. If not provided lets use the subnet-id available in the VPC zone same as the one part of the cluster.
+      region: ""                          # (applicable only for dev/prestage/stage) By default, the storage vpc driver will select a region. The user can override this default
+      zone: "" # By default, the storage vpc driver will select a zone. The user can override this default
+      primaryIPID: "" # Existing ID of reserved IP from the same subnet as the file share zone.Subnet-id is not mandatory for this
+      primaryIPAddress: "" # IPAddress for ENI/VNI to be created in the respective subnet of the zone. Subnet-id is mandatory for this.
+      tags: ""                            # A list of tags "a, b, c" that will be created when the volume is created. This can be overidden by user
+      uid: "0"                            # The initial user identifier for the file share.
+      gid: "0"                            # The initial group identifier for the file share.
+      classVersion: "1"
+    reclaimPolicy: "Delete"
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+  - apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: ibmc-vpc-file-metro-retain-dp2
+      labels:
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+        addonmanager.kubernetes.io/mode: Reconcile
+        razee/force-apply: "true"
+      annotations:
+        version: (( grab $BUILD_VERSION || "dev" ))
+        razee.io/source-url: (( grab $REPO_SOURCE_URL ))
+        razee.io/build-url: (( grab $BUILD_URL ))
+    provisioner: vpc.file.csi.ibm.io
+    mountOptions:
+      - hard
+      - nfsvers=4.1
+      - sec=sys
+    parameters:
+      profile: "dp2"              # The VPC Storage profile used. https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles
+      iops: "100"                         # Default IOPS. User can override from secrets
+      billingType: "hourly"               # The default billing policy used. The uer can override this default
+      encrypted: "false"                  # By default, all PVC using this class will only be provider managed encrypted. The user can override this default
+      encryptionKey: ""                   # If encrypted is true, then a user must specify the encryption key used associated KP instance
+      resourceGroup: ""                   # Use resource group if specified here. else use the one mentioned in storage-secrete-store
+      isENIEnabled: "true" # VPC File Share will use the ENI/VNI feature
+      securityGroupIDs: "" # Give command separated list of security group ids.Use whatever given else cluster security group(kube-<clusterID>) will be used
+      subnetID: "" # Give subnetID in which the ENI/VNI will be created. If not provided lets use the subnet-id available in the VPC zone same as the one part of the cluster.
+      region: ""                          # (applicable only for dev/prestage/stage) By default, the storage vpc driver will select a region. The user can override this default
+      zone: "" # By default, the storage vpc driver will select a zone. The user can override this default
+      primaryIPID: "" # Existing ID of reserved IP from the same subnet as the file share zone.Subnet-id is not mandatory for this
+      primaryIPAddress: "" # IPAddress for ENI/VNI to be created in the respective subnet of the zone. Subnet-id is mandatory for this.
+      tags: ""                            # A list of tags "a, b, c" that will be created when the volume is created. This can be overidden by user
+      uid: "0"                            # The initial user identifier for the file share.
+      gid: "0"                            # The initial group identifier for the file share.
+      classVersion: "1"
+    reclaimPolicy: "Retain"
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
