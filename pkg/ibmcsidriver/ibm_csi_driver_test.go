@@ -37,7 +37,7 @@ func initIBMCSIDriver(t *testing.T, fakeActions ...testingexec.FakeCommandAction
 	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
 	icDriver := GetIBMCSIDriver()
-
+	nodeMeta = nodeMetadata.InitMetadata
 	// Create fake provider and mounter
 	provider, _ := cloudProvider.NewFakeIBMCloudStorageProvider("", logger)
 	var mounter mountManager.Mounter

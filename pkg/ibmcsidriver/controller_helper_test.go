@@ -205,9 +205,9 @@ func TestGetVolumeParameters(t *testing.T) {
 						},
 					},
 				},
-				Region: "us-south-test",
-				Iops:   &noIops,
-				Az:     "testzone",
+				//Region: "us-south-test",
+				Iops: &noIops,
+				Az:   "testzone",
 			},
 			expectedStatus: true,
 			expectedError:  nil,
@@ -902,6 +902,8 @@ func isCSIResponseSame(expectedVolume *csi.CreateVolumeResponse, actualCSIVolume
 	if expectedVolume == nil || actualCSIVolume == nil {
 		return false
 	}
+	fmt.Println(expectedVolume.Volume)
+	fmt.Println(actualCSIVolume.Volume)
 
 	return expectedVolume.Volume.VolumeId == actualCSIVolume.Volume.VolumeId &&
 		expectedVolume.Volume.CapacityBytes == actualCSIVolume.Volume.CapacityBytes &&
@@ -990,11 +992,47 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 			},
 			expectedStatus: true,
 		},
+		{
+			testCaseName: "Valid volume response with region in vol request empty",
+			requestVol: provider.Volume{VolumeID: volumeID,
+				VPCVolume: provider.VPCVolume{VPCBlockVolume: provider.VPCBlockVolume{
+					Tags: []string{"createdByIBM"},
+				},
+					Profile:       &provider.Profile{Name: "general-purpose"},
+					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+				},
+				Iops: &threeIops,
+				Az:   "testzone",
+			},
+			requestCap:   20,
+			clusterID:    "1234",
+			requestZones: []string{"", ""},
+			expectedVolume: &csi.CreateVolumeResponse{
+				Volume: &csi.Volume{
+					CapacityBytes: 20,
+					VolumeId:      volumeID,
+					VolumeContext: map[string]string{VolumeIDLabel: volumeID, IOPSLabel: threeIops, utils.NodeRegionLabel: "my-region", utils.NodeZoneLabel: "testzone"},
+					AccessibleTopology: []*csi.Topology{{
+						Segments: map[string]string{
+							utils.NodeRegionLabel: "testregion",
+							utils.NodeZoneLabel:   "testzone",
+						},
+					},
+					},
+				},
+			},
+			expectedStatus: true,
+		},
+	}
+	// Setup test driver
+	icDriver := initIBMCSIDriver(t)
+	if icDriver == nil {
+		t.Fatalf("Failed to setup IBM CSI Driver")
 	}
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			actualCSIVolume := createCSIVolumeResponse(testcase.requestVol, provider.VolumeAccessPointResponse{AccessPointID: volumeAPID}, testcase.requestCap, testcase.requestZones, testcase.clusterID)
+			actualCSIVolume := createCSIVolumeResponse(testcase.requestVol, provider.VolumeAccessPointResponse{AccessPointID: volumeAPID}, testcase.requestCap, testcase.requestZones, testcase.clusterID, icDriver.region)
 			assert.Equal(t, testcase.expectedStatus, isCSIResponseSame(testcase.expectedVolume, actualCSIVolume))
 		})
 	}

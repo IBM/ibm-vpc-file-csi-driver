@@ -227,10 +227,14 @@ func TestCreateVolumeArguments(t *testing.T) {
 				Parameters:         stdParams,
 			},
 			expVol: &csi.Volume{
-				CapacityBytes:      20 * 1024 * 1024 * 1024, // In byte
-				VolumeId:           "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId",
-				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId", FileShareIDLabel: "testVolumeId", FileShareTargetIDLabel: "testVolumeAccessPointId", IsENIEnabled: "false", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
-				AccessibleTopology: stdTopology,
+				CapacityBytes: 20 * 1024 * 1024 * 1024, // In byte
+				VolumeId:      "testVolumeId",
+				VolumeContext: map[string]string{utils.NodeRegionLabel: "testregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: ""},
+				AccessibleTopology: []*csi.Topology{
+					{
+						Segments: map[string]string{utils.NodeZoneLabel: "myzone", utils.NodeRegionLabel: "testregion"},
+					},
+				},
 			},
 
 			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
@@ -276,10 +280,14 @@ func TestCreateVolumeArguments(t *testing.T) {
 				Parameters:         stdENIParams,
 			},
 			expVol: &csi.Volume{
-				CapacityBytes:      20 * 1024 * 1024 * 1024, // In byte
-				VolumeId:           "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId",
-				VolumeContext:      map[string]string{utils.NodeRegionLabel: "myregion", VolumeIDLabel: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId", FileShareIDLabel: "testVolumeId", FileShareTargetIDLabel: "testVolumeAccessPointId", IsENIEnabled: "true", ENISecurityGroupIDs: "kube-fake-cluster-id", ENISubnetID: "sub-1", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
-				AccessibleTopology: stdENITopology,
+				CapacityBytes: 20 * 1024 * 1024 * 1024, // In byte
+				VolumeId:      "testVolumeId",
+				VolumeContext: map[string]string{utils.NodeRegionLabel: "testregion", utils.NodeZoneLabel: "myzone", VolumeIDLabel: "testVolumeId", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: ""},
+				AccessibleTopology: []*csi.Topology{
+					{
+						Segments: map[string]string{utils.NodeZoneLabel: "myzone", utils.NodeRegionLabel: "testregion"},
+					},
+				},
 			},
 
 			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{

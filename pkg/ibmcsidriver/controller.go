@@ -292,7 +292,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	volumeObj.SubnetID = requestedVolume.SubnetID
 
 	// return csi volume object
-	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterID()), nil
+	return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterID(), csiCS.Driver.region), nil
 }
 
 // DeleteVolume ...
