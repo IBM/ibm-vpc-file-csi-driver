@@ -82,13 +82,13 @@ var (
 		IsENIEnabled: "true",
 	}
 
-	stdTopology = []*csi.Topology{
+	_ = []*csi.Topology{
 		{
 			Segments: map[string]string{utils.NodeZoneLabel: "myzone", utils.NodeRegionLabel: "myregion"},
 		},
 	}
 
-	stdENITopology = []*csi.Topology{
+	_ = []*csi.Topology{
 		{
 			Segments: map[string]string{utils.NodeRegionLabel: "myregion"},
 		},
