@@ -205,9 +205,9 @@ func TestGetVolumeParameters(t *testing.T) {
 						},
 					},
 				},
-				//Region: "us-south-test",
-				Iops: &noIops,
-				Az:   "testzone",
+				Region: "us-south-test",
+				Iops:   &noIops,
+				Az:     "testzone",
 			},
 			expectedStatus: true,
 			expectedError:  nil,
@@ -902,8 +902,13 @@ func isCSIResponseSame(expectedVolume *csi.CreateVolumeResponse, actualCSIVolume
 	if expectedVolume == nil || actualCSIVolume == nil {
 		return false
 	}
-	fmt.Println(expectedVolume.Volume)
-	fmt.Println(actualCSIVolume.Volume)
+	// fmt.Println(expectedVolume.Volume)
+	// fmt.Println(actualCSIVolume.Volume)
+
+	fmt.Println(expectedVolume.Volume.VolumeId + " " + actualCSIVolume.Volume.VolumeId)
+	fmt.Println(expectedVolume.Volume.CapacityBytes, " ", actualCSIVolume.Volume.CapacityBytes)
+	fmt.Println(expectedVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeRegionLabel] + " " + actualCSIVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeRegionLabel])
+	fmt.Println(expectedVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeZoneLabel] + " " + actualCSIVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeZoneLabel])
 
 	return expectedVolume.Volume.VolumeId == actualCSIVolume.Volume.VolumeId &&
 		expectedVolume.Volume.CapacityBytes == actualCSIVolume.Volume.CapacityBytes &&
@@ -993,13 +998,14 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 			expectedStatus: true,
 		},
 		{
-			testCaseName: "Valid volume response with region in vol request empty",
+			testCaseName: "Valid volume response with region in vol request is empty",
 			requestVol: provider.Volume{VolumeID: volumeID,
-				VPCVolume: provider.VPCVolume{VPCBlockVolume: provider.VPCBlockVolume{
-					Tags: []string{"createdByIBM"},
-				},
-					Profile:       &provider.Profile{Name: "general-purpose"},
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "dp2"},
 					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						AccessControlMode: "security_group",
+					},
 				},
 				Iops: &threeIops,
 				Az:   "testzone",
@@ -1010,12 +1016,11 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 			expectedVolume: &csi.CreateVolumeResponse{
 				Volume: &csi.Volume{
 					CapacityBytes: 20,
-					VolumeId:      volumeID,
-					VolumeContext: map[string]string{VolumeIDLabel: volumeID, IOPSLabel: threeIops, utils.NodeRegionLabel: "my-region", utils.NodeZoneLabel: "testzone"},
+					VolumeId:      volumeID + VolumeIDSeperator + volumeAPID,
+					VolumeContext: map[string]string{VolumeIDLabel: volumeID + VolumeIDSeperator + volumeAPID, IOPSLabel: threeIops, utils.NodeRegionLabel: "us-south-test", utils.NodeZoneLabel: "testzone"},
 					AccessibleTopology: []*csi.Topology{{
 						Segments: map[string]string{
 							utils.NodeRegionLabel: "testregion",
-							utils.NodeZoneLabel:   "testzone",
 						},
 					},
 					},

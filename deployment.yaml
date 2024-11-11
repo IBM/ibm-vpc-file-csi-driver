@@ -44,7 +44,7 @@ items:
         razee.io/source-url: (( grab $REPO_SOURCE_URL ))
         razee.io/build-url: (( grab $BUILD_URL ))
     imagePullSecrets:
-      - name: icr-io-secret
+      - name: icr-io
   - kind: ClusterRole
     apiVersion: rbac.authorization.k8s.io/v1
     metadata:
@@ -148,7 +148,7 @@ items:
         razee.io/source-url: (( grab $REPO_SOURCE_URL ))
         razee.io/build-url: (( grab $BUILD_URL ))
     imagePullSecrets:
-      - name: icr-io-secret
+      - name: icr-io
   # xref: https://github.com/kubernetes-csi/external-provisioner/blob/master/deploy/kubernetes/rbac.yaml
   - kind: ClusterRole
     apiVersion: rbac.authorization.k8s.io/v1
@@ -295,7 +295,7 @@ items:
                 runAsGroup: 0
                 privileged: true
               #image: icr.io/prankulmahajan/ibm-vpc-package-deployer:eit
-              image: stg.icr.io/prankul/ibm-vpc-file-csi-driver:latest
+              image: icr.io/vasudha-test/ibm-vpc-file-csi-driver:latest
               imagePullPolicy: Always
               args:
                 - "--v=5"
@@ -553,7 +553,7 @@ items:
             - name: iks-vpc-file-driver
               imagePullPolicy: Always
               #image: icr.io/prankulmahajan/ibm-vpc-package-deployer:eit
-              image: stg.icr.io/prankul/ibm-vpc-file-csi-driver:latest
+              image: icr.io/vasudha-test/ibm-vpc-file-csi-driver:latest
               securityContext:
                 privileged: false
                 allowPrivilegeEscalation: false
