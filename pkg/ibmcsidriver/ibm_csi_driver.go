@@ -49,7 +49,7 @@ type IBMCSIDriver struct {
 	nscap []*csi.NodeServiceCapability
 }
 
-var nodeMeta = nodeMetadata.NewNodeMetadata
+//var nodeMeta = nodeMetadata.NewNodeMetadata
 
 // GetIBMCSIDriver ...
 func GetIBMCSIDriver() *IBMCSIDriver {
