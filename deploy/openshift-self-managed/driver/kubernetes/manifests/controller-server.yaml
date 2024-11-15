@@ -27,7 +27,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 2121
-        # runAsGroup: 2121 # Not applicable to Red Hat OpenShift Container Platform Self-Managed
+        runAsGroup: 2121
       containers:
         - name: csi-provisioner
           image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL

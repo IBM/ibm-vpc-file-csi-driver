@@ -11,6 +11,7 @@ metadata:
     release.openshift.io/create-only: "true"
   generation: 1
   name: ibm-vpc-file-scc
+  namespace: openshift-cluster-csi-drivers
 allowHostDirVolumePlugin: true
 allowHostIPC: true
 allowHostNetwork: true

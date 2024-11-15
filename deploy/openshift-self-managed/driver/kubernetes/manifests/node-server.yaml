@@ -233,7 +233,7 @@ spec:
           hostPath:
             path: /sys
             type: Directory
-        - name: customer-auth # altough its not required, This is just to finish lib configuration which is a common code in the driver
+        - name: customer-auth # Although its not required, this is just to finish lib configuration which is a common code in the driver
           secret:
             secretName: storage-secret-store
         - name: cluster-info # To get the cluster info
