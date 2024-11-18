@@ -24,7 +24,6 @@ import (
 	"os"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
-	nodeInfoManager "github.com/IBM/ibm-csi-common/pkg/metadata"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
@@ -49,7 +48,7 @@ type IBMCSIDriver struct {
 	nscap []*csi.NodeServiceCapability
 }
 
-//var nodeMeta = nodeMetadata.NewNodeMetadata
+var nodeMeta = nodeMetadata.NewNodeMetadata
 
 // GetIBMCSIDriver ...
 func GetIBMCSIDriver() *IBMCSIDriver {
@@ -113,13 +112,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 
 	icDriver.logger.Info("Successfully setup IBM CSI driver")
 	// Set up Region
-	nodeName := os.Getenv("KUBE_NODE_NAME")
-
-	nodeInfo := nodeInfoManager.NodeInfoManager{
-		NodeName: nodeName,
-	}
-
-	regionMetadata, err := nodeInfo.NewNodeMetadata(lgr)
+	regionMetadata, err := nodeMeta(os.Getenv("KUBE_NODE_NAME"), lgr)
 	if err != nil {
 		return fmt.Errorf("Controller_Helper: Failed to initialize node metadata")
 	}
