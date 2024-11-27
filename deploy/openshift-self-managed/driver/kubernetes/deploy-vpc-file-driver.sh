@@ -24,17 +24,23 @@ if [ $# -ge 2 ]; then
 else
   echo "Execution as interactive input prompts for ConfigMap objects"
   echo "Input =  IBMCLOUD_ACCOUNT_ID"
+  echo -e ""
   read -p "Value =  " EDIT_REQUIRED_MANUAL_IBMCLOUD_ACCOUNT_ID
 
   echo "Input =  IBMCLOUD_VPC_ID"
+  echo -e ""
   read -p "Value =  " EDIT_REQUIRED_MANUAL_IBMCLOUD_VPC_ID
 
-  echo "Input =  IBMCLOUD_VPC_SUBNET_IDS (comma-separated list without quotation or spaces)"
+  echo "Input =  IBMCLOUD_VPC_SUBNET_IDS"
+  echo "NOTE     Must use comma-separated string without quotation or spaces such as..."
+  echo "EXAMPLE  02b7-11111,02c7-22222,02d7-33333"
+  echo -e ""
   read -p "Value =  " EDIT_REQUIRED_MANUAL_IBMCLOUD_VPC_SUBNET_IDS
 
   echo "Checking for Cluster Name from the control plane node names"
   oc get nodes -l node-role.kubernetes.io/master --output json | jq -r '.items[0].metadata.name'
   echo "Input =  CLUSTER_ID (amend from above)"
+  echo -e ""
   read -p "Value =  " EDIT_REQUIRED_MANUAL_CLUSTER_ID
 
   # Export so can be used by envsubst
