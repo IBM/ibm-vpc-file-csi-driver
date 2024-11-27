@@ -70,7 +70,7 @@ This will use an existing container image release of the IBM Cloud File Storage 
 
 ### Confirm network security
 
-To confirm the VPC Security Group Rules for the cluster, use the following script to test if the Security Groups attached to a worker node contain any rules that permit NFS protocol port 2049 UDP:
+To confirm the VPC Security Group Rules for the cluster, use the following script to test if the Security Groups attached to a worker node contain any rules that permit NFS protocol port 2049 TCP:
 
 ```shell
 ibmcloud plugin install -f is
@@ -82,16 +82,16 @@ worker_instance_sgs=$(ibmcloud is instance $worker_instance_example --output jso
 sg_rules_list=""
 
 for sg in ${worker_instance_sgs} ; do
-  rules=$(ibmcloud is sg $sg --output json | jq -r '.rules | .[] | select(.protocol=="udp") | [.port_min,.port_max] | @csv' | sort | uniq)
+  rules=$(ibmcloud is sg $sg --output json | jq -r '.rules | .[] | select(.protocol=="tcp") | [.port_min,.port_max] | @csv' | sort | uniq)
   sg_rules_list+=$'\n'"${rules}"
 done
 
 for rule in $(echo "$sg_rules_list" | grep "\S" | sort | uniq) ; do
   rule_min="${rule%%,*}"
   rule_max="${rule#*,}"
-  if [ "2049" -ge "$rule_min" ] && [ "2049" -le "$rule_max" ]; then echo "NFS protocol port 2049 UDP is allowed" && export SG_RULE_FLAG="1" ; fi
+  if [ "2049" -ge "$rule_min" ] && [ "2049" -le "$rule_max" ]; then echo "NFS protocol port 2049 TCP is allowed" && export SG_RULE_FLAG="1" ; fi
 done
-if [ $SG_RULE_FLAG != "1" ]; then echo "Please add inbound/outbound SG Rule for 2049 UDP" ; fi
+if [ $SG_RULE_FLAG != "1" ]; then echo "Please add inbound/outbound SG Rule for 2049 TCP" ; fi
 ```
 
 ### Add additional labels to all worker nodes
@@ -173,7 +173,7 @@ The following instructions describe a generic manual build and deploy of the IBM
 
 ### Confirm network security
 
-To confirm the VPC Security Group Rules for the cluster, use the following script to test if the Security Groups attached to a worker node contain any rules that permit NFS protocol port 2049 UDP:
+To confirm the VPC Security Group Rules for the cluster, use the following script to test if the Security Groups attached to a worker node contain any rules that permit NFS protocol port 2049 TCP:
 
 ```shell
 ibmcloud plugin install -f is
@@ -185,16 +185,16 @@ worker_instance_sgs=$(ibmcloud is instance $worker_instance_example --output jso
 sg_rules_list=""
 
 for sg in ${worker_instance_sgs} ; do
-  rules=$(ibmcloud is sg $sg --output json | jq -r '.rules | .[] | select(.protocol=="udp") | [.port_min,.port_max] | @csv' | sort | uniq)
+  rules=$(ibmcloud is sg $sg --output json | jq -r '.rules | .[] | select(.protocol=="tcp") | [.port_min,.port_max] | @csv' | sort | uniq)
   sg_rules_list+=$'\n'"${rules}"
 done
 
 for rule in $(echo "$sg_rules_list" | grep "\S" | sort | uniq) ; do
   rule_min="${rule%%,*}"
   rule_max="${rule#*,}"
-  if [ "2049" -ge "$rule_min" ] && [ "2049" -le "$rule_max" ]; then echo "NFS protocol port 2049 UDP is allowed" && export SG_RULE_FLAG="1" ; fi
+  if [ "2049" -ge "$rule_min" ] && [ "2049" -le "$rule_max" ]; then echo "NFS protocol port 2049 TCP is allowed" && export SG_RULE_FLAG="1" ; fi
 done
-if [ $SG_RULE_FLAG != "1" ]; then echo "Please add inbound/outbound SG Rule for 2049 UDP" ; fi
+if [ $SG_RULE_FLAG != "1" ]; then echo "Please add inbound/outbound SG Rule for 2049 TCP" ; fi
 ```
 
 ### Add additional labels to all worker nodes
@@ -375,10 +375,10 @@ ibmcloud target -r $ibmcloud_region_name
 ibmcloud plugin install -f cr ks
 
 # IBM Cloud Container Registry setup
-# local client Docker daemon login to IBM Cloud Container Registry
-# and set to global for creating a global container namespace
-ibmcloud cr login --client docker
+# set to global for creating a global container namespace
+# and local client Docker daemon login to IBM Cloud Container Registry using global API endpoint
 ibmcloud cr region-set global
+ibmcloud cr login --client docker
 
 # Create Namespace in IBM Cloud Container Registry in Global
 ibmcloud cr namespace-add $ibmcloud_container_registry_namespace -g $ibmcloud_resource_group_name
@@ -551,13 +551,26 @@ vi ./ibm-vpc-file-csi-driver/examples/openshift-self-managed/ibmc-vpc-file-dp2-S
 oc apply -f ./ibm-vpc-file-csi-driver/examples/openshift-self-managed/ibmc-vpc-file-dp2-StorageClass.yaml
 
 # Create PVC in default namespace
-oc create -f examples/kubernetes/validPVC.yaml
+oc create -f ./ibm-vpc-file-csi-driver/examples/openshift-self-managed/test1-validPVC.yaml
 
-# Create Pod with attached volume in default namespace
-oc create -f examples/kubernetes/validPOD.yaml
+# Show PVC
+oc describe pvc test1-pvc-validate -n default
+oc get pvc test1-pvc-validate -n default -o yaml
+
+# Create Deployment, with attached volume using PVC in default namespace
+oc create -f ./ibm-vpc-file-csi-driver/examples/openshift-self-managed/test2-validPOD.yaml
+
+# Show Deployment
+oc get deployment test1-pvc-pod-validate -n default -o yaml
+
+# Show Deployment ReplicaSet
+oc get replicaset -n default
+
+# Show Deployment ReplicaSet Pod/s
+oc get pod -n default
 
 # Execute a command in a Pod container
-oc exec -it pod-name /bin/bash
+oc exec -it test1-pvc-pod-validate-HASH -- /bin/bash
 
 # In Pod container terminal, show mount paths for NFS
     root@pod-name:/#  mount -l | grep nfs
@@ -576,6 +589,8 @@ pod_node_sample=$(kubectl get pods --namespace openshift-cluster-csi-drivers | g
 oc describe pod $pod_controller --namespace openshift-cluster-csi-drivers | grep Event -A 20
 oc describe pod $pod_node_sample --namespace openshift-cluster-csi-drivers | grep Event -A 20
 
+oc logs $pod_controller  --namespace openshift-cluster-csi-drivers --container csi-provisioner
+oc logs $pod_controller  --namespace openshift-cluster-csi-drivers --container iks-vpc-file-driver
 oc logs $pod_node_sample --namespace openshift-cluster-csi-drivers --container iks-vpc-file-node-driver
 ```
 
