@@ -1,0 +1,28 @@
+---
+# Create Storage Class for IBM Cloud File Storage Share, with Mount Target Access Mode as Security Groups
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ibmc-file-share-dp2
+  labels:
+    app.kubernetes.io/name: ibm-vpc-file-csi-driver
+  annotations:
+    version: v2.0
+provisioner: vpc.file.csi.ibm.io
+mountOptions:
+  - nfsvers=4.1
+  - sec=sys
+  - hard
+parameters:
+
+  # File Storage Share resource sizing - base, up to 39GiB
+  profile: "dp2"                     # Required - File Storage Share Profile, must be specificed by user and default value is 'dp2'. See https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles.
+  sizeRange: "[10-39]GiB"            # Info.    - File Storage Share Capacity size range allowed in GiB, notation for end-user reference only. The share size is defined per PVC storage request (e.g. 10Gi).
+  iops: "1000"                       # Optional - File Storage Share IOPS throughput maximum allowed. DEFAULT = definition in secrets (100 IOPS).
+
+  # File Storage Share Mount Target network config
+  securityGroupIDs: ""               # Required - VPC Security Group IDs in comma-separated string. DEFAULT = VPC Default Security Group.
+
+allowVolumeExpansion: true
+reclaimPolicy: "Delete"
+volumeBindingMode: "Immediate"

@@ -1,0 +1,72 @@
+---
+# Create Storage Class for IBM Cloud File Storage Share, with Mount Target Access Mode as Security Groups
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ibmc-file-share-dp2
+  labels:
+    app.kubernetes.io/name: ibm-vpc-file-csi-driver
+  annotations:
+    version: v2.0
+provisioner: vpc.file.csi.ibm.io
+mountOptions:
+  - nfsvers=4.1
+  - sec=sys
+  - hard
+parameters:
+
+  # File Storage Share resource assignment
+  resourceGroup: ""                  # Optional - Resource Group ID. DEFAULT = select same as provided VPC ID in ibm-cloud-provider-data secret.
+  region: ""                         # Optional - IBM Cloud Region name (e.g. us-south). DEFAULT = select same as provided VPC ID in ibm-cloud-provider-data secret.
+  zone: ""                           # Optional - IBM Cloud Availability Zone (e.g. us-south-1). DEFAULT = automatic randomised selection.
+
+  # File Storage Share resource sizing - base, up to 39GiB
+  profile: "dp2"                     # Required - File Storage Share Profile, must be specificed by user and default value is 'dp2'. See https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles.
+  sizeRange: "[10-39]GiB"            # Info.    - File Storage Share Capacity size range allowed in GiB, notation for end-user reference only. The share size is defined per PVC storage request (e.g. 10Gi).
+  iops: "1000"                       # Optional - File Storage Share IOPS throughput maximum allowed. DEFAULT = definition in secrets (100 IOPS).
+
+  ### List of alternative File Storage Share dp2 profile IOPS ranges
+  ### sizeRange: "[10-39]GiB"
+  ### iops: "1000"
+  ### sizeRange: "[40-79]GiB"
+  ### iops: "2000"
+  ### sizeRange: "[80-99]GiB"
+  ### iops: "4000"
+  ### sizeRange: "[100-499]GiB"
+  ### iops: "6000"
+  ### sizeRange: "[500-999]GiB"
+  ### iops: "10000"
+  ### sizeRange: "[1000-1999]GiB"
+  ### iops: "20000"
+  ### sizeRange: "[2000-7999]GiB"
+  ### iops: "40000"
+  ### sizeRange: "[8000-15999]GiB"
+  ### iops: "64000"
+  ### sizeRange: "[16000-32000]GiB"
+  ### iops: "96000"
+
+  # File Storage Share resource config
+  billingType: "hourly"              # Optional - Override only. DEFAULT = 'hourly' billing policy.
+  encrypted: "false"                 # Optional - File Storage Share encryption in transit. DEFAULT = disabled (encryption at rest default is enabled, using provider managed).
+  encryptionKey: ""                  # Optional - File Storage Share encryption in transit, define key from IBM Key Protect for IBM Cloud.
+  tags: ""                           # Optional - Tag/s to apply to the File Storage Share, use comma-separated string.
+
+  # File Storage Share Mount Target network config
+  securityGroupIDs: ""               # Required - VPC Security Group IDs in comma-separated string. DEFAULT = VPC Default Security Group.
+  isENIEnabled: "true"               # Optional - Use detachable Virtual Network Interface (VNI). DEFAULT = true.
+  subnetID: ""                       # Optional - VPC Subnet ID in which the File Storage Share's VNI will be created. DEFAULT = select from VPC Subnet IDs provided in ibm-cloud-provider-data secret.
+  primaryIPID: ""                    # Optional - VPC Subnet Reserved IP ID, use with 'zone' key and optionally remove 'subnetID' key.
+  primaryIPAddress: ""               # Optional - VPC Subnet IP Address, use with 'zone' and 'subnetID' keys. The requested IP Address must be currently available.
+
+  # NFS mount config
+  uid: "0"                           # Optional - NFS Mount linux user id for the File Storage Share.
+  gid: "0"                           # Optional - NFS Mount linux group id for the File Storage Share.
+
+  # CSI Driver config
+  classVersion: "1"
+  #csi.storage.k8s.io/provisioner-secret-name: ${pvc.name}
+  #csi.storage.k8s.io/provisioner-secret-namespace: ${pvc.namespace}
+
+allowVolumeExpansion: true
+reclaimPolicy: "Delete"
+volumeBindingMode: "Immediate"
