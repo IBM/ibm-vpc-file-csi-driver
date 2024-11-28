@@ -3,17 +3,17 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: ibm-vpc-file-csi-controller
-  namespace: kube-system
+  namespace: openshift-cluster-csi-drivers
 spec:
   template:
     spec:
       containers:
         - name: csi-provisioner
           image: registry.k8s.io/sig-storage/csi-provisioner:v5.0.2
-        - name: liveness-probe
-          image: registry.k8s.io/sig-storage/livenessprobe:v2.13.1
         - name: csi-resizer
           image: registry.k8s.io/sig-storage/csi-resizer:v1.11.2
+        - name: liveness-probe
+          image: registry.k8s.io/sig-storage/livenessprobe:v2.13.1
         - name: iks-vpc-file-driver
           image: icr.io/ibm/ibm-vpc-file-csi-driver:v1.0.0
           imagePullPolicy: Always

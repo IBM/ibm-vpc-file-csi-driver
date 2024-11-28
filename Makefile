@@ -23,8 +23,13 @@ VERSION := latest
 GIT_COMMIT_SHA="$(shell git rev-parse HEAD 2>/dev/null)"
 GIT_REMOTE_URL="$(shell git config --get remote.origin.url 2>/dev/null)"
 BUILD_DATE="$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")"
-ARCH=$(shell docker version -f {{.Client.Arch}})
 OSS_FILES := go.mod Dockerfile
+
+# Search for Client Arch, adjust for docker and podman differences
+# https://github.com/docker/cli/blob/master/cli/command/system/version.go#L32
+# https://github.com/containers/podman/blob/main/cmd/podman/system/version.go#L100
+# ARCH=$(shell docker version -f {{.Client.Arch}})
+ARCH=$(shell docker version -f {{.Client.Arch}} || docker version -f {{.Client.OsArch}} | xargs basename)
 
 # Jenkins vars. Set to `unknown` if the variable is not yet defined
 BUILD_NUMBER?=unknown
@@ -66,13 +71,21 @@ dofmt:
 lint:
 	$(GOPATH)/bin/golangci-lint run --timeout 600s
 
+# Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
 build:
-	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH) go build -mod=vendor -a -ldflags '-X main.vendorVersion='"${DRIVER_NAME}-${GIT_COMMIT_SHA}"' -extldflags "-static"' -o ${GOPATH}/bin/${EXE_DRIVER_NAME} ./cmd/
+	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH) \
+		go mod vendor
+	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH) \
+		go build -mod=vendor -a \
+		-ldflags '-X main.vendorVersion='"${DRIVER_NAME}-${GIT_COMMIT_SHA}"' -extldflags "-static"' \
+		-o ${GOPATH}/bin/${EXE_DRIVER_NAME} \
+		./cmd/
 
+# 'go test -race' requires cgo, set CGO_ENABLED=1
 .PHONY: test
 test:
-	$(GOPATH)/bin/gotestcover -v -race -short -coverprofile=cover.out ${GOPACKAGES}
+	CGO_ENABLED=1 $(GOPATH)/bin/gotestcover -v -race -short -coverprofile=cover.out ${GOPACKAGES}
 	go tool cover -html=cover.out -o=cover.html  # Uncomment this line when UT in place.
 
 .PHONY: ut-coverage

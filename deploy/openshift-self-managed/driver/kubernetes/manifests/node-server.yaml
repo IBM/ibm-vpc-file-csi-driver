@@ -3,7 +3,7 @@ kind: DaemonSet
 apiVersion: apps/v1
 metadata:
   name: ibm-vpc-file-csi-node
-  namespace: kube-system
+  namespace: openshift-cluster-csi-drivers
   labels:
     app.kubernetes.io/name: ibm-vpc-file-csi-driver
 spec:
@@ -95,10 +95,11 @@ spec:
                   fieldPath: spec.nodeName
             - name: SOCKET_PATH
               value: "/var/lib/ibmshare.sock"
-            - name: IS_NODE_SERVER
-              value: "true"
-            - name: SIDECAR_GROUP_ID
-              value: "2121"
+            # Not applicable to Red Hat OpenShift Container Platform Self-Managed
+            # - name: IS_NODE_SERVER
+            #   value: "true"
+            # - name: SIDECAR_GROUP_ID
+            #   value: "2121"
           resources:
             limits:
               cpu: 200m
@@ -122,7 +123,7 @@ spec:
             - name: secret-sidecar-sock-dir
               mountPath: /sidecardir
             - name: kubelet-data-dir
-              mountPath: /var/data/kubelet
+              mountPath: /var/lib/kubelet # For IKS use /data/, for OCP use /lib/
               mountPropagation: "Bidirectional"
             - name: plugin-dir
               mountPath: /csi
@@ -148,13 +149,14 @@ spec:
               name: mh-logs
         - name: liveness-probe
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 2121
-            runAsGroup: 2121
+            runAsNonRoot: false # For IKS use true, for OCP use false
+            runAsUser: 0 # For IKS use 2121, for OCP use 0
+            runAsGroup: 0 # For IKS use 2121, for OCP use 0
             privileged: false
-            seLinuxOptions: # seLinux label is set as a precaution for accessing csi socket
-              type: spc_t
-              level: s0
+            # Not applicable to Red Hat OpenShift Container Platform Self-Managed
+            # seLinuxOptions: # seLinux label is set as a precaution for accessing csi socket
+            # type: spc_t
+            # level: s0
           image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           args:
             - "--csi-address=$(CSI_ADDRESS)"
@@ -174,27 +176,28 @@ spec:
           volumeMounts:
             - name: plugin-dir
               mountPath: /csi
-        - name: storage-secret-sidecar
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 2121
-            runAsGroup: 2121
-            privileged: false
-          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
-          imagePullPolicy: Always
-          args:
-            - "--endpoint=$(SIDECAR_ENDPOINT)"
-          env:
-            - name: SIDECAR_ENDPOINT
-              valueFrom:
-                configMapKeyRef:
-                  name: ibm-vpc-file-csi-configmap
-                  key: SIDECAR_ENDPOINT
-          volumeMounts:
-            - mountPath: /sidecardir
-              name: secret-sidecar-sock-dir
-            - mountPath: /var/run/secrets/tokens
-              name: vault-token
+        # Not applicable to Red Hat OpenShift Container Platform Self-Managed
+        # - name: storage-secret-sidecar
+        #   securityContext:
+        #     runAsNonRoot: true
+        #     runAsUser: 2121
+        #     runAsGroup: 2121
+        #     privileged: false
+        #   image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
+        #   imagePullPolicy: Always
+        #   args:
+        #     - "--endpoint=$(SIDECAR_ENDPOINT)"
+        #   env:
+        #     - name: SIDECAR_ENDPOINT
+        #       valueFrom:
+        #         configMapKeyRef:
+        #           name: ibm-vpc-file-csi-configmap
+        #           key: SIDECAR_ENDPOINT
+        #   volumeMounts:
+        #     - mountPath: /sidecardir
+        #       name: secret-sidecar-sock-dir
+        #     - mountPath: /var/run/secrets/tokens
+        #       name: vault-token
       volumes:
         - name: secret-sidecar-sock-dir
           emptyDir: {}
@@ -204,7 +207,7 @@ spec:
             type: Directory
         - name: kubelet-data-dir
           hostPath:
-            path: /var/data/kubelet # IKS worker
+            path: /var/lib/kubelet # For IKS use /data/, for OCP use /lib/
             type: Directory
         - name: plugin-dir
           hostPath:
@@ -230,7 +233,7 @@ spec:
           hostPath:
             path: /sys
             type: Directory
-        - name: customer-auth # altough its not required, This is just to finish lib configuration which is a common code in the driver
+        - name: customer-auth # Although its not required, this is just to finish lib configuration which is a common code in the driver
           secret:
             secretName: storage-secret-store
         - name: cluster-info # To get the cluster info

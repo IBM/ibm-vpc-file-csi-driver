@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ibm-vpc-file-csi-configmap
-  namespace: kube-system
+  namespace: openshift-cluster-csi-drivers
 data:
   SECRET_CONFIG_PATH: "/etc/storage_ibmc"
   CSI_ENDPOINT: "unix:/csi/csi-vpc-file.sock"
@@ -17,4 +17,4 @@ data:
   VPC_RETRY_INTERVAL: "60" # This is max retry Gap in seconds even considering for exponential retry
   VPC_API_VERSION: "2021-04-20"
   VPC_API_GENERATION: "1"
-  IKS_ENABLED: "True"
+  IKS_ENABLED: "False" # must be set to false for Red Hat OpenShift
