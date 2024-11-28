@@ -1,0 +1,11 @@
+---
+# This file is only required for usage of the CSI Driver with OCP
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ibm-cloud-provider-data
+  namespace: openshift-cluster-csi-drivers # for K8S use kube-system, for OpenShift use openshift-cluster-csi-drivers
+data:
+  # VPC Subnet IDs used for Compute Worker nodes in each IBM Cloud Availability Zone
+  vpc_id: $EDIT_REQUIRED_MANUAL_IBMCLOUD_VPC_ID
+  vpc_subnet_ids: $EDIT_REQUIRED_MANUAL_IBMCLOUD_VPC_SUBNET_IDS

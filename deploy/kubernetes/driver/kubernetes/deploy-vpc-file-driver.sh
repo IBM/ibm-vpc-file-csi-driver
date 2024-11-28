@@ -14,10 +14,6 @@ else
 fi
 
 readonly VERSION="${IKS_VPC_FILE_DRIVER_VERSION:-stable}"
-readonly PKG_DIR="${GOPATH}/src/github.com/IBM/ibm-vpc-file-csi-driver"
-#source "${PKG_DIR}/deploy/kubernetes/driver/common.sh"
-
-#ensure_kustomize
 
 #${KUSTOMIZE_PATH}
-kustomize build ${PKG_DIR}/deploy/kubernetes/driver/kubernetes/overlays/${VERSION} | kubectl apply -f -
+kustomize build "${PWD}"/overlays/"${VERSION}" | kubectl apply -f -

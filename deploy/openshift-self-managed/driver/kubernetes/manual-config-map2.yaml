@@ -1,0 +1,15 @@
+---
+# This file is only required for usage of the CSI Driver with OCP
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-info
+  namespace: openshift-cluster-csi-drivers
+data:
+  # Obtain Cluster ID using oc get nodes -l node-role.kubernetes.io/master --output json | jq -r '.items[0].metadata.name'
+  # Obtain IBM Cloud Account ID using ibmcloud account show -o json | jq -r .account_id
+  cluster-config.json: |
+    {
+      "cluster_id": "$EDIT_REQUIRED_MANUAL_CLUSTER_ID",
+      "account_id": "$EDIT_REQUIRED_MANUAL_IBMCLOUD_ACCOUNT_ID",
+    }
