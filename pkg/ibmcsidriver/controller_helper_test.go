@@ -902,6 +902,13 @@ func isCSIResponseSame(expectedVolume *csi.CreateVolumeResponse, actualCSIVolume
 	if expectedVolume == nil || actualCSIVolume == nil {
 		return false
 	}
+	// fmt.Println(expectedVolume.Volume)
+	// fmt.Println(actualCSIVolume.Volume)
+
+	fmt.Println(expectedVolume.Volume.VolumeId + " " + actualCSIVolume.Volume.VolumeId)
+	fmt.Println(expectedVolume.Volume.CapacityBytes, " ", actualCSIVolume.Volume.CapacityBytes)
+	fmt.Println(expectedVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeRegionLabel] + " " + actualCSIVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeRegionLabel])
+	fmt.Println(expectedVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeZoneLabel] + " " + actualCSIVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeZoneLabel])
 
 	return expectedVolume.Volume.VolumeId == actualCSIVolume.Volume.VolumeId &&
 		expectedVolume.Volume.CapacityBytes == actualCSIVolume.Volume.CapacityBytes &&
@@ -990,11 +997,47 @@ func TestCreateCSIVolumeResponse(t *testing.T) {
 			},
 			expectedStatus: true,
 		},
+		{
+			testCaseName: "Valid volume response with region in vol request is empty",
+			requestVol: provider.Volume{VolumeID: volumeID,
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "dp2"},
+					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						AccessControlMode: "security_group",
+					},
+				},
+				Iops: &threeIops,
+				Az:   "testzone",
+			},
+			requestCap:   20,
+			clusterID:    "1234",
+			requestZones: []string{"", ""},
+			expectedVolume: &csi.CreateVolumeResponse{
+				Volume: &csi.Volume{
+					CapacityBytes: 20,
+					VolumeId:      volumeID + VolumeIDSeperator + volumeAPID,
+					VolumeContext: map[string]string{VolumeIDLabel: volumeID + VolumeIDSeperator + volumeAPID, IOPSLabel: threeIops, utils.NodeRegionLabel: "us-south-test", utils.NodeZoneLabel: "testzone"},
+					AccessibleTopology: []*csi.Topology{{
+						Segments: map[string]string{
+							utils.NodeRegionLabel: "testregion",
+						},
+					},
+					},
+				},
+			},
+			expectedStatus: true,
+		},
+	}
+	// Setup test driver
+	icDriver := initIBMCSIDriver(t)
+	if icDriver == nil {
+		t.Fatalf("Failed to setup IBM CSI Driver")
 	}
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			actualCSIVolume := createCSIVolumeResponse(testcase.requestVol, provider.VolumeAccessPointResponse{AccessPointID: volumeAPID}, testcase.requestCap, testcase.requestZones, testcase.clusterID)
+			actualCSIVolume := createCSIVolumeResponse(testcase.requestVol, provider.VolumeAccessPointResponse{AccessPointID: volumeAPID}, testcase.requestCap, testcase.requestZones, testcase.clusterID, icDriver.region)
 			assert.Equal(t, testcase.expectedStatus, isCSIResponseSame(testcase.expectedVolume, actualCSIVolume))
 		})
 	}
