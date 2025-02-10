@@ -8,7 +8,7 @@ require (
 	github.com/IBM/ibmcloud-volume-interface v1.2.6
 	github.com/IBM/secret-utils-lib v1.1.11
 	github.com/container-storage-interface/spec v1.9.0
-	github.com/golang/glog v1.2.1
+	github.com/golang/glog v1.2.4
 	github.com/google/uuid v1.6.0
 	github.com/kubernetes-csi/csi-test/v4 v4.4.0
 	github.com/prometheus/client_golang v1.19.1
@@ -100,4 +100,9 @@ require (
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
+)
+
+replace (
+	github.com/golang/glog => github.com/golang/glog v1.2.4
+	golang.org/x/crypto => golang.org/x/crypto v0.31.0
 )
