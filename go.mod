@@ -103,3 +103,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace (
+	github.com/golang/glog => github.com/golang/glog v1.2.4
+	golang.org/x/crypto => golang.org/x/crypto v0.31.0
+)
