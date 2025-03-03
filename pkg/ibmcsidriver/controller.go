@@ -181,7 +181,8 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		subnetID := requestedVolume.SubnetID
 
 		if len(subnetID) == 0 && (requestedVolume.PrimaryIP == nil || len(requestedVolume.PrimaryIP.ID) == 0) {
-			subnetIDList := os.Getenv("VPC_SUBNET_IDS")
+			//subnetIDList := os.Getenv("VPC_SUBNET_IDS")
+			subnetIDList := ""
 			ctxLogger.Info("List of subnetIDs considered", zap.Any("subnetIDList", subnetIDList))
 
 			//We need to abort here as there is no use of going ahead and fetching the matching subnet with empty list
