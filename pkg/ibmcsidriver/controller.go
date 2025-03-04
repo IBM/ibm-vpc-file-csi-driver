@@ -240,7 +240,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 		volumeObj, err = session.CreateVolume(*requestedVolume)
 		if err != nil {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+			return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 		}
 
 		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
@@ -270,7 +270,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 		repsonse, err := session.CreateVolumeAccessPoint(volumeAccesspointReq)
 		if err != nil {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+			return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 		}
 
 		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
@@ -281,7 +281,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 	volumeAccessPointObj, err := session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
 	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 
 	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", volumeAccessPointObj.AccessPointID))
