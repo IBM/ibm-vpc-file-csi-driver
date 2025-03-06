@@ -341,7 +341,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			securityGroupError:            nil,
 			libVolumeError:                nil,
 			libVolumeAccessPointError:     nil,
-			libVolumeAccessPointWaitError: providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume Access Point not in stable failed", Type: providerError.ProvisioningFailed},
+			libVolumeAccessPointWaitError: providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume Access Point not in stable failed", Type: providerError.ProvisioningFailed, RC: 500},
 		},
 		{
 			name: "Empty volume name",
@@ -417,7 +417,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeResponse:             nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
-			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.ProvisioningFailed},
+			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.ProvisioningFailed, RC: 500},
 		},
 		{
 			name: "InvalidRequest lib error form create volume",
@@ -427,7 +427,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: stdVolCap,
 				Parameters:         stdParams,
 			},
-			expErrCode:                    codes.Internal,
+			expErrCode:                    codes.InvalidArgument,
 			expVol:                        nil,
 			subnetID:                      "sub-1",
 			securityGroupID:               "kube-fake-cluster-id",
@@ -436,7 +436,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeResponse:             nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
-			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.InvalidRequest},
+			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.InvalidRequest, RC: 400},
 		},
 		{
 			name: "Other error lib error form create volume",
@@ -446,7 +446,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: stdVolCap,
 				Parameters:         stdParams,
 			},
-			expErrCode:                codes.Internal,
+			expErrCode:                codes.InvalidArgument,
 			expVol:                    nil,
 			subnetID:                  "sub-1",
 			securityGroupID:           "kube-fake-cluster-id",
@@ -454,7 +454,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			securityGroupError:        nil,
 			libVolumeResponse:         nil,
 			libVolumeAccessPointError: nil,
-			libVolumeError:            providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.Unauthenticated},
+			libVolumeError:            providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.Unauthenticated, RC: 400},
 		},
 	}
 
