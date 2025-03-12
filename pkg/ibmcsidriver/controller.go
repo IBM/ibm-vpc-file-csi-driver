@@ -71,7 +71,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
 	ctxLogger.Info("CSIControllerServer-CreateVolume... ", zap.Reflect("Request", *req))
-	defer metrics.UpdateDurationFromStart(ctxLogger, "CreateVolume", time.Now())
+	defer metrics.UpdateDurationFromStart(ctxLogger, "CSICreateVolume", time.Now())
 
 	// Check basic parameters validations i.e PVC name given
 	name := req.GetName()
@@ -97,8 +97,10 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		// Create copy of the requestedVolume
 		tempReqVol := (*requestedVolume)
 		// Mask VolumeEncryptionKey
-		tempReqVol.VPCVolume.VolumeEncryptionKey = &provider.VolumeEncryptionKey{CRN: "********"}
-		ctxLogger.Info("Volume request after masking encryption key", zap.Reflect("Volume", tempReqVol))
+		if requestedVolume.VPCVolume.VolumeEncryptionKey != nil {
+			tempReqVol.VPCVolume.VolumeEncryptionKey = &provider.VolumeEncryptionKey{CRN: "********"}
+		}
+		ctxLogger.Info("Volume request", zap.Reflect("Volume", tempReqVol))
 	}
 
 	if err != nil {
@@ -303,7 +305,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
-	defer metrics.UpdateDurationFromStart(ctxLogger, "DeleteVolume", time.Now())
+	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIDeleteVolume", time.Now())
 	ctxLogger.Info("CSIControllerServer-DeleteVolume... ", zap.Reflect("Request", *req))
 
 	// Validate arguments
@@ -433,7 +435,7 @@ func (csiCS *CSIControllerServer) ListVolumes(ctx context.Context, req *csi.List
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
 	ctxLogger.Info("CSIControllerServer-ListVolumes...", zap.Reflect("Request", *req))
-	defer metrics.UpdateDurationFromStart(ctxLogger, metrics.FunctionLabel("ListVolumes"), time.Now())
+	defer metrics.UpdateDurationFromStart(ctxLogger, metrics.FunctionLabel("CSIListVolumes"), time.Now())
 
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
 	if err != nil {
@@ -474,7 +476,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
-
+	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIExpandVolume", time.Now())
 	ctxLogger.Info("CSIControllerServer-ControllerExpandVolume", zap.Reflect("Request", requestID))
 	volumeID := req.GetVolumeId()
 	capacity := req.GetCapacityRange().GetRequiredBytes()
