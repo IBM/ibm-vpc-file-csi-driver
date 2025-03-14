@@ -21,7 +21,6 @@ package ibmcsidriver
 
 import (
 	"os"
-	"strings"
 	"time"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
@@ -72,7 +71,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
 	ctxLogger.Info("CSIControllerServer-CreateVolume... ", zap.Reflect("Request", *req))
-	defer metrics.UpdateDurationFromStart(ctxLogger, "CreateVolume", time.Now())
+	defer metrics.UpdateDurationFromStart(ctxLogger, "CSICreateVolume", time.Now())
 
 	// Check basic parameters validations i.e PVC name given
 	name := req.GetName()
@@ -98,8 +97,10 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		// Create copy of the requestedVolume
 		tempReqVol := (*requestedVolume)
 		// Mask VolumeEncryptionKey
-		tempReqVol.VPCVolume.VolumeEncryptionKey = &provider.VolumeEncryptionKey{CRN: "********"}
-		ctxLogger.Info("Volume request after masking encryption key", zap.Reflect("Volume", tempReqVol))
+		if requestedVolume.VPCVolume.VolumeEncryptionKey != nil {
+			tempReqVol.VPCVolume.VolumeEncryptionKey = &provider.VolumeEncryptionKey{CRN: "********"}
+		}
+		ctxLogger.Info("Volume request", zap.Reflect("Volume", tempReqVol))
 	}
 
 	if err != nil {
@@ -200,7 +201,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 			subnetID, err = session.GetSubnetForVolumeAccessPoint(subnetReq)
 			if err != nil || len(subnetID) == 0 {
-				return nil, commonError.GetCSIError(ctxLogger, commonError.SubnetFindFailed, requestID, err, requestedVolume.Az, subnetIDList)
+				return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 			}
 
 			requestedVolume.SubnetID = subnetID
@@ -240,7 +241,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 		volumeObj, err = session.CreateVolume(*requestedVolume)
 		if err != nil {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+			return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 		}
 
 		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
@@ -270,7 +271,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 		repsonse, err := session.CreateVolumeAccessPoint(volumeAccesspointReq)
 		if err != nil {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+			return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 		}
 
 		//Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
@@ -281,7 +282,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 	volumeAccessPointObj, err := session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
 	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 
 	ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", volumeAccessPointObj.AccessPointID))
@@ -304,7 +305,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
-	defer metrics.UpdateDurationFromStart(ctxLogger, "DeleteVolume", time.Now())
+	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIDeleteVolume", time.Now())
 	ctxLogger.Info("CSIControllerServer-DeleteVolume... ", zap.Reflect("Request", *req))
 
 	// Validate arguments
@@ -349,7 +350,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 
 	response, err := session.DeleteVolumeAccessPoint(volumeAccesspointReq)
 	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 
 	ctxLogger.Info("DeleteVolumeAccessPoint response", zap.Reflect("response", response))
@@ -357,7 +358,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	err = session.WaitForDeleteVolumeAccessPoint(volumeAccesspointReq)
 	if err != nil {
 		//retry gap is constant in the common lib i.e 10 seconds and number of retries are 4*Retry configure in the driver
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 
 	ctxLogger.Info("VolumeAccessPoint deleted successfully")
@@ -366,7 +367,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 
 	err = session.DeleteVolume(volume)
 	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 
 	ctxLogger.Info("Volume deleted successfully")
@@ -412,7 +413,7 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 		if providerError.RetrivalFailed == providerError.GetErrorType(err) {
 			return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, volumeID)
 		}
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 
 	// Setup Response
@@ -434,7 +435,7 @@ func (csiCS *CSIControllerServer) ListVolumes(ctx context.Context, req *csi.List
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
 	ctxLogger.Info("CSIControllerServer-ListVolumes...", zap.Reflect("Request", *req))
-	defer metrics.UpdateDurationFromStart(ctxLogger, metrics.FunctionLabel("ListVolumes"), time.Now())
+	defer metrics.UpdateDurationFromStart(ctxLogger, metrics.FunctionLabel("CSIListVolumes"), time.Now())
 
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
 	if err != nil {
@@ -445,13 +446,7 @@ func (csiCS *CSIControllerServer) ListVolumes(ctx context.Context, req *csi.List
 	tags := map[string]string{}
 	volumeList, err := session.ListVolumes(maxEntries, req.StartingToken, tags)
 	if err != nil {
-		errCode := err.(providerError.Message).Code
-		if strings.Contains(errCode, "InvalidListVolumesLimit") {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
-		} else if strings.Contains(errCode, "StartVolumeIDNotFound") {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.StartVolumeIDNotFound, requestID, err, req.StartingToken)
-		}
-		return nil, commonError.GetCSIError(ctxLogger, commonError.ListVolumesFailed, requestID, err)
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 
 	entries := []*csi.ListVolumesResponse_Entry{}
@@ -481,7 +476,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
-
+	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIExpandVolume", time.Now())
 	ctxLogger.Info("CSIControllerServer-ControllerExpandVolume", zap.Reflect("Request", requestID))
 	volumeID := req.GetVolumeId()
 	capacity := req.GetCapacityRange().GetRequiredBytes()
@@ -519,7 +514,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	}
 	_, err = session.ExpandVolume(volumeExpansionReq)
 	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 	return &csi.ControllerExpandVolumeResponse{CapacityBytes: capacity, NodeExpansionRequired: false}, nil
 }

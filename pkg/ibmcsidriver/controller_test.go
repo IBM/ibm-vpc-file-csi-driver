@@ -20,6 +20,7 @@
 package ibmcsidriver
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -341,7 +342,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			securityGroupError:            nil,
 			libVolumeError:                nil,
 			libVolumeAccessPointError:     nil,
-			libVolumeAccessPointWaitError: providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume Access Point not in stable failed", Type: providerError.ProvisioningFailed},
+			libVolumeAccessPointWaitError: errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InternalError , Description: Volume Access Point not in stable state, RC: 500 Internal Error"),
 		},
 		{
 			name: "Empty volume name",
@@ -417,7 +418,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeResponse:             nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
-			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.ProvisioningFailed},
+			libVolumeError:                errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InternalError , Description: Create Volume Failed, RC: 500 Internal Error"),
 		},
 		{
 			name: "InvalidRequest lib error form create volume",
@@ -427,7 +428,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: stdVolCap,
 				Parameters:         stdParams,
 			},
-			expErrCode:                    codes.Internal,
+			expErrCode:                    codes.InvalidArgument,
 			expVol:                        nil,
 			subnetID:                      "sub-1",
 			securityGroupID:               "kube-fake-cluster-id",
@@ -436,7 +437,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeResponse:             nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
-			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.InvalidRequest},
+			libVolumeError:                errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InvalidArgument , Description: Volume creation failed, RC: 400 Bad Request"),
 		},
 		{
 			name: "Other error lib error form create volume",
@@ -446,7 +447,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 				VolumeCapabilities: stdVolCap,
 				Parameters:         stdParams,
 			},
-			expErrCode:                codes.Internal,
+			expErrCode:                codes.InvalidArgument,
 			expVol:                    nil,
 			subnetID:                  "sub-1",
 			securityGroupID:           "kube-fake-cluster-id",
@@ -454,7 +455,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			securityGroupError:        nil,
 			libVolumeResponse:         nil,
 			libVolumeAccessPointError: nil,
-			libVolumeError:            providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.Unauthenticated},
+			libVolumeError:            errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InvalidArgument , Description: Volume creation failed, RC: 400 Bad Request"),
 		},
 	}
 
