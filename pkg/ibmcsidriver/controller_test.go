@@ -20,6 +20,7 @@
 package ibmcsidriver
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -341,7 +342,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			securityGroupError:            nil,
 			libVolumeError:                nil,
 			libVolumeAccessPointError:     nil,
-			libVolumeAccessPointWaitError: providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume Access Point not in stable failed", Type: providerError.ProvisioningFailed, RC: 500},
+			libVolumeAccessPointWaitError: errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InternalError , Description: Volume Access Point not in stable state, RC: 500 Internal Error"),
 		},
 		{
 			name: "Empty volume name",
@@ -417,7 +418,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeResponse:             nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
-			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.ProvisioningFailed, RC: 500},
+			libVolumeError:                errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InternalError , Description: Create Volume Failed, RC: 500 Internal Error"),
 		},
 		{
 			name: "InvalidRequest lib error form create volume",
@@ -436,7 +437,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeResponse:             nil,
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
-			libVolumeError:                providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.InvalidRequest, RC: 400},
+			libVolumeError:                errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InvalidArgument , Description: Volume creation failed, RC: 400 Bad Request"),
 		},
 		{
 			name: "Other error lib error form create volume",
@@ -454,7 +455,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			securityGroupError:        nil,
 			libVolumeResponse:         nil,
 			libVolumeAccessPointError: nil,
-			libVolumeError:            providerError.Message{Code: "FailedToPlaceOrder", Description: "Volume creation failed", Type: providerError.Unauthenticated, RC: 400},
+			libVolumeError:            errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InvalidArgument , Description: Volume creation failed, RC: 400 Bad Request"),
 		},
 	}
 

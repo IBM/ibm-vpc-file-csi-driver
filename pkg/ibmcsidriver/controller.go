@@ -201,7 +201,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 			subnetID, err = session.GetSubnetForVolumeAccessPoint(subnetReq)
 			if err != nil || len(subnetID) == 0 {
-				return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err, requestedVolume.Az, subnetIDList)
+				return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 			}
 
 			requestedVolume.SubnetID = subnetID
