@@ -33,7 +33,7 @@ GREEN_THRESHOLD=85
 YELLOW_THRESHOLD=50
 
 # clone and prepare gh-pages branch
-git clone -b gh-pages https://$GHE_USER:$GHE_TOKEN@github.com/$TRAVIS_REPO_SLUG.git .
+git clone -b gh-pages https://$GHE_USER1:$GHE_TOKEN1@github.com/$TRAVIS_REPO_SLUG.git .
 git config user.name "travis"
 git config user.email "travis"
 
@@ -91,6 +91,6 @@ if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
 	git push origin
 else
         # Updates PR with coverage
-   		curl -X POST -H "Authorization: Token $GHE_TOKEN" "https://api.github.com/repos/$TRAVIS_REPO_SLUG/issues/$TRAVIS_PULL_REQUEST/comments" -H 'Content-Type: application/json' --data '{"body": "'"$RESULT_MESSAGE"'"}'
+   		curl -X POST -H "Authorization: Token $GHE_TOKEN1" "https://api.github.com/repos/$TRAVIS_REPO_SLUG/issues/$TRAVIS_PULL_REQUEST/comments" -H 'Content-Type: application/json' --data '{"body": "'"$RESULT_MESSAGE"'"}'
 
 fi
