@@ -31,7 +31,6 @@ func TestSetup(t *testing.T) {
 	goodEndpoint := flag.String("endpoint", "unix:/tmp/testcsi.sock", "Test CSI endpoint")
 	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
-
 	s := NewNonBlockingGRPCServer(logger)
 	nonBlockingServer, ok := s.(*nonBlockingGRPCServer)
 	assert.Equal(t, true, ok)
