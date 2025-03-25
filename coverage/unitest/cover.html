@@ -59,7 +59,7 @@
 				
 				<option value="file1">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/controller.go (91.4%)</option>
 				
-				<option value="file2">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/controller_helper.go (90.7%)</option>
+				<option value="file2">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/controller_helper.go (92.3%)</option>
 				
 				<option value="file3">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/fileOps.go (81.2%)</option>
 				
@@ -906,7 +906,7 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 
 // getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
-func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) <span class="cov6" title="26">{
+func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) <span class="cov7" title="26">{
         var encrypt = "undef"
         var err error
         var uid int
@@ -914,10 +914,10 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
         volume := &amp;provider.Volume{}
         volume.Name = &amp;req.Name
         volume.VPCVolume.AccessControlMode = SecurityGroup //Default mode is ENI/VNI
-        for key, value := range req.GetParameters() </span><span class="cov10" title="135">{
+        for key, value := range req.GetParameters() </span><span class="cov10" title="124">{
                 switch key </span>{
-                case Profile:<span class="cov6" title="17">
-                        if utils.ListContainsSubstr(SupportedProfile, value) </span><span class="cov6" title="16">{
+                case Profile:<span class="cov6" title="16">
+                        if utils.ListContainsSubstr(SupportedProfile, value) </span><span class="cov6" title="15">{
                                 volume.VPCVolume.Profile = &amp;provider.Profile{Name: value}
                         }</span> else<span class="cov1" title="1"> {
                                 err = fmt.Errorf("%s:&lt;%v&gt; unsupported profile. Supported profiles are: %v", key, value, SupportedProfile)
@@ -928,17 +928,17 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
                         }</span> else<span class="cov4" title="8"> {
                                 volume.Az = value
                         }</span>
-                case Region:<span class="cov5" title="14">
+                case Region:<span class="cov5" title="13">
                         if len(value) &gt; RegionMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, RegionMaxLen)
-                        }</span> else<span class="cov5" title="13"> {
+                        }</span> else<span class="cov5" title="12"> {
                                 volume.Region = value
                         }</span>
-                case Tag:<span class="cov4" title="8">
+                case Tag:<span class="cov4" title="7">
                         if len(value) &gt; TagMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, TagMaxLen)
                         }</span>
-                        <span class="cov4" title="8">if len(value) != 0 </span><span class="cov4" title="8">{
+                        <span class="cov4" title="7">if len(value) != 0 </span><span class="cov4" title="7">{
                                 volume.VPCVolume.Tags = []string{value}
                         }</span>
                 case SecurityGroupIDs:<span class="cov2" title="2">
@@ -961,47 +961,47 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
                         err = checkAndSetISENIEnabled(volume, key, strings.ToLower(value))</span>
                 case IsEITEnabled:<span class="cov3" title="3">
                         err = checkAndSetISEITEnabled(volume, key, strings.ToLower(value))</span>
-                case ResourceGroup:<span class="cov4" title="8">
+                case ResourceGroup:<span class="cov4" title="7">
                         if len(value) &gt; ResourceGroupIDMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, ResourceGroupIDMaxLen)
                         }</span>
-                        <span class="cov4" title="8">volume.VPCVolume.ResourceGroup = &amp;provider.ResourceGroup{ID: value}</span>
+                        <span class="cov4" title="7">volume.VPCVolume.ResourceGroup = &amp;provider.ResourceGroup{ID: value}</span>
 
                 case BillingType:<span class="cov0" title="0"></span>
                         // Its not supported by RIaaS, but this is just information for the user
 
-                case Encrypted:<span class="cov4" title="8">
+                case Encrypted:<span class="cov4" title="7">
                         if value != TrueStr &amp;&amp; value != FalseStr </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("'&lt;%v&gt;' is invalid, value of '%s' should be [true|false]", value, key)
-                        }</span> else<span class="cov4" title="7"> {
+                        }</span> else<span class="cov4" title="6"> {
                                 encrypt = value
                         }</span>
-                case EncryptionKey:<span class="cov4" title="8">
+                case EncryptionKey:<span class="cov4" title="7">
                         if len(value) &gt; EncryptionKeyMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s: exceeds %d bytes", key, EncryptionKeyMaxLen)
-                        }</span> else<span class="cov4" title="7"> {
-                                if len(value) != 0 </span><span class="cov4" title="7">{
+                        }</span> else<span class="cov4" title="6"> {
+                                if len(value) != 0 </span><span class="cov4" title="6">{
                                         volume.VPCVolume.VolumeEncryptionKey = &amp;provider.VolumeEncryptionKey{CRN: value}
                                 }</span>
                         }
 
-                case ClassVersion:<span class="cov4" title="7">
+                case ClassVersion:<span class="cov4" title="6">
                         // Not needed by RIaaS, this is just info for the user
                         logger.Info("Ignoring storage class parameter", zap.Any("ClassParameter", ClassVersion))</span>
 
-                case SizeRangeSupported:<span class="cov4" title="7">
+                case SizeRangeSupported:<span class="cov4" title="6">
                         // Ignore... Provided in SC just as user information
                         logger.Info("Ignoring storage class parameter", zap.Any("ClassParameter", SizeRangeSupported))</span>
 
-                case SizeIopsRange:<span class="cov4" title="7">
+                case SizeIopsRange:<span class="cov4" title="6">
                         // Ignore... Provided in SC just as user information
                         logger.Info("Ignoring storage class parameter", zap.Any("ClassParameter", SizeIopsRange))</span>
 
-                case Generation:<span class="cov4" title="7">
+                case Generation:<span class="cov4" title="6">
                         // Ignore... Provided in SC just for backward compatibility
                         logger.Info("Ignoring storage class parameter, for backward compatibility", zap.Any("ClassParameter", Generation))</span>
 
-                case IOPS:<span class="cov4" title="8">
+                case IOPS:<span class="cov4" title="7">
                         // Default IOPS can be specified in Custom class
                         if len(value) != 0 </span><span class="cov1" title="1">{
                                 iops := value
@@ -1026,20 +1026,20 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
                 default:<span class="cov1" title="1">
                         err = fmt.Errorf("&lt;%s&gt; is an invalid parameter", key)</span>
                 }
-                <span class="cov10" title="135">if err != nil </span><span class="cov5" title="11">{
+                <span class="cov10" title="124">if err != nil </span><span class="cov5" title="11">{
                         logger.Error("getVolumeParameters", zap.NamedError("SC Parameters", err))
                         return volume, err
                 }</span>
         }
 
         // If encripted is set to false
-        <span class="cov5" title="15">if encrypt == FalseStr </span><span class="cov4" title="6">{
+        <span class="cov6" title="15">if encrypt == FalseStr </span><span class="cov4" title="6">{
                 volume.VPCVolume.VolumeEncryptionKey = nil
         }</span>
 
         // Add initialOnwer if UID/GID is given as parameter.
         // Default will be set to 0 i.e root which even if not set will be defaulted to 0 by the VPC RIAAS
-        <span class="cov5" title="15">if uid != 0 || gid != 0 </span><span class="cov2" title="2">{
+        <span class="cov6" title="15">if uid != 0 || gid != 0 </span><span class="cov2" title="2">{
                 logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
                 volume.InitialOwner = &amp;provider.InitialOwner{
                         GroupID: int64(gid),
@@ -1048,7 +1048,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
         }</span>
 
         // Get the requested capacity from the request
-        <span class="cov5" title="15">capacityRange := req.GetCapacityRange()
+        <span class="cov6" title="15">capacityRange := req.GetCapacityRange()
         capBytes, err := getRequestedCapacity(capacityRange)
         if err != nil </span><span class="cov1" title="1">{
                 err = fmt.Errorf("invalid PVC capacity size: '%v'", err)
@@ -1125,30 +1125,30 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 }
 
 // setSecurityGroupList
-func setSecurityGroupList(volume *provider.Volume, value string) <span class="cov3" title="3">{
+func setSecurityGroupList(volume *provider.Volume, value string) <span class="cov3" title="4">{
         securityGroupstr := strings.TrimSpace(value)
         securityGroupList := strings.Split(securityGroupstr, ",")
         var securityGroups []provider.SecurityGroup
-        for _, securityGroup := range securityGroupList </span><span class="cov3" title="3">{
+        for _, securityGroup := range securityGroupList </span><span class="cov3" title="4">{
                 securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
         }</span>
-        <span class="cov3" title="3">volume.VPCVolume.SecurityGroups = &amp;securityGroups</span>
+        <span class="cov3" title="4">volume.VPCVolume.SecurityGroups = &amp;securityGroups</span>
 }
 
 // checkAndSetISENIEnabled
-func checkAndSetISENIEnabled(volume *provider.Volume, key string, value string) error <span class="cov5" title="12">{
+func checkAndSetISENIEnabled(volume *provider.Volume, key string, value string) error <span class="cov5" title="13">{
         var err error
         if value != TrueStr &amp;&amp; value != FalseStr </span><span class="cov0" title="0">{
                 err = fmt.Errorf("'&lt;%v&gt;' is invalid, value of '%s' should be [true|false]", value, key)
-        }</span> else<span class="cov5" title="12"> {
-                if value == TrueStr </span><span class="cov3" title="5">{
+        }</span> else<span class="cov5" title="13"> {
+                if value == TrueStr </span><span class="cov4" title="6">{
                         volume.VPCVolume.AccessControlMode = SecurityGroup
                 }</span> else<span class="cov4" title="7"> {
                         volume.VPCVolume.AccessControlMode = VPC
                 }</span>
         }
 
-        <span class="cov5" title="12">return err</span>
+        <span class="cov5" title="13">return err</span>
 }
 
 // checkAndSetISEITEnabled
@@ -1165,9 +1165,9 @@ func checkAndSetISEITEnabled(volume *provider.Volume, key string, value string) 
 }
 
 // setPrimaryIPID
-func setPrimaryIPID(volume *provider.Volume, key string, value string) error <span class="cov3" title="3">{
+func setPrimaryIPID(volume *provider.Volume, key string, value string) error <span class="cov2" title="2">{
         //We are failing in case PrimaryIPAddress is already set.
-        if volume.VPCVolume.PrimaryIP == nil </span><span class="cov3" title="3">{
+        if volume.VPCVolume.PrimaryIP == nil </span><span class="cov2" title="2">{
                 volume.VPCVolume.PrimaryIP = &amp;provider.PrimaryIP{PrimaryIPID: provider.PrimaryIPID{ID: value}}
                 return nil
         }</span>
@@ -1216,14 +1216,14 @@ func isValidCapacityIOPS(size int, iops int, profile string) (bool, error) <span
         <span class="cov2" title="2">return true, nil</span>
 }
 
-func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, volume *provider.Volume) error <span class="cov6" title="25">{
+func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, volume *provider.Volume) error <span class="cov7" title="25">{
         var encrypt = "undef"
         var err error
         if volume == nil </span><span class="cov1" title="1">{
                 return fmt.Errorf("invalid volume parameter")
         }</span>
 
-        <span class="cov6" title="24">for key, value := range req.GetSecrets() </span><span class="cov6" title="19">{
+        <span class="cov6" title="24">for key, value := range req.GetSecrets() </span><span class="cov6" title="23">{
                 switch key </span>{
                 case ResourceGroup:<span class="cov1" title="1">
                         if len(value) &gt; ResourceGroupIDMaxLen </span><span class="cov1" title="1">{
@@ -1232,10 +1232,10 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
                                 logger.Info("override", zap.Any(ResourceGroup, value))
                                 volume.VPCVolume.ResourceGroup = &amp;provider.ResourceGroup{ID: value}
                         }</span>
-                case Encrypted:<span class="cov1" title="1">
+                case Encrypted:<span class="cov2" title="2">
                         if value != TrueStr &amp;&amp; value != FalseStr </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("&lt;%v&gt; is invalid, value for '%s' should be [true|false]", value, key)
-                        }</span> else<span class="cov0" title="0"> {
+                        }</span> else<span class="cov1" title="1"> {
                                 logger.Info("override", zap.Any(Encrypted, value))
                                 encrypt = value
                         }</span>
@@ -1257,17 +1257,17 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
                                         volume.VPCVolume.Tags = append(volume.VPCVolume.Tags, value)
                                 }</span>
                         }
-                case Zone:<span class="cov1" title="1">
+                case Zone:<span class="cov2" title="2">
                         if len(value) &gt; ZoneNameMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, ZoneNameMaxLen)
-                        }</span> else<span class="cov0" title="0"> {
+                        }</span> else<span class="cov1" title="1"> {
                                 logger.Info("override", zap.Any(Zone, value))
                                 volume.Az = value
                         }</span>
-                case Region:<span class="cov1" title="1">
+                case Region:<span class="cov2" title="2">
                         if len(value) &gt; RegionMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, RegionMaxLen)
-                        }</span> else<span class="cov0" title="0"> {
+                        }</span> else<span class="cov1" title="1"> {
                                 volume.Region = value
                         }</span>
                 case IOPS:<span class="cov3" title="4">
@@ -1286,12 +1286,12 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
                                         }</span>
                                 }
                         }
-                case SecurityGroupIDs:<span class="cov1" title="1">
-                        if len(value) != 0 </span><span class="cov1" title="1">{
+                case SecurityGroupIDs:<span class="cov2" title="2">
+                        if len(value) != 0 </span><span class="cov2" title="2">{
                                 setSecurityGroupList(volume, value)
                         }</span>
-                case PrimaryIPID:<span class="cov2" title="2">
-                        if len(value) != 0 </span><span class="cov2" title="2">{
+                case PrimaryIPID:<span class="cov1" title="1">
+                        if len(value) != 0 </span><span class="cov1" title="1">{
                                 err = setPrimaryIPID(volume, key, value)
                         }</span>
                 case PrimaryIPAddress:<span class="cov0" title="0">
@@ -1302,14 +1302,14 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
                         if len(value) != 0 </span><span class="cov2" title="2">{
                                 volume.VPCVolume.SubnetID = value
                         }</span>
-                case IsENIEnabled:<span class="cov1" title="1">
+                case IsENIEnabled:<span class="cov2" title="2">
                         err = checkAndSetISENIEnabled(volume, key, strings.ToLower(value))</span>
                 case IsEITEnabled:<span class="cov0" title="0">
                         err = checkAndSetISEITEnabled(volume, key, strings.ToLower(value))</span>
                 default:<span class="cov1" title="1">
                         err = fmt.Errorf("&lt;%s&gt; is an invalid parameter", key)</span>
                 }
-                <span class="cov6" title="19">if err != nil </span><span class="cov5" title="10">{
+                <span class="cov6" title="23">if err != nil </span><span class="cov5" title="10">{
                         logger.Error("overrideParams", zap.NamedError("Secret Parameters", err))
                         return err
                 }</span>
@@ -1362,7 +1362,7 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 }
 
 // createCSIVolumeResponse ...
-func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string, region string) *csi.CreateVolumeResponse <span class="cov3" title="5">{
+func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string, region string) *csi.CreateVolumeResponse <span class="cov4" title="5">{
         labels := map[string]string{}
 
         // Update labels for PV objects
@@ -1376,7 +1376,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
                 labels[IOPSLabel] = *vol.Iops
         }</span>
 
-        <span class="cov3" title="5">labels[FileShareIDLabel] = vol.VolumeID
+        <span class="cov4" title="5">labels[FileShareIDLabel] = vol.VolumeID
         labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
 
         if vol.Region != "" </span><span class="cov3" title="4">{
@@ -1385,7 +1385,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
                 labels[utils.NodeRegionLabel] = region
         }</span>
 
-        <span class="cov3" title="5">topology := &amp;csi.Topology{
+        <span class="cov4" title="5">topology := &amp;csi.Topology{
                 Segments: map[string]string{
                         utils.NodeRegionLabel: labels[utils.NodeRegionLabel],
                 },
@@ -1409,7 +1409,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
                 }
         }
 
-        <span class="cov3" title="5">labels[NFSServerPath] = volAccessPointResponse.MountPath
+        <span class="cov4" title="5">labels[NFSServerPath] = volAccessPointResponse.MountPath
 
         // Update label in case EIT is enabled
         if vol.TransitEncryption == EncryptionTransitMode </span><span class="cov0" title="0">{
@@ -1418,7 +1418,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 
         // Create csi volume response
         //Volume ID is in format volumeID#volumeAccessPointID, to assist the deletion of access point in delete volume
-        <span class="cov3" title="5">volResp := &amp;csi.CreateVolumeResponse{
+        <span class="cov4" title="5">volResp := &amp;csi.CreateVolumeResponse{
                 Volume: &amp;csi.Volume{
                         CapacityBytes:      capBytes,
                         VolumeId:           vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID,
@@ -1440,7 +1440,7 @@ func getTokens(volumeID string) []string <span class="cov5" title="13">{
         }</span>
 }
 
-func pickTargetTopologyParams(top *csi.TopologyRequirement) (map[string]string, error) <span class="cov3" title="5">{
+func pickTargetTopologyParams(top *csi.TopologyRequirement) (map[string]string, error) <span class="cov4" title="5">{
         prefTopologyParams, err := getPrefedTopologyParams(top.GetPreferred())
         if err != nil </span><span class="cov2" title="2">{
                 return nil, fmt.Errorf("could not get zones from preferred topology: %v", err)
@@ -2189,7 +2189,7 @@ import (
         "go.uber.org/zap"
 )
 
-func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mountPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) <span class="cov8" title="4">{
+func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mountPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) <span class="cov7" title="4">{
         mountPathField := zap.String("mountPath", mountPath)
         targetPathField := zap.String("targetPath", targetPath)
         fsTypeField := zap.String("fsType", fsType)
@@ -2200,7 +2200,7 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mount
                 return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, targetPath)
         }</span>
 
-        <span class="cov8" title="4">var err error
+        <span class="cov7" title="4">var err error
         var errResponse string
 
         ctxLogger.Info("Creating request for mounting volume...")
@@ -2210,7 +2210,7 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mount
                 errResponse, err = csiNS.Mounter.MountEITBasedFileShare(mountPath, targetPath, fsType, requestID)
         }</span>
 
-        <span class="cov8" title="4">if err != nil </span><span class="cov0" title="0">{
+        <span class="cov7" title="4">if err != nil </span><span class="cov0" title="0">{
                 notMnt, mntErr := csiNS.Mounter.IsLikelyNotMountPoint(targetPath)
                 if mntErr != nil </span><span class="cov0" title="0">{
                         return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, mntErr, targetPath)
@@ -2243,12 +2243,12 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mount
                 <span class="cov0" title="0">return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)</span>
         }
 
-        <span class="cov8" title="4">ctxLogger.Info("CSINodeServer-processMount successfully mounted", mountPathField, targetPathField, fsTypeField, optionsField)
+        <span class="cov7" title="4">ctxLogger.Info("CSINodeServer-processMount successfully mounted", mountPathField, targetPathField, fsTypeField, optionsField)
         return &amp;csi.NodePublishVolumeResponse{}, nil</span>
 }
 
 // checkMountResponse checks for known errors while mounting and return appropriate user error codes.
-func checkMountResponse(err error) string <span class="cov7" title="3">{
+func checkMountResponse(err error) string <span class="cov6" title="3">{
         errorString := err.Error()
 
         errorMap := map[string]string{
@@ -2256,7 +2256,7 @@ func checkMountResponse(err error) string <span class="cov7" title="3">{
                 `connect: no such file\b`: commonError.UnresponsiveMountHelperContainerUtility,
         }
 
-        for code, message := range errorMap </span><span class="cov10" title="5">{
+        for code, message := range errorMap </span><span class="cov10" title="6">{
                 regex := regexp.MustCompile(code)
                 if regex.MatchString(errorString) </span><span class="cov4" title="2">{
                         return message
