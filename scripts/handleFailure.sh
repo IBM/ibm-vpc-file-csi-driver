@@ -20,7 +20,7 @@ if [ "$TRAVIS_PULL_REQUEST" != "false" ] && [ "$TRAVIS_GO_VERSION" == "tip" ]; t
 	RESULT=$(<state.out)
 	if [ "$RESULT" != "failed" ]; then
 		RESULT_MESSAGE=":warning: Build failed with **tip** version."
-		curl -X POST -H "Authorization: token $GHE_TOKEN1" https://github.com/IBM/ibm-vpc-file-csi-driver/repos/$TRAVIS_REPO_SLUG/issues/$TRAVIS_PULL_REQUEST/comments -H 'Content-Type: application/json' --data '{"body": "'"$RESULT_MESSAGE"'"}'
+		curl -X POST -H "Authorization: token $GHE_TOKEN" https://github.com/IBM/ibm-vpc-file-csi-driver/repos/$TRAVIS_REPO_SLUG/issues/$TRAVIS_PULL_REQUEST/comments -H 'Content-Type: application/json' --data '{"body": "'"$RESULT_MESSAGE"'"}'
 	fi
 fi
 exit 0
