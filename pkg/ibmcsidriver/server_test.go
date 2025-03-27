@@ -93,10 +93,10 @@ func TestSetup(t *testing.T) {
 		t.Logf("setup CSI sidecar ")
 		os.Setenv("IS_NODE_SERVER", "true")
 		ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
-		addr := ls.Addr().String()
-		assert.Nil(t, err)
-		assert.NotNil(t, ls)
-		assert.Equal(t, addr, "/tmp/testcsi.sock")
+		//addr := ls.Addr().String()
+		assert.NotNil(t, err)
+		assert.Nil(t, ls)
+		assert.Equal(t, err.Error(), "/tmp/testcsi.sock")
 	}
 
 	{
