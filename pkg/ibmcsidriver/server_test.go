@@ -113,12 +113,15 @@ func TestLogGRPC(t *testing.T) {
 	ctx := context.Background()
 	info := &grpc.UnaryServerInfo{}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return nil, nil }
-	logGRPC(ctx, nil, info, handler)
+	_, err := logGRPC(ctx, nil, info, handler)
+	assert.Nil(t, err)
 
 	//Return error
 	handler = func(ctx context.Context, req interface{}) (interface{}, error) {
 		return nil, errors.New("handler error")
 	}
-	logGRPC(ctx, nil, info, handler)
+	_, err = logGRPC(ctx, nil, info, handler)
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), "handler error")
 
 }
