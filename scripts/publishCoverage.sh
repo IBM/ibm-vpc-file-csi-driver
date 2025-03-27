@@ -33,7 +33,7 @@ GREEN_THRESHOLD=85
 YELLOW_THRESHOLD=50
 
 # clone and prepare gh-pages branch
-git clone -b gh-pages https://$GHE_USER1:$GHE_TOKEN@github.com/$TRAVIS_REPO_SLUG.git .
+git clone -b gh-pages https://$GHE_USER:$GHE_TOKEN@github.com/$TRAVIS_REPO_SLUG.git .
 git config user.name "travis"
 git config user.email "travis"
 
