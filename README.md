@@ -1,5 +1,8 @@
 # ibm-vpc-file-csi-driver
 
+[![Build Status](https://api.travis-ci.com/IBM/ibm-vpc-file-csi-driver.svg?branch=master)](https://travis-ci.com/IBM/ibm-vpc-file-csi-driver)
+[![Coverage](https://github.com/IBM/ibm-vpc-file-csi-driver/blob/gh-pages/coverage/master/badge.svg)](https://github.com/IBM/ibm-vpc-file-csi-driver/tree/gh-pages/coverage/master/cover.html)
+
 The `ibm-vpc-file-csi-driver` is a CSI plugin for dynamic creation and mount of IBM Cloud File Storage Shares.
 
 This driver includes both Controller and Node service

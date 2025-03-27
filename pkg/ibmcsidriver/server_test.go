@@ -20,11 +20,15 @@
 package ibmcsidriver
 
 import (
+	"errors"
 	"flag"
+	"os"
 	"testing"
 
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 func TestSetup(t *testing.T) {
@@ -84,8 +88,30 @@ func TestSetup(t *testing.T) {
 		//assert.Nil(t, err) // Its working on local system
 		t.Logf("---------> error %v", err)
 	}
+
+	{
+		t.Logf("setup CSI sidecar with chown failure")
+		os.Setenv("IS_NODE_SERVER", "true")
+		ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
+		assert.NotNil(t, err)
+		assert.Nil(t, ls)
+		assert.Equal(t, err.Error(), "chown /tmp/testcsi.sock: operation not permitted")
+	}
 }
 
 func TestLogGRPC(t *testing.T) {
-	t.Logf("TODO:~ TestLogGRPC")
+	ctx := context.Background()
+	info := &grpc.UnaryServerInfo{}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) { return nil, nil }
+	_, err := logGRPC(ctx, nil, info, handler)
+	assert.Nil(t, err)
+
+	//Return error
+	handler = func(ctx context.Context, req interface{}) (interface{}, error) {
+		return nil, errors.New("handler error")
+	}
+	_, err = logGRPC(ctx, nil, info, handler)
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), "handler error")
+
 }
