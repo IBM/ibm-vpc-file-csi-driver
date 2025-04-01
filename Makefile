@@ -17,7 +17,7 @@
 EXE_DRIVER_NAME=ibm-vpc-file-csi-driver
 DRIVER_NAME=vpcFileDriver
 IMAGE = ${EXE_DRIVER_NAME}
-GOPACKAGES=$(shell go list ./... | grep -v /vendor/ | grep -v /cmd | grep -v /tests)
+GOPACKAGES=$(shell go list ./... | grep -v /vendor/ | grep -v /cmd | grep -v /tests | grep -v /pkg/ibmcsidriver/ibmcsidriverfakes)
 VERSION := latest
 
 GIT_COMMIT_SHA="$(shell git rev-parse HEAD 2>/dev/null)"
