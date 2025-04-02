@@ -60,16 +60,16 @@ jobs:
       - name: Build driver
         run: make driver
 
-#      - name: Publish coverage
-#        if: success()
-#        env:
-#          GHE_TOKEN: ${{ secrets.GHE_TOKEN }}
-#        run: |
-#          git config credential.helper "store --file=.git/credentials"
-#          echo "https://${GHE_TOKEN}:@github.com" > .git/credentials
-#          ./scripts/calculateCoverage.sh
-#          ./scripts/publishCoverage.sh
-#
-#      - name: Handle failure
-#        if: failure()
-#        run: ./scripts/handleFailure.sh
+      - name: Publish coverage
+        if: success()
+        env:
+          GHE_TOKEN: ${{ secrets.GHE_TOKEN }}
+        run: |
+          git config credential.helper "store --file=.git/credentials"
+          echo "https://${GHE_TOKEN}:@github.com" > .git/credentials
+          ./scripts/calculateCoverage.sh
+          ./scripts/publishCoverage.sh
+
+      - name: Handle failure
+        if: failure()
+        run: ./scripts/handleFailure.sh

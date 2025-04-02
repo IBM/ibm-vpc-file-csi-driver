@@ -59,9 +59,8 @@ deps:
 
 .PHONY: print
 print:
-	@echo "GOPATH is $(shell go env GOPATH)"
-	@echo "LINT_BIN is $(LINT_BIN)"
-	ls -lah
+	@echo "GOPATH: $(shell go env GOPATH)"
+	@echo "LINT_BIN: $(LINT_BIN)"
 
 .PHONY: lint
 lint:
@@ -74,7 +73,7 @@ fmt: lint
 
 .PHONY: dofmt
 dofmt:
-	$(GOPATH)/bin/golangci-lint run --disable-all --enable=gofmt --fix --timeout 600s
+	$(LINT_BIN) run --disable-all --enable=gofmt --fix --timeout 600s
 
 # Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
