@@ -27,10 +27,10 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Check Go environment
-        run: |
-          go env
-          ls -lah 
+#      - name: Check Go environment
+#        run: |
+#          go env
+
 
       - name: Install dependencies
         run: |
