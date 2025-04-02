@@ -27,6 +27,9 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
+      - name: Check Go environment
+        run: go env
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -35,7 +38,6 @@ jobs:
       - name: Install Go dependencies
         run: |
           make deps
-          go install github.com/pierrre/gotestcover
 
       - name: Set up Go workspace
         run: |
