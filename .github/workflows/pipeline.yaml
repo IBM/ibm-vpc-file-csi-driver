@@ -41,7 +41,8 @@ jobs:
 
       - name: Set up Go workspace
         run: |
-          GOPATH=$(go env GOPATH) 
+          export GOPATH=$(go env GOPATH)
+          echo $GOPATH
           mkdir -p $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver
           rsync -az . $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver
 
