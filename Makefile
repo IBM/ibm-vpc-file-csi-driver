@@ -97,7 +97,8 @@ ut-coverage: deps fmt test
 
 .PHONY: coverage
 coverage:
-	go tool cover -html=cover.out -o=cover.html
+	echo 'mode: atomic' > cover.out
+	go test -timeout 20m -v -covermode=atomic -coverprofile=cover.out ./...
 	@./scripts/calculateCoverage.sh
 
 .PHONY: buildimage
