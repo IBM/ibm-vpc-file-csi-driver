@@ -57,6 +57,10 @@ deps:
 		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$LINT_BIN v${LINT_VERSION}; \
 	fi
 
+.PHONY: print
+print:
+	@echo "GOPATH is $(GOPATH)"
+
 .PHONY: fmt
 fmt: lint
 	@echo GOPATH
