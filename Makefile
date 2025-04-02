@@ -50,10 +50,9 @@ driver: deps buildimage
 .PHONY: deps
 deps:
 	@echo "Installing dependencies ..."
-	go mod tidy  # Ensures dependencies are up-to-date
+	go mod download
 
 	@LINT_BIN=$(shell go env GOPATH)/bin/golangci-lint; \
-	@echo GOPATH
 	if ! command -v golangci-lint >/dev/null || [[ "$$($$LINT_BIN --version)" != *${LINT_VERSION}* ]]; then \
 		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$LINT_BIN v${LINT_VERSION}; \
 	fi
