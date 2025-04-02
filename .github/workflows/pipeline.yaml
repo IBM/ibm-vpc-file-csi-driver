@@ -35,7 +35,6 @@ jobs:
       - name: Install Go dependencies
         run: |
           make deps
-          make print
 
       - name: Set up Go workspace
         run: |
