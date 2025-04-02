@@ -46,6 +46,7 @@ jobs:
           export GOPATH=$(go env GOPATH)
           mkdir -p $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver
           rsync -az . $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver
+          make print
 
       - name: Run formatting check
         run: make fmt
