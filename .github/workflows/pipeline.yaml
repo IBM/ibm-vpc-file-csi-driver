@@ -28,7 +28,9 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Check Go environment
-        run: go env
+        run: |
+          go env
+          ls -lah 
 
       - name: Install dependencies
         run: |
@@ -41,7 +43,7 @@ jobs:
 
       - name: Set up Go workspace
         run: |
-          GOPATH=$(go env GOPATH) 
+          export GOPATH=$(go env GOPATH)
           mkdir -p $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver
           rsync -az . $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver
 

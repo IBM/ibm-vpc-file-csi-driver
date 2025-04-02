@@ -49,17 +49,18 @@ driver: deps buildimage
 
 .PHONY: deps
 deps:
-	echo "Installing dependencies ..."
-	#glide install --strip-vendor
-	go mod download
-	go get github.com/pierrre/gotestcover
-	go install github.com/pierrre/gotestcover
-	@if ! which golangci-lint >/dev/null || [[ "$$(golangci-lint --version)" != *${LINT_VERSION}* ]]; then \
-		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v${LINT_VERSION}; \
+	@echo "Installing dependencies ..."
+	go mod tidy  # Ensures dependencies are up-to-date
+
+	@LINT_BIN=$(shell go env GOPATH)/bin/golangci-lint; \
+	@echo GOPATH
+	if ! command -v golangci-lint >/dev/null || [[ "$$($$LINT_BIN --version)" != *${LINT_VERSION}* ]]; then \
+		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$LINT_BIN v${LINT_VERSION}; \
 	fi
 
 .PHONY: fmt
 fmt: lint
+	@echo GOPATH
 	$(GOPATH)/bin/golangci-lint run --disable-all --enable=gofmt --timeout 600s
 	@if [ -n "$$($(GOPATH)/bin/golangci-lint run)" ]; then echo 'Please run ${COLOR_YELLOW}make dofmt${COLOR_RESET} on your code.' && exit 1; fi
 
