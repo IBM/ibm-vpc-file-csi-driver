@@ -16,9 +16,7 @@ jobs:
       matrix:
         go-version: ["1.22.0", "tip"]
       fail-fast: false
-      allow-failure:
-        - go-version: "tip"
-
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
