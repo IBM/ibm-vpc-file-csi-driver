@@ -1,17 +1,14 @@
 name: IBM VPC File CSI Driver Workflow
 
-#on:
-#  push:
-#    branches:
-#      - master
-#    tags:
-#      - "v[1-9]+.[0-9]+.[0-9]+*"
-#  pull_request:
-#    branches:
-#      - master
-
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - master
+    tags:
+      - "v[1-9]+.[0-9]+.[0-9]+*"
+  pull_request:
+    branches:
+      - master
 
 jobs:
   deploy:
