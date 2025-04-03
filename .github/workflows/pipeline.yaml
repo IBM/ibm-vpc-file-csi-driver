@@ -12,10 +12,18 @@ name: IBM VPC File CSI Driver Workflow
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Choose environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
 
 jobs:
   deploy:
-    if: "github.event_name != 'pull_request_review'"
     runs-on: ubuntu-latest
     strategy:
       matrix:
