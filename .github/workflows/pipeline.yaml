@@ -1,4 +1,4 @@
-name: IBM VPC File CSI Driver Pipeline
+name: IBM VPC File CSI Driver Workflow
 
 #on:
 #  push:
@@ -13,9 +13,8 @@ name: IBM VPC File CSI Driver Pipeline
 on:
   workflow_dispatch:
 
-
 jobs:
-  build:
+  deploy:
     if: "github.event_name != 'pull_request_review'"
     runs-on: ubuntu-latest
     strategy:
