@@ -1,0 +1,2490 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>ibmcsidriver: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/config_watcher.go (90.0%)</option>
+				
+				<option value="file1">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/controller.go (91.4%)</option>
+				
+				<option value="file2">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/controller_helper.go (93.0%)</option>
+				
+				<option value="file3">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/fileOps.go (87.5%)</option>
+				
+				<option value="file4">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/ibm_csi_driver.go (89.8%)</option>
+				
+				<option value="file5">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/identity.go (100.0%)</option>
+				
+				<option value="file6">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/node.go (88.5%)</option>
+				
+				<option value="file7">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/node_helper.go (50.0%)</option>
+				
+				<option value="file8">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/server.go (74.6%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">/**
+ *
+ * Copyright 2023- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package ibmcsidriver ...
+package ibmcsidriver
+
+import (
+        "os"
+        "strings"
+        "time"
+
+        "go.uber.org/zap"
+        v1 "k8s.io/api/core/v1"
+        "k8s.io/apimachinery/pkg/fields"
+        "k8s.io/apimachinery/pkg/util/wait"
+        "k8s.io/client-go/rest"
+        "k8s.io/client-go/tools/cache"
+)
+
+type ConfigWatcher struct {
+        logger *zap.Logger
+        client rest.Interface
+}
+
+func NewConfigWatcher(client rest.Interface, log *zap.Logger) *ConfigWatcher <span class="cov10" title="2">{
+        return &amp;ConfigWatcher{
+                logger: log,
+                client: client,
+        }
+}</span>
+
+func (cw *ConfigWatcher) Start() <span class="cov1" title="1">{
+        watchlist := cache.NewListWatchFromClient(cw.client, "configmaps", ConfigmapNamespace, fields.Set{"metadata.name": ConfigmapName}.AsSelector())
+        _, controller := cache.NewInformer(watchlist, &amp;v1.ConfigMap{}, time.Second*0,
+                cache.ResourceEventHandlerFuncs{
+                        AddFunc:    nil,
+                        DeleteFunc: nil,
+                        UpdateFunc: cw.updateSubnetList,
+                },
+        )
+        stopch := wait.NeverStop
+        go controller.Run(stopch)
+        cw.logger.Info("ConfigWatcher started - start watching for any updates in subnet list", zap.Any("configmap name", ConfigmapName), zap.Any("configmap namespace", ConfigmapNamespace))
+        &lt;-stopch
+}</span>
+
+// updateSubnetList - Updates the VPC_SUBNET_IDS when ibm-cloud-provider-data configmap is updated.
+func (cw *ConfigWatcher) updateSubnetList(oldObj, newObj interface{}) <span class="cov10" title="2">{
+        newData, _ := newObj.(*v1.ConfigMap)
+        oldData, _ := oldObj.(*v1.ConfigMap)
+        // Confirm if the event recieved is for ibm-cloud-provider-data configmap or not.
+        if strings.TrimSpace(newData.Name) == ConfigmapName </span><span class="cov10" title="2">{
+                newSubnetList := newData.Data[ConfigmapDataKey]
+                oldSubnetList := oldData.Data[ConfigmapDataKey]
+                // Env variable VPC_SUBNET_IDS will be updated only when there is
+                // non empty data and there is change in configmap
+                if newSubnetList != "" &amp;&amp; (newSubnetList != oldSubnetList) </span><span class="cov1" title="1">{
+                        err := os.Setenv("VPC_SUBNET_IDS", newSubnetList)
+                        if err != nil </span><span class="cov0" title="0">{
+                                cw.logger.Warn("Error updating the subnet list..", zap.Any("Subnet list update request", newSubnetList), zap.Error(err))
+                                return
+                        }</span>
+                        <span class="cov1" title="1">cw.logger.Info("Updated the vpc subnet list ", zap.Any("VPC_SUBNET_IDS", newSubnetList))</span>
+                }
+        }
+}
+
+func WatchClusterConfigMap(client rest.Interface, log *zap.Logger) <span class="cov1" title="1">{
+        configWatcher := NewConfigWatcher(client, log)
+        go configWatcher.Start()
+}</span>
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">/**
+ *
+ * Copyright 2021- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package ibmcsidriver ...
+package ibmcsidriver
+
+import (
+        "os"
+        "time"
+
+        commonError "github.com/IBM/ibm-csi-common/pkg/messages"
+        "github.com/IBM/ibm-csi-common/pkg/metrics"
+        "github.com/IBM/ibm-csi-common/pkg/utils"
+        cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+        "github.com/IBM/ibmcloud-volume-interface/lib/provider"
+        providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
+        csi "github.com/container-storage-interface/spec/lib/go/csi"
+
+        "go.uber.org/zap"
+        "golang.org/x/net/context"
+)
+
+// CSIControllerServer ...
+type CSIControllerServer struct {
+        Driver      *IBMCSIDriver
+        CSIProvider cloudProvider.CloudProviderInterface
+}
+
+const (
+        // PublishInfoRequestID ...
+        PublishInfoRequestID = "request-id"
+)
+
+var _ csi.ControllerServer = &amp;CSIControllerServer{}
+
+// ControllerGetCapabilities allows kubernetes to check the supported capabilities of controller service provided by the Plugin
+func (csiCS *CSIControllerServer) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        _ = context.WithValue(ctx, provider.RequestID, requestID)
+
+        ctxLogger.Info("CSIControllerServer-ControllerGetCapabilities", zap.Reflect("Request", *req))
+        // Return the capabilities as per provider volume capabilities
+        return &amp;csi.ControllerGetCapabilitiesResponse{
+                Capabilities: csiCS.Driver.cscap,
+        }, nil
+}</span>
+
+// CreateVolume ...
+/* CreateVolume is responsible for creating file share and file share-targets.
+It takes the csi createVolumeRequest as input and populates the provider volume. It then creates a provider session to invoke the CreateVolume first and
+then CreateVolumeAccessPoint call from provider-library. The function returns a csi CreateVolumeResponse if successful and error otherwise.
+*/
+func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) <span class="cov4" title="9">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        ctx = context.WithValue(ctx, provider.RequestID, requestID)
+        ctxLogger.Info("CSIControllerServer-CreateVolume... ", zap.Reflect("Request", *req))
+        defer metrics.UpdateDurationFromStart(ctxLogger, "CSICreateVolume", time.Now())
+
+        // Check basic parameters validations i.e PVC name given
+        name := req.GetName()
+        if len(name) == 0 </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.MissingVolumeName, requestID, nil)
+        }</span>
+
+        // check volume capabilities
+        <span class="cov4" title="8">volumeCapabilities := req.GetVolumeCapabilities()
+        if len(volumeCapabilities) == 0 </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.NoVolumeCapabilities, requestID, nil)
+        }</span>
+
+        // Validate volume capabilities, are all capabilities supported by driver or not
+        <span class="cov4" title="7">if !areVolumeCapabilitiesSupported(req.GetVolumeCapabilities(), csiCS.Driver.vcap) </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeCapabilitiesNotSupported, requestID, nil)
+        }</span>
+
+        // Get volume input Parameters
+        <span class="cov4" title="6">requestedVolume, err := getVolumeParameters(ctxLogger, req, csiCS.CSIProvider.GetConfig())
+        if requestedVolume != nil </span><span class="cov4" title="6">{
+                // For logging mask VolumeEncryptionKey
+                // Create copy of the requestedVolume
+                tempReqVol := (*requestedVolume)
+                // Mask VolumeEncryptionKey
+                if requestedVolume.VPCVolume.VolumeEncryptionKey != nil </span><span class="cov0" title="0">{
+                        tempReqVol.VPCVolume.VolumeEncryptionKey = &amp;provider.VolumeEncryptionKey{CRN: "********"}
+                }</span>
+                <span class="cov4" title="6">ctxLogger.Info("Volume request", zap.Reflect("Volume", tempReqVol))</span>
+        }
+
+        <span class="cov4" title="6">if err != nil </span><span class="cov0" title="0">{
+                ctxLogger.Error("Unable to extract parameters", zap.Error(err))
+                return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
+        }</span>
+
+        // TODO: Determine Zones and Region for the disk
+
+        // Validate if volume Already Exists
+        <span class="cov4" title="6">session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+        }</span>
+
+        <span class="cov4" title="6">var isVolumeExist bool = false
+
+        volumeObj, err := checkIfVolumeExists(session, *requestedVolume, ctxLogger)
+        if volumeObj != nil &amp;&amp; err == nil </span><span class="cov2" title="3">{
+                ctxLogger.Info("Volume already exists", zap.Reflect("ExistingVolume", volumeObj))
+                if volumeObj.Capacity != nil &amp;&amp; requestedVolume.Capacity != nil &amp;&amp; *volumeObj.Capacity == *requestedVolume.Capacity </span><span class="cov2" title="3">{
+                        isVolumeExist = true
+                }</span> else<span class="cov0" title="0"> {
+                        return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeAlreadyExists, requestID, err, name, *requestedVolume.Capacity)
+                }</span>
+        }
+
+        /*
+                //IF ENI/VNI is enabled
+
+                Case 1: User has not provided anything.
+                The VolumeAccessPoint (aka File share target) will be created with mountPath having randomIP from subnet within the same zone as used by the
+                volume (aka File share). The zone is picked-up randomly from topology and the subnet is fetched via the CSI driver matching with the
+                volumeaccess point zone and cluster subnet list.In this case any random IP Address will be created and assigned to VNI in the fetched subnet range.
+
+                Case 2: User has provided the subnetId, zone but nothing else
+                The VolumeAccessPoint (aka File share target) will be created with mountPath having randomIP from subnet within the zone provided by user
+                as used by the volume (aka File share).In this case any random IP Address will be created and assigned to VNI in the user provided subnet range.
+
+                Case 3: User has provided the subnetId, zone and PrimaryIPAddress
+                The VolumeAccessPoint (aka File share target) will be created with mountPath having PrimaryIPAddress from subnet within the zone provided by user
+                as the volume (aka File share).In this case any PrimaryIPAddress will be created and assigned to VNI in the user provided subnet range.
+
+                Case 4: User has provided the subnetId, zone and PrimaryIPID
+                The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within
+                the zone provided by user as used by the volume (aka File share).In this case any IP adress associated with PrimaryIPID is assigned to VNI.
+
+                Case 5: User has not provided the subnetId and provided zone, PrimaryIPID
+                The VolumeAccessPoint (aka File share target) will be created with mountPath having IP adress associated with PrimaryIPID from subnet within
+                the zone provided by user as used by the volume (aka File share).In this case any IP adress associated with PrimaryIPID is assigned to VNI.
+
+                Case 6: User has not provided the subnetId,zone but provided PrimaryIPID
+                This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
+
+                Case 7: User has provided the subnetId but nothing else
+                This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
+
+                Case 8: User has not provided the subnetID but provided the zone and PrimaryIPAddress
+                This will throw error that subnet is mandatory as CSI driver cannot predict the subnet in such scenarios as there
+                might be multiple subnets in same zone.
+
+                Case 9: User has provided the subnetID and PrimaryIPAddress but not provided the zone.
+                This will throw error that zone is mandatory as CSI driver cannot predict the zone in such scenarios CSI will pick this up from topology.
+
+                In all the above cases the variation possible is user can pass 0 or more securitygroupIDs that will govern the authorization. IF user does not pass
+                any securityGroupID then
+
+                1. IKS cluster security group is fetched and used by CSI driver
+                2. Else default VPC security group is considerd by the VPC IAAS layer.
+
+        */
+
+        <span class="cov4" title="6">if requestedVolume.AccessControlMode == SecurityGroup </span><span class="cov1" title="1">{
+                /* Skip GetSubnetForVolumeAccessPoint call if user has not provided SubnetID but PrimaryIPID is provided.
+                For all rest of the following use cases if subnetId is not provided we fetch subnet
+                1.) User has not provided anything just ENI/VNI is enabled (Any random IP Address will be created and assigned to VNI in the fetch subnet range)
+                2.) User has provided PrimaryIP Address. (The respective IP Address will be created and assigned to VNI in the fetched subnet range)
+                */
+                subnetID := requestedVolume.SubnetID
+
+                if len(subnetID) == 0 &amp;&amp; (requestedVolume.PrimaryIP == nil || len(requestedVolume.PrimaryIP.ID) == 0) </span><span class="cov1" title="1">{
+                        subnetIDList := os.Getenv("VPC_SUBNET_IDS")
+                        ctxLogger.Info("List of subnetIDs considered", zap.Any("subnetIDList", subnetIDList))
+
+                        //We need to abort here as there is no use of going ahead and fetching the matching subnet with empty list
+                        if len(subnetIDList) == 0 </span><span class="cov0" title="0">{
+                                return nil, commonError.GetCSIError(ctxLogger, commonError.SubnetIDListNotFound, requestID, nil)
+                        }</span>
+
+                        <span class="cov1" title="1">subnetReq := provider.SubnetRequest{
+                                SubnetIDList:  subnetIDList,
+                                ZoneName:      requestedVolume.Az,
+                                VPCID:         os.Getenv("VPC_ID"),
+                                ResourceGroup: requestedVolume.ResourceGroup,
+                        }
+
+                        ctxLogger.Info("Getting Subnet for VolumeAccessPoint...")
+
+                        subnetID, err = session.GetSubnetForVolumeAccessPoint(subnetReq)
+                        if err != nil || len(subnetID) == 0 </span><span class="cov0" title="0">{
+                                return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+                        }</span>
+
+                        <span class="cov1" title="1">requestedVolume.SubnetID = subnetID
+                        ctxLogger.Info("Subnet fetched for VolumeAccessPoint", zap.Reflect("subnetID", subnetID))</span>
+                }
+
+                //If securityGroup parameter is not populated via storage class
+                <span class="cov1" title="1">if requestedVolume.SecurityGroups == nil </span><span class="cov1" title="1">{
+                        securityGroupReq := provider.SecurityGroupRequest{
+                                Name:          "kube-" + csiCS.CSIProvider.GetClusterID(),
+                                VPCID:         os.Getenv("VPC_ID"),
+                                ResourceGroup: requestedVolume.ResourceGroup,
+                        }
+
+                        ctxLogger.Info("Getting SecurityGroup for VolumeAccessPoint...")
+
+                        securityGroupID, err := session.GetSecurityGroupForVolumeAccessPoint(securityGroupReq)
+                        if err != nil || len(securityGroupID) == 0 </span><span class="cov0" title="0">{
+                                // If IKS Cluster SG is not available pass empty SG. VPC IAAS will consider VPC Default SG.
+                                ctxLogger.Warn("SecurityGroup find failed for VolumeAccessPoint.VPC default SG will be considered", zap.Error(err))
+                        }</span> else<span class="cov1" title="1"> {
+                                requestedVolume.SecurityGroups = &amp;[]provider.SecurityGroup{
+                                        {
+                                                ID: securityGroupID,
+                                        },
+                                }
+                                ctxLogger.Info("SecurityGroup fetched for VolumeAccessPoint", zap.Reflect("securityGroupID", securityGroupID))
+                        }</span>
+                }
+        } else<span class="cov3" title="5"> { // IF VPC Mode
+                requestedVolume.VPCID = os.Getenv("VPC_ID")
+        }</span>
+
+        // Create volume if it does no exist
+        <span class="cov4" title="6">if !isVolumeExist </span><span class="cov2" title="3">{
+                ctxLogger.Info("Creating Volume...")
+
+                volumeObj, err = session.CreateVolume(*requestedVolume)
+                if err != nil </span><span class="cov2" title="3">{
+                        return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+                }</span>
+
+                <span class="cov0" title="0">ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))</span>
+        }
+
+        // Prepare input for WaitForCreateVolumeAccessPoint
+        <span class="cov2" title="3">volumeAccesspointReq := provider.VolumeAccessPointRequest{
+                VolumeID: volumeObj.VolumeID,
+        }
+
+        volumeAccessPoints := volumeObj.VolumeAccessPoints
+        if volumeAccessPoints != nil &amp;&amp; len(*volumeAccessPoints) != 0 </span><span class="cov2" title="2">{
+                //Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
+                volumeAccesspointReq.AccessPointID = (*volumeAccessPoints)[0].ID
+        }</span> else<span class="cov1" title="1"> { // This will only hit if Volume is created without VolumeAccessPoint which is rare case.
+                //Try Creating VolumeAccess Point
+                //No need to check for access point existence as library takes care of the same
+                ctxLogger.Info("Re attempting to create VolumeAccessPoint...")
+
+                //Pass in the VPC ID for filtering VolumeAccesspoint within volume.
+                volumeAccesspointReq.VPCID = os.Getenv("VPC_ID")
+                volumeAccesspointReq.AccessControlMode = requestedVolume.AccessControlMode
+                volumeAccesspointReq.SecurityGroups = requestedVolume.SecurityGroups
+                volumeAccesspointReq.ResourceGroup = requestedVolume.ResourceGroup
+                volumeAccesspointReq.PrimaryIP = requestedVolume.PrimaryIP
+                volumeAccesspointReq.SubnetID = requestedVolume.SubnetID
+
+                repsonse, err := session.CreateVolumeAccessPoint(volumeAccesspointReq)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+                }</span>
+
+                //Pass in the VolumeAccessPointID ID for efficient retrival in WaitForCreateVolumeAccessPoint()
+                <span class="cov1" title="1">volumeAccesspointReq.AccessPointID = repsonse.AccessPointID</span>
+        }
+
+        <span class="cov2" title="3">ctxLogger.Info("Waiting for VolumeAccessPoint stable state...")
+
+        volumeAccessPointObj, err := session.WaitForCreateVolumeAccessPoint(volumeAccesspointReq)
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+        }</span>
+
+        <span class="cov2" title="2">ctxLogger.Info("VolumeAccessPoint is in stable state", zap.Reflect("Volume Access Point", volumeAccessPointObj.AccessPointID))
+
+        volumeObj.AccessControlMode = requestedVolume.AccessControlMode
+        volumeObj.TransitEncryption = requestedVolume.TransitEncryption
+        volumeObj.SecurityGroups = requestedVolume.SecurityGroups
+        volumeObj.SubnetID = requestedVolume.SubnetID
+
+        // return csi volume object
+        return createCSIVolumeResponse(*volumeObj, *volumeAccessPointObj, int64(*(requestedVolume.Capacity)*utils.GB), nil, csiCS.CSIProvider.GetClusterID(), csiCS.Driver.region), nil</span>
+}
+
+// DeleteVolume ...
+/* DeleteVolume is responsible for deleting file share-targets and file share.
+It takes the csi deleteVolumeRequest as input and creates a provider session to invoke DeleteVolumeAccessPoint first and
+then DeleteVolume call from provider-library. The function returns a csi DeleteVolumeResponse if successful and error otherwise.
+*/
+func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) <span class="cov4" title="7">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        ctx = context.WithValue(ctx, provider.RequestID, requestID)
+        defer metrics.UpdateDurationFromStart(ctxLogger, "CSIDeleteVolume", time.Now())
+        ctxLogger.Info("CSIControllerServer-DeleteVolume... ", zap.Reflect("Request", *req))
+
+        // Validate arguments
+        volumeID := req.GetVolumeId()
+        if len(volumeID) == 0 </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
+        }</span>
+
+        // TODO:~ Following could be enhancement although currect way is working fine
+        // Get the volume name by using volume ID
+        // and delete volume by name
+
+        // get the session
+        <span class="cov4" title="6">session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.FailedPrecondition, requestID, err)
+        }</span>
+
+        //Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
+        <span class="cov4" title="6">tokens := getTokens(volumeID)
+        if len(tokens) != 2 </span><span class="cov1" title="1">{
+                ctxLogger.Info("CSIControllerServer-DeleteVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
+                return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+        }</span>
+
+        <span class="cov3" title="5">volume := &amp;provider.Volume{}
+        volume.VolumeID = tokens[0]
+
+        existingVol, err := checkIfVolumeExists(session, *volume, ctxLogger)
+        if existingVol == nil &amp;&amp; err == nil </span><span class="cov1" title="1">{
+                ctxLogger.Info("Volume not found. Returning success without deletion...")
+                return &amp;csi.DeleteVolumeResponse{}, nil
+        }</span>
+
+        //If volume exists no need to check for access point existence as library takes care of the same
+        <span class="cov3" title="4">volumeAccesspointReq := provider.VolumeAccessPointRequest{
+                VolumeID:      volume.VolumeID,
+                AccessPointID: tokens[1],
+        }
+
+        ctxLogger.Info("Deleting VolumeAccessPoint...")
+
+        response, err := session.DeleteVolumeAccessPoint(volumeAccesspointReq)
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+        }</span>
+
+        <span class="cov2" title="3">ctxLogger.Info("DeleteVolumeAccessPoint response", zap.Reflect("response", response))
+
+        err = session.WaitForDeleteVolumeAccessPoint(volumeAccesspointReq)
+        if err != nil </span><span class="cov1" title="1">{
+                //retry gap is constant in the common lib i.e 10 seconds and number of retries are 4*Retry configure in the driver
+                return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+        }</span>
+
+        <span class="cov2" title="2">ctxLogger.Info("VolumeAccessPoint deleted successfully")
+
+        ctxLogger.Info("Deleting Volume...")
+
+        err = session.DeleteVolume(volume)
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+        }</span>
+
+        <span class="cov1" title="1">ctxLogger.Info("Volume deleted successfully")
+
+        return &amp;csi.DeleteVolumeResponse{}, nil</span>
+}
+
+// ValidateVolumeCapabilities ...
+/* ValidateVolumeCapabilities is responsible to check if a pre-provisioned volume has all the capabilities that the CO wants.
+This RPC call SHALL return confirmed only if all the volume capabilities specified in the request are supported.
+*/
+func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) <span class="cov4" title="6">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        ctx = context.WithValue(ctx, provider.RequestID, requestID)
+        ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities", zap.Reflect("Request", *req))
+
+        // Validate Arguments
+        if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.NoVolumeCapabilities, requestID, nil)
+        }</span>
+        <span class="cov3" title="5">volumeID := req.GetVolumeId()
+        if len(volumeID) == 0 </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
+        }</span>
+
+        //Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
+        <span class="cov3" title="4">tokens := getTokens(volumeID)
+        if len(tokens) != 2 </span><span class="cov1" title="1">{
+                ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
+                return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+        }</span>
+
+        // Check if Requested Volume exists
+        <span class="cov2" title="3">session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+        }</span>
+
+        // Get volume details by using volume ID, it should exists with provider
+        <span class="cov2" title="3">_, err = session.GetVolume(tokens[0])
+        if err != nil </span><span class="cov2" title="2">{
+                if providerError.RetrivalFailed == providerError.GetErrorType(err) </span><span class="cov1" title="1">{
+                        return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, volumeID)
+                }</span>
+                <span class="cov1" title="1">return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)</span>
+        }
+
+        // Setup Response
+        <span class="cov1" title="1">var confirmed *csi.ValidateVolumeCapabilitiesResponse_Confirmed
+        // Check if Volume Capabilities supported by the Driver Match
+        if areVolumeCapabilitiesSupported(req.GetVolumeCapabilities(), csiCS.Driver.vcap) </span><span class="cov1" title="1">{
+                confirmed = &amp;csi.ValidateVolumeCapabilitiesResponse_Confirmed{VolumeCapabilities: req.GetVolumeCapabilities()}
+        }</span>
+
+        // Return Response
+        <span class="cov1" title="1">return &amp;csi.ValidateVolumeCapabilitiesResponse{
+                Confirmed: confirmed,
+        }, nil</span>
+}
+
+// ListVolumes is responsible for returning the information about all the volumes that it knows about.
+func (csiCS *CSIControllerServer) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) <span class="cov4" title="6">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        ctx = context.WithValue(ctx, provider.RequestID, requestID)
+        ctxLogger.Info("CSIControllerServer-ListVolumes...", zap.Reflect("Request", *req))
+        defer metrics.UpdateDurationFromStart(ctxLogger, metrics.FunctionLabel("CSIListVolumes"), time.Now())
+
+        session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+        }</span>
+
+        <span class="cov4" title="6">maxEntries := int(req.MaxEntries)
+        tags := map[string]string{}
+        volumeList, err := session.ListVolumes(maxEntries, req.StartingToken, tags)
+        if err != nil </span><span class="cov2" title="3">{
+                return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+        }</span>
+
+        <span class="cov2" title="3">entries := []*csi.ListVolumesResponse_Entry{}
+        for _, vol := range volumeList.Volumes </span><span class="cov10" title="190">{
+                if vol.Capacity != nil </span><span class="cov10" title="190">{
+                        entries = append(entries, &amp;csi.ListVolumesResponse_Entry{
+                                Volume: &amp;csi.Volume{
+                                        VolumeId:      vol.VolumeID,
+                                        CapacityBytes: int64(*vol.Capacity * utils.GiB),
+                                },
+                        })
+                }</span>
+        }
+
+        <span class="cov2" title="3">return &amp;csi.ListVolumesResponse{
+                Entries:   entries,
+                NextToken: volumeList.Next,
+        }, nil</span>
+}
+
+// ControllerExpandVolume ...
+/* ControllerExpandVolume is responsible for upsizing the file share.
+It takes ControllerExpandVolumeRequest as input and creates a provider session to invoke ExpandVolumeRequest cal
+from provider-library. The function returns a csi ControllerExpandVolumeResponse if successful and error otherwise.
+*/
+func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) <span class="cov3" title="4">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        _ = context.WithValue(ctx, provider.RequestID, requestID)
+        defer metrics.UpdateDurationFromStart(ctxLogger, "CSIExpandVolume", time.Now())
+        ctxLogger.Info("CSIControllerServer-ControllerExpandVolume", zap.Reflect("Request", requestID))
+        volumeID := req.GetVolumeId()
+        capacity := req.GetCapacityRange().GetRequiredBytes()
+        if len(volumeID) == 0 </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
+        }</span>
+
+        // get the session
+        <span class="cov2" title="3">session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.FailedPrecondition, requestID, err)
+        }</span>
+        <span class="cov2" title="3">requestedVolume := &amp;provider.Volume{}
+
+        //Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
+        tokens := getTokens(volumeID)
+        if len(tokens) != 2 </span><span class="cov0" title="0">{
+                ctxLogger.Info("CSIControllerServer-ExpandVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
+                return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+        }</span>
+
+        <span class="cov2" title="3">requestedVolume.VolumeID = tokens[0]
+        volDetail, err := checkIfVolumeExists(session, *requestedVolume, ctxLogger)
+
+        // Volume not found
+        if volDetail == nil &amp;&amp; err == nil </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeID)
+        }</span> else<span class="cov2" title="2"> if err != nil </span><span class="cov1" title="1">{ // In case of other errors apart from volume not  found
+                return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+        }</span>
+
+        <span class="cov1" title="1">volumeExpansionReq := provider.ExpandVolumeRequest{
+                VolumeID: requestedVolume.VolumeID,
+                Capacity: capacity,
+        }
+        _, err = session.ExpandVolume(volumeExpansionReq)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+        }</span>
+        <span class="cov1" title="1">return &amp;csi.ControllerExpandVolumeResponse{CapacityBytes: capacity, NodeExpansionRequired: false}, nil</span>
+}
+
+// ControllerPublishVolume ...
+func (csiCS *CSIControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        _ = context.WithValue(ctx, provider.RequestID, requestID)
+
+        ctxLogger.Info("CSIControllerServer-ControllerPublishVolume", zap.Reflect("Request", *req))
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "PublishVolume")
+}</span>
+
+// ControllerUnpublishVolume ...
+func (csiCS *CSIControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        _ = context.WithValue(ctx, provider.RequestID, requestID)
+
+        ctxLogger.Info("CSIControllerServer-ControllerUnpublishVolume", zap.Reflect("Request", *req))
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "UnpublishVolume")
+}</span>
+
+// GetCapacity ...
+func (csiCS *CSIControllerServer) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        _ = context.WithValue(ctx, provider.RequestID, requestID)
+
+        ctxLogger.Info("CSIControllerServer-GetCapacity", zap.Reflect("Request", *req))
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "GetCapacity")
+}</span>
+
+// CreateSnapshot ...
+func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        _ = context.WithValue(ctx, provider.RequestID, requestID)
+
+        ctxLogger.Info("CSIControllerServer-CreateSnapshot", zap.Reflect("Request", *req))
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "CreateSnapshot")
+}</span>
+
+// DeleteSnapshot ...
+func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        _ = context.WithValue(ctx, provider.RequestID, requestID)
+
+        ctxLogger.Info("CSIControllerServer-DeleteSnapshot", zap.Reflect("Request", *req))
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "DeleteSnapshot")
+}</span>
+
+// ListSnapshots ...
+func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        _ = context.WithValue(ctx, provider.RequestID, requestID)
+
+        ctxLogger.Info("CSIControllerServer-ListSnapshots", zap.Reflect("Request", *req))
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ListSnapshots")
+}</span>
+
+// ControllerGetVolume ...
+func (csiCS *CSIControllerServer) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        // populate requestID in the context
+        _ = context.WithValue(ctx, provider.RequestID, requestID)
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ControllerGetVolume")
+}</span>
+
+// ControllerModifyVolume ...
+func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) <span class="cov0" title="0">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ControllerModifyVolume")
+}</span>
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">/**
+ *
+ * Copyright 2021- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package ibmcsidriver ...
+package ibmcsidriver
+
+import (
+        "fmt"
+        "strconv"
+        "strings"
+
+        "github.com/IBM/ibm-csi-common/pkg/utils"
+        "github.com/IBM/ibmcloud-volume-interface/config"
+        "github.com/IBM/ibmcloud-volume-interface/lib/provider"
+        providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
+        csi "github.com/container-storage-interface/spec/lib/go/csi"
+        "go.uber.org/zap"
+)
+
+// Capacity vs IOPS range for Custom Class
+type classRange struct {
+        minSize int
+        maxSize int
+        minIops int
+        maxIops int
+}
+
+// Range as per IBM volume provider Storage
+var customCapacityIopsRanges = []classRange{
+        {10, 39, 100, 1000},
+        {40, 79, 100, 2000},
+        {80, 99, 100, 4000},
+        {100, 499, 100, 6000},
+        {500, 999, 100, 10000},
+        {1000, 1999, 100, 20000},
+}
+
+// Range as per IBM volume provider Storage for DP2 Profile - https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles&amp;interface=ui#dp2-profile
+var dp2CapacityIopsRanges = []classRange{
+        {10, 39, 100, 1000},
+        {40, 79, 100, 2000},
+        {80, 99, 100, 4000},
+        {100, 499, 100, 6000},
+        {500, 999, 100, 10000},
+        {1000, 1999, 100, 20000},
+        {2000, 3999, 200, 40000},
+        {4000, 7999, 300, 40000},
+        {8000, 15999, 500, 64000},
+        {16000, 32000, 2000, 96000},
+}
+
+// normalize the requested capacity(in GiB) to what is supported by the driver
+func getRequestedCapacity(capRange *csi.CapacityRange) (int64, error) <span class="cov6" title="21">{
+        // Input is in bytes from csi
+        var capBytes int64
+        // Default case where nothing is set
+        if capRange == nil </span><span class="cov1" title="1">{
+                capBytes = utils.MinimumVolumeSizeInBytes
+                // returns in GiB
+                return capBytes, nil
+        }</span>
+
+        <span class="cov6" title="20">rBytes := capRange.GetRequiredBytes()
+        rSet := rBytes &gt; 0
+        lBytes := capRange.GetLimitBytes()
+        lSet := lBytes &gt; 0
+
+        if lSet &amp;&amp; rSet &amp;&amp; lBytes &lt; rBytes </span><span class="cov2" title="2">{
+                return 0, fmt.Errorf("limit bytes %v is less than required bytes %v", lBytes, rBytes)
+        }</span>
+        <span class="cov6" title="18">if lSet &amp;&amp; lBytes &lt; utils.MinimumVolumeSizeInBytes </span><span class="cov1" title="1">{
+                return 0, fmt.Errorf("limit bytes %v is less than minimum volume size: %v", lBytes, utils.MinimumVolumeSizeInBytes)
+        }</span>
+
+        // If Required set just set capacity to that which is Required
+        <span class="cov6" title="17">if rSet </span><span class="cov6" title="16">{
+                capBytes = rBytes
+        }</span>
+
+        // Roundup the volume size to the next integer value
+        <span class="cov6" title="17">capBytes = utils.RoundUpBytes(capBytes)
+
+        // Limit is more than Required, but larger than Minimum. So we just set capcity to Minimum
+        // Too small, default
+        if capBytes &lt; utils.MinimumVolumeSizeInBytes </span><span class="cov2" title="2">{
+                capBytes = utils.MinimumVolumeSizeInBytes
+        }</span>
+
+        <span class="cov6" title="17">return capBytes, nil</span>
+}
+
+// Verify that Requested volume capabailites match with what is supported by the driver
+func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolumeCaps []*csi.VolumeCapability_AccessMode) bool <span class="cov5" title="12">{
+        isSupport := func(cap *csi.VolumeCapability) bool </span><span class="cov5" title="12">{
+                for _, c := range driverVolumeCaps </span><span class="cov6" title="24">{
+                        if c.GetMode() == cap.AccessMode.GetMode() </span><span class="cov5" title="10">{
+                                return true
+                        }</span>
+                }
+                <span class="cov2" title="2">return false</span>
+        }
+
+        <span class="cov5" title="12">allSupported := true
+        for _, c := range volCaps </span><span class="cov5" title="12">{
+                if !isSupport(c) </span><span class="cov2" title="2">{
+                        allSupported = false
+                }</span>
+        }
+        <span class="cov5" title="12">return allSupported</span>
+}
+
+// getVolumeParameters this function get the parameters from storage class, this also validate
+// all parameters passed in storage class or not which are mandatory.
+func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) <span class="cov6" title="26">{
+        var encrypt = "undef"
+        var err error
+        var uid int
+        var gid int
+        volume := &amp;provider.Volume{}
+        volume.Name = &amp;req.Name
+        volume.VPCVolume.AccessControlMode = SecurityGroup //Default mode is ENI/VNI
+        for key, value := range req.GetParameters() </span><span class="cov10" title="133">{
+                switch key </span>{
+                case Profile:<span class="cov6" title="17">
+                        if utils.ListContainsSubstr(SupportedProfile, value) </span><span class="cov6" title="16">{
+                                volume.VPCVolume.Profile = &amp;provider.Profile{Name: value}
+                        }</span> else<span class="cov1" title="1"> {
+                                err = fmt.Errorf("%s:&lt;%v&gt; unsupported profile. Supported profiles are: %v", key, value, SupportedProfile)
+                        }</span>
+                case Zone:<span class="cov5" title="9">
+                        if len(value) &gt; ZoneNameMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, ZoneNameMaxLen)
+                        }</span> else<span class="cov4" title="8"> {
+                                volume.Az = value
+                        }</span>
+                case Region:<span class="cov5" title="13">
+                        if len(value) &gt; RegionMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, RegionMaxLen)
+                        }</span> else<span class="cov5" title="12"> {
+                                volume.Region = value
+                        }</span>
+                case Tag:<span class="cov4" title="8">
+                        if len(value) &gt; TagMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, TagMaxLen)
+                        }</span>
+                        <span class="cov4" title="8">if len(value) != 0 </span><span class="cov4" title="8">{
+                                volume.VPCVolume.Tags = []string{value}
+                        }</span>
+                case SecurityGroupIDs:<span class="cov2" title="2">
+                        if len(value) != 0 </span><span class="cov2" title="2">{
+                                setSecurityGroupList(volume, value)
+                        }</span>
+                case PrimaryIPID:<span class="cov1" title="1">
+                        if len(value) != 0 </span><span class="cov1" title="1">{
+                                err = setPrimaryIPID(volume, key, value)
+                        }</span>
+                case PrimaryIPAddress:<span class="cov1" title="1">
+                        if len(value) != 0 </span><span class="cov1" title="1">{
+                                err = setPrimaryIPAddress(volume, key, value)
+                        }</span>
+                case SubnetID:<span class="cov2" title="2">
+                        if len(value) != 0 </span><span class="cov2" title="2">{
+                                volume.VPCVolume.SubnetID = value
+                        }</span>
+                case IsENIEnabled:<span class="cov5" title="11">
+                        err = checkAndSetISENIEnabled(volume, key, strings.ToLower(value))</span>
+                case IsEITEnabled:<span class="cov3" title="3">
+                        err = checkAndSetISEITEnabled(volume, key, strings.ToLower(value))</span>
+                case ResourceGroup:<span class="cov4" title="8">
+                        if len(value) &gt; ResourceGroupIDMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, ResourceGroupIDMaxLen)
+                        }</span>
+                        <span class="cov4" title="8">volume.VPCVolume.ResourceGroup = &amp;provider.ResourceGroup{ID: value}</span>
+
+                case BillingType:<span class="cov0" title="0"></span>
+                        // Its not supported by RIaaS, but this is just information for the user
+
+                case Encrypted:<span class="cov4" title="8">
+                        if value != TrueStr &amp;&amp; value != FalseStr </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("'&lt;%v&gt;' is invalid, value of '%s' should be [true|false]", value, key)
+                        }</span> else<span class="cov4" title="7"> {
+                                encrypt = value
+                        }</span>
+                case EncryptionKey:<span class="cov4" title="8">
+                        if len(value) &gt; EncryptionKeyMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s: exceeds %d bytes", key, EncryptionKeyMaxLen)
+                        }</span> else<span class="cov4" title="7"> {
+                                if len(value) != 0 </span><span class="cov4" title="7">{
+                                        volume.VPCVolume.VolumeEncryptionKey = &amp;provider.VolumeEncryptionKey{CRN: value}
+                                }</span>
+                        }
+
+                case ClassVersion:<span class="cov4" title="7">
+                        // Not needed by RIaaS, this is just info for the user
+                        logger.Info("Ignoring storage class parameter", zap.Any("ClassParameter", ClassVersion))</span>
+
+                case SizeRangeSupported:<span class="cov4" title="7">
+                        // Ignore... Provided in SC just as user information
+                        logger.Info("Ignoring storage class parameter", zap.Any("ClassParameter", SizeRangeSupported))</span>
+
+                case SizeIopsRange:<span class="cov4" title="7">
+                        // Ignore... Provided in SC just as user information
+                        logger.Info("Ignoring storage class parameter", zap.Any("ClassParameter", SizeIopsRange))</span>
+
+                case Generation:<span class="cov4" title="7">
+                        // Ignore... Provided in SC just for backward compatibility
+                        logger.Info("Ignoring storage class parameter, for backward compatibility", zap.Any("ClassParameter", Generation))</span>
+
+                case IOPS:<span class="cov4" title="7">
+                        // Default IOPS can be specified in Custom class
+                        if len(value) != 0 </span><span class="cov1" title="1">{
+                                iops := value
+                                volume.Iops = &amp;iops
+                        }</span>
+                case UID:<span class="cov3" title="3">
+                        uid, err = strconv.Atoi(value)
+                        if err != nil </span><span class="cov0" title="0">{
+                                err = fmt.Errorf("failed to parse invalid %v: %v", uid, err)
+                        }</span>
+                        <span class="cov3" title="3">if uid &lt; 0 </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%v must be greater or equal than 0", uid)
+                        }</span>
+                case GID:<span class="cov3" title="3">
+                        gid, err = strconv.Atoi(value)
+                        if err != nil </span><span class="cov0" title="0">{
+                                err = fmt.Errorf("failed to parse invalid %v: %v", gid, err)
+                        }</span>
+                        <span class="cov3" title="3">if gid &lt; 0 </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%v must be greater or equal than 0", gid)
+                        }</span>
+                default:<span class="cov1" title="1">
+                        err = fmt.Errorf("&lt;%s&gt; is an invalid parameter", key)</span>
+                }
+                <span class="cov10" title="133">if err != nil </span><span class="cov5" title="11">{
+                        logger.Error("getVolumeParameters", zap.NamedError("SC Parameters", err))
+                        return volume, err
+                }</span>
+        }
+
+        // If encripted is set to false
+        <span class="cov5" title="15">if encrypt == FalseStr </span><span class="cov4" title="6">{
+                volume.VPCVolume.VolumeEncryptionKey = nil
+        }</span>
+
+        // Add initialOnwer if UID/GID is given as parameter.
+        // Default will be set to 0 i.e root which even if not set will be defaulted to 0 by the VPC RIAAS
+        <span class="cov5" title="15">if uid != 0 || gid != 0 </span><span class="cov2" title="2">{
+                logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
+                volume.InitialOwner = &amp;provider.InitialOwner{
+                        GroupID: int64(gid),
+                        UserID:  int64(uid),
+                }
+        }</span>
+
+        // Get the requested capacity from the request
+        <span class="cov5" title="15">capacityRange := req.GetCapacityRange()
+        capBytes, err := getRequestedCapacity(capacityRange)
+        if err != nil </span><span class="cov1" title="1">{
+                err = fmt.Errorf("invalid PVC capacity size: '%v'", err)
+                logger.Error("getVolumeParameters", zap.NamedError("invalid parameter", err))
+                return volume, err
+        }</span>
+        <span class="cov5" title="14">logger.Info("Volume size in bytes", zap.Any("capacity", capBytes))
+
+        // Convert size/capacity in GiB, as this is needed by RIaaS
+        fsSize := utils.BytesToGiB(capBytes)
+        // Assign the size to volume object
+        volume.Capacity = &amp;fsSize
+        logger.Info("Volume size in GiB", zap.Any("capacity", fsSize))
+
+        // volume.Capacity should be set before calling overrideParams
+        err = overrideParams(logger, req, config, volume)
+        if err != nil </span><span class="cov1" title="1">{
+                return volume, err
+        }</span>
+
+        // Check if the provided fstype is supported one
+        <span class="cov5" title="13">volumeCapabilities := req.GetVolumeCapabilities()
+        if volumeCapabilities == nil </span><span class="cov1" title="1">{
+                err = fmt.Errorf("volume capabilities are empty")
+                logger.Error("overrideParams", zap.NamedError("invalid parameter", err))
+                return volume, err
+        }</span>
+
+        <span class="cov5" title="12">if volume.VPCVolume.Profile != nil &amp;&amp; volume.VPCVolume.Profile.Name != DP2Profile </span><span class="cov0" title="0">{
+                // Specify IOPS only for custom class or DP2 class
+                volume.Iops = nil
+        }</span>
+
+        //If ENI/VNI enabled then check for scenarios where zone and subnetId is mandatory
+        <span class="cov5" title="12">if volume.VPCVolume.AccessControlMode == SecurityGroup </span><span class="cov4" title="6">{
+
+                //Zone and Region is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined
+                if (len(strings.TrimSpace(volume.Az)) == 0 || len(strings.TrimSpace(volume.Region)) == 0) &amp;&amp; (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) </span><span class="cov0" title="0">{
+                        err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided")
+                        logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+                        return volume, err
+                }</span>
+
+                //subnetID is mandatory if PrimaryIPAddress is provided
+                <span class="cov4" title="6">if len(volume.VPCVolume.SubnetID) == 0 &amp;&amp; volume.VPCVolume.PrimaryIP != nil &amp;&amp; len(volume.VPCVolume.PrimaryIP.Address) != 0 </span><span class="cov0" title="0">{
+                        err = fmt.Errorf("subnetID is mandatory if PrimaryIPAddress is provided: '%s'", volume.VPCVolume.PrimaryIP.Address)
+                        logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+                        return volume, err
+                }</span>
+        }
+
+        // For enabling EIT, check if ENI is enabled or not. If not, fail with error as to enable encryption in transit, accessControlMode must be set to security_group.
+        <span class="cov5" title="12">if volume.VPCVolume.TransitEncryption == EncryptionTransitMode &amp;&amp; volume.VPCVolume.AccessControlMode != SecurityGroup </span><span class="cov1" title="1">{
+                err = fmt.Errorf("ENI must be enabled i.e accessControlMode must be set to security_group for creating EIT enabled fileShare. Set 'isENIEnabled' to 'true' in storage class parameters")
+                logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+                return volume, err
+        }</span>
+
+        //TODO port the code from VPC BLOCK to find region if zone is given
+
+        //If the zone is not provided in storage class parameters then we pick from the Topology
+        <span class="cov5" title="11">if len(strings.TrimSpace(volume.Az)) == 0 </span><span class="cov3" title="3">{
+                zones, err := pickTargetTopologyParams(req.GetAccessibilityRequirements())
+                if err != nil </span><span class="cov1" title="1">{
+                        err = fmt.Errorf("unable to fetch zone information: '%v'", err)
+                        logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+                        return volume, err
+                }</span>
+                <span class="cov2" title="2">volume.Region = zones[utils.NodeRegionLabel]
+                volume.Az = zones[utils.NodeZoneLabel]</span>
+        }
+
+        <span class="cov5" title="10">return volume, nil</span>
+}
+
+// setSecurityGroupList
+func setSecurityGroupList(volume *provider.Volume, value string) <span class="cov3" title="3">{
+        securityGroupstr := strings.TrimSpace(value)
+        securityGroupList := strings.Split(securityGroupstr, ",")
+        var securityGroups []provider.SecurityGroup
+        for _, securityGroup := range securityGroupList </span><span class="cov3" title="3">{
+                securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
+        }</span>
+        <span class="cov3" title="3">volume.VPCVolume.SecurityGroups = &amp;securityGroups</span>
+}
+
+// checkAndSetISENIEnabled
+func checkAndSetISENIEnabled(volume *provider.Volume, key string, value string) error <span class="cov5" title="12">{
+        var err error
+        if value != TrueStr &amp;&amp; value != FalseStr </span><span class="cov0" title="0">{
+                err = fmt.Errorf("'&lt;%v&gt;' is invalid, value of '%s' should be [true|false]", value, key)
+        }</span> else<span class="cov5" title="12"> {
+                if value == TrueStr </span><span class="cov3" title="5">{
+                        volume.VPCVolume.AccessControlMode = SecurityGroup
+                }</span> else<span class="cov4" title="7"> {
+                        volume.VPCVolume.AccessControlMode = VPC
+                }</span>
+        }
+
+        <span class="cov5" title="12">return err</span>
+}
+
+// checkAndSetISEITEnabled
+func checkAndSetISEITEnabled(volume *provider.Volume, key string, value string) error <span class="cov3" title="3">{
+        var err error
+        if value != TrueStr &amp;&amp; value != FalseStr </span><span class="cov1" title="1">{
+                err = fmt.Errorf("'&lt;%v&gt;' is invalid, value of '%s' should be [true|false]", value, key)
+                return err
+        }</span>
+        <span class="cov2" title="2">if value == TrueStr </span><span class="cov2" title="2">{
+                volume.VPCVolume.TransitEncryption = EncryptionTransitMode
+        }</span>
+        <span class="cov2" title="2">return nil</span>
+}
+
+// setPrimaryIPID
+func setPrimaryIPID(volume *provider.Volume, key string, value string) error <span class="cov2" title="2">{
+        //We are failing in case PrimaryIPAddress is already set.
+        if volume.VPCVolume.PrimaryIP == nil </span><span class="cov2" title="2">{
+                volume.VPCVolume.PrimaryIP = &amp;provider.PrimaryIP{PrimaryIPID: provider.PrimaryIPID{ID: value}}
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">return fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:&lt;%v&gt;'", key, value)</span>
+}
+
+// setPrimaryIPAddress
+func setPrimaryIPAddress(volume *provider.Volume, key string, value string) error <span class="cov1" title="1">{
+        //We are failing in case PrimaryIPID is already set.
+        if volume.VPCVolume.PrimaryIP == nil </span><span class="cov1" title="1">{
+                volume.VPCVolume.PrimaryIP = &amp;provider.PrimaryIP{PrimaryIPAddress: provider.PrimaryIPAddress{Address: value}}
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">return fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:&lt;%v&gt;'", key, value)</span>
+}
+
+// Validate size and iops for custom class
+func isValidCapacityIOPS(size int, iops int, profile string) (bool, error) <span class="cov3" title="4">{
+        var ind = -1
+        var capacityIopsRanges []classRange
+
+        if profile == DP2Profile </span><span class="cov3" title="4">{
+                capacityIopsRanges = dp2CapacityIopsRanges
+        }</span> else<span class="cov0" title="0"> {
+                return false, fmt.Errorf("invalid profile: &lt;%s&gt;", profile)
+        }</span>
+
+        <span class="cov3" title="4">for i, entry := range capacityIopsRanges </span><span class="cov5" title="13">{
+                if size &gt;= entry.minSize &amp;&amp; size &lt;= entry.maxSize </span><span class="cov3" title="3">{
+                        ind = i
+                        break</span>
+                }
+        }
+
+        <span class="cov3" title="4">if ind &lt; 0 </span><span class="cov1" title="1">{
+                return false, fmt.Errorf("invalid PVC size for class: &lt;%v&gt;. Should be in range [%d - %d]GiB",
+                        size, utils.MinimumVolumeDiskSizeInGb, utils.MaximumVolumeDiskSizeInGb)
+        }</span>
+
+        <span class="cov3" title="3">if iops &lt; capacityIopsRanges[ind].minIops || iops &gt; capacityIopsRanges[ind].maxIops </span><span class="cov1" title="1">{
+                return false, fmt.Errorf("invalid IOPS: &lt;%v&gt; for capacity: &lt;%vGiB&gt;. Should be in range [%d - %d]",
+                        iops, size, capacityIopsRanges[ind].minIops, capacityIopsRanges[ind].maxIops)
+        }</span>
+        <span class="cov2" title="2">return true, nil</span>
+}
+
+func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, volume *provider.Volume) error <span class="cov6" title="25">{
+        var encrypt = "undef"
+        var err error
+        if volume == nil </span><span class="cov1" title="1">{
+                return fmt.Errorf("invalid volume parameter")
+        }</span>
+
+        <span class="cov6" title="24">for key, value := range req.GetSecrets() </span><span class="cov6" title="25">{
+                switch key </span>{
+                case ResourceGroup:<span class="cov3" title="3">
+                        if len(value) &gt; ResourceGroupIDMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d bytes ", key, value, ResourceGroupIDMaxLen)
+                        }</span> else<span class="cov2" title="2"> {
+                                logger.Info("override", zap.Any(ResourceGroup, value))
+                                volume.VPCVolume.ResourceGroup = &amp;provider.ResourceGroup{ID: value}
+                        }</span>
+                case Encrypted:<span class="cov3" title="3">
+                        if value != TrueStr &amp;&amp; value != FalseStr </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("&lt;%v&gt; is invalid, value for '%s' should be [true|false]", value, key)
+                        }</span> else<span class="cov2" title="2"> {
+                                logger.Info("override", zap.Any(Encrypted, value))
+                                encrypt = value
+                        }</span>
+                case EncryptionKey:<span class="cov2" title="2">
+                        if len(value) &gt; EncryptionKeyMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s exceeds %d bytes", key, EncryptionKeyMaxLen)
+                        }</span> else<span class="cov1" title="1"> {
+                                if len(value) != 0 </span><span class="cov1" title="1">{
+                                        logger.Info("override", zap.String("parameter", EncryptionKey))
+                                        volume.VPCVolume.VolumeEncryptionKey = &amp;provider.VolumeEncryptionKey{CRN: value}
+                                }</span>
+                        }
+                case Tag:<span class="cov2" title="2">
+                        if len(value) &gt; TagMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, TagMaxLen)
+                        }</span> else<span class="cov1" title="1"> {
+                                if len(value) != 0 </span><span class="cov1" title="1">{
+                                        logger.Info("append", zap.Any(Tag, value))
+                                        volume.VPCVolume.Tags = append(volume.VPCVolume.Tags, value)
+                                }</span>
+                        }
+                case Zone:<span class="cov3" title="3">
+                        if len(value) &gt; ZoneNameMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, ZoneNameMaxLen)
+                        }</span> else<span class="cov2" title="2"> {
+                                logger.Info("override", zap.Any(Zone, value))
+                                volume.Az = value
+                        }</span>
+                case Region:<span class="cov2" title="2">
+                        if len(value) &gt; RegionMaxLen </span><span class="cov1" title="1">{
+                                err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, RegionMaxLen)
+                        }</span> else<span class="cov1" title="1"> {
+                                volume.Region = value
+                        }</span>
+                case IOPS:<span class="cov3" title="4">
+                        // Override IOPS only for custom or dp2
+                        if volume.Capacity != nil &amp;&amp; volume.VPCVolume.Profile != nil &amp;&amp; volume.VPCVolume.Profile.Name == DP2Profile </span><span class="cov3" title="4">{
+                                var iops int
+                                var check bool
+                                iops, err = strconv.Atoi(value)
+                                if err != nil </span><span class="cov3" title="3">{
+                                        err = fmt.Errorf("%v:&lt;%v&gt; invalid value", key, value)
+                                }</span> else<span class="cov1" title="1"> {
+                                        if check, err = isValidCapacityIOPS(*(volume.Capacity), iops, volume.VPCVolume.Profile.Name); check </span><span class="cov1" title="1">{
+                                                iopsStr := value
+                                                logger.Info("override", zap.Any(IOPS, value))
+                                                volume.Iops = &amp;iopsStr
+                                        }</span>
+                                }
+                        }
+                case SecurityGroupIDs:<span class="cov1" title="1">
+                        if len(value) != 0 </span><span class="cov1" title="1">{
+                                setSecurityGroupList(volume, value)
+                        }</span>
+                case PrimaryIPID:<span class="cov1" title="1">
+                        if len(value) != 0 </span><span class="cov1" title="1">{
+                                err = setPrimaryIPID(volume, key, value)
+                        }</span>
+                case PrimaryIPAddress:<span class="cov0" title="0">
+                        if len(value) != 0 </span><span class="cov0" title="0">{
+                                err = setPrimaryIPAddress(volume, key, value)
+                        }</span>
+                case SubnetID:<span class="cov2" title="2">
+                        if len(value) != 0 </span><span class="cov2" title="2">{
+                                volume.VPCVolume.SubnetID = value
+                        }</span>
+                case IsENIEnabled:<span class="cov1" title="1">
+                        err = checkAndSetISENIEnabled(volume, key, strings.ToLower(value))</span>
+                case IsEITEnabled:<span class="cov0" title="0">
+                        err = checkAndSetISEITEnabled(volume, key, strings.ToLower(value))</span>
+                default:<span class="cov1" title="1">
+                        err = fmt.Errorf("&lt;%s&gt; is an invalid parameter", key)</span>
+                }
+                <span class="cov6" title="25">if err != nil </span><span class="cov5" title="10">{
+                        logger.Error("overrideParams", zap.NamedError("Secret Parameters", err))
+                        return err
+                }</span>
+        }
+        // Assign ResourceGroupID from config
+        <span class="cov5" title="14">if volume.VPCVolume.ResourceGroup == nil || len(volume.VPCVolume.ResourceGroup.ID) &lt; 1 </span><span class="cov4" title="7">{
+                volume.VPCVolume.ResourceGroup = &amp;provider.ResourceGroup{ID: config.VPC.G2ResourceGroupID}
+        }</span>
+        <span class="cov5" title="14">if encrypt == FalseStr </span><span class="cov0" title="0">{
+                volume.VPCVolume.VolumeEncryptionKey = nil
+        }</span>
+        <span class="cov5" title="14">return nil</span>
+}
+
+// checkIfVolumeExists ...
+func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogger *zap.Logger) (*provider.Volume, error) <span class="cov5" title="14">{
+        // Check if Requested Volume exists
+        // Cases to check - If Volume is Not Found,  Multiple Disks with same name, or Size Don't match
+        // Todo: convert to switch statement.
+        var err error
+        var existingVol *provider.Volume
+
+        if vol.Name != nil &amp;&amp; *vol.Name != "" </span><span class="cov4" title="6">{
+                existingVol, err = session.GetVolumeByName(*vol.Name)
+        }</span> else<span class="cov4" title="8"> if vol.VolumeID != "" </span><span class="cov4" title="8">{
+                existingVol, err = session.GetVolume(vol.VolumeID)
+        }</span> else<span class="cov0" title="0"> {
+                return nil, fmt.Errorf("both volume name and ID are nil")
+        }</span>
+
+        <span class="cov5" title="14">if err != nil </span><span class="cov3" title="4">{
+                ctxLogger.Error("checkIfVolumeExists", zap.NamedError("Error", err))
+                errorType := providerError.GetErrorType(err)
+                switch errorType </span>{
+                case providerError.EntityNotFound:<span class="cov0" title="0">
+                        return nil, nil</span>
+                case providerError.RetrivalFailed:<span class="cov0" title="0">
+                        return nil, nil</span>
+                default:<span class="cov3" title="4">
+                        return nil, err</span>
+                }
+        }
+        // Update the region as its not getting updated in the common library because
+        // RIaaS does not provide Region details
+        <span class="cov5" title="10">if existingVol != nil </span><span class="cov4" title="8">{
+                existingVol.Region = vol.Region
+        }</span>
+
+        <span class="cov5" title="10">return existingVol, err</span>
+}
+
+// createCSIVolumeResponse ...
+func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string, region string) *csi.CreateVolumeResponse <span class="cov3" title="5">{
+        labels := map[string]string{}
+
+        // Update labels for PV objects
+        labels[VolumeIDLabel] = vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID
+        labels[VolumeCRNLabel] = vol.CRN
+        labels[ClusterIDLabel] = clusterID
+        labels[VolumeCRNLabel] = vol.CRN
+        labels[ClusterIDLabel] = clusterID
+        labels[Tag] = strings.Join(vol.Tags, ",")
+        if vol.Iops != nil &amp;&amp; len(*vol.Iops) &gt; 0 </span><span class="cov3" title="3">{
+                labels[IOPSLabel] = *vol.Iops
+        }</span>
+
+        <span class="cov3" title="5">labels[FileShareIDLabel] = vol.VolumeID
+        labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
+
+        if vol.Region != "" </span><span class="cov3" title="4">{
+                labels[utils.NodeRegionLabel] = vol.Region
+        }</span> else<span class="cov1" title="1"> {
+                labels[utils.NodeRegionLabel] = region
+        }</span>
+
+        <span class="cov3" title="5">topology := &amp;csi.Topology{
+                Segments: map[string]string{
+                        utils.NodeRegionLabel: labels[utils.NodeRegionLabel],
+                },
+        }
+        //As cross zone mounting is supported for ENI/VNI lets not populate this for securityGroup Mode.
+        if vol.AccessControlMode == VPC </span><span class="cov2" title="2">{
+                labels[IsENIEnabled] = FalseStr
+                labels[utils.NodeZoneLabel] = vol.Az
+                topology.Segments[utils.NodeZoneLabel] = labels[utils.NodeZoneLabel]
+        }</span> else<span class="cov3" title="3"> {
+                //Set ENI labels
+                labels[IsENIEnabled] = TrueStr
+                labels[ENISubnetID] = vol.SubnetID
+
+                var securityGroupList []string
+                if vol.SecurityGroups != nil </span><span class="cov1" title="1">{
+                        for _, securityGroup := range *vol.SecurityGroups </span><span class="cov1" title="1">{
+                                securityGroupList = append(securityGroupList, securityGroup.ID)
+                        }</span>
+                        <span class="cov1" title="1">labels[ENISecurityGroupIDs] = strings.Join(securityGroupList, ",")</span>
+                }
+        }
+
+        <span class="cov3" title="5">labels[NFSServerPath] = volAccessPointResponse.MountPath
+
+        // Update label in case EIT is enabled
+        if vol.TransitEncryption == EncryptionTransitMode </span><span class="cov0" title="0">{
+                labels[IsEITEnabled] = TrueStr
+        }</span>
+
+        // Create csi volume response
+        //Volume ID is in format volumeID#volumeAccessPointID, to assist the deletion of access point in delete volume
+        <span class="cov3" title="5">volResp := &amp;csi.CreateVolumeResponse{
+                Volume: &amp;csi.Volume{
+                        CapacityBytes:      capBytes,
+                        VolumeId:           vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID,
+                        VolumeContext:      labels,
+                        AccessibleTopology: []*csi.Topology{topology},
+                },
+        }
+
+        return volResp</span>
+}
+
+func getTokens(volumeID string) []string <span class="cov5" title="13">{
+        if strings.Contains(volumeID, VolumeIDSeperator) </span><span class="cov5" title="10">{
+                //Volume ID is in format volumeID#volumeAccessPointID
+                return strings.Split(volumeID, VolumeIDSeperator)
+        }</span> else<span class="cov3" title="3"> {
+                //Deprecated -- Try for volumeID:volumeAccessPointID, support for old format for few releases.
+                return strings.Split(volumeID, DeprecatedVolumeIDSeperator)
+        }</span>
+}
+
+func pickTargetTopologyParams(top *csi.TopologyRequirement) (map[string]string, error) <span class="cov3" title="5">{
+        prefTopologyParams, err := getPrefedTopologyParams(top.GetPreferred())
+        if err != nil </span><span class="cov2" title="2">{
+                return nil, fmt.Errorf("could not get zones from preferred topology: %v", err)
+        }</span>
+
+        <span class="cov3" title="3">return prefTopologyParams, nil</span>
+}
+
+func getPrefedTopologyParams(topList []*csi.Topology) (map[string]string, error) <span class="cov4" title="7">{
+        for _, top := range topList </span><span class="cov3" title="4">{
+                segment := top.GetSegments()
+                if segment != nil </span><span class="cov3" title="4">{
+                        return segment, nil
+                }</span>
+        }
+        <span class="cov3" title="3">return nil, fmt.Errorf("preferred topologies specified but no segments")</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">/**
+ *
+ * Copyright 2024- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package ibmcsidriver ...
+package ibmcsidriver
+
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+
+import (
+        "os"
+        "strconv"
+
+        "go.uber.org/zap"
+)
+
+const (
+        filePermission = 0660
+)
+
+//counterfeiter:generate . socketPermission
+
+// socketPermission represents file system operations
+type socketPermission interface {
+        Chown(name string, uid, gid int) error
+        Chmod(name string, mode os.FileMode) error
+}
+
+// realSocketPermission implements socketPermission
+type opsSocketPermission struct{}
+
+func (f *opsSocketPermission) Chown(name string, uid, gid int) error <span class="cov1" title="1">{
+        return os.Chown(name, uid, gid)
+}</span>
+
+func (f *opsSocketPermission) Chmod(name string, mode os.FileMode) error <span class="cov0" title="0">{
+        return os.Chmod(name, mode)
+}</span>
+
+// setupSidecar updates owner/group and permission of the file given(addr)
+func setupSidecar(addr string, ops socketPermission, logger *zap.Logger) error <span class="cov10" title="5">{
+        groupSt := os.Getenv("SIDECAR_GROUP_ID")
+
+        logger.Info("Setting owner and permissions of csi socket file. SIDECAR_GROUP_ID env must match the 'livenessprobe' sidecar container groupID for csi socket connection.")
+
+        // If env is not set, set default to 0
+        if groupSt == "" </span><span class="cov4" title="2">{
+                logger.Warn("Unable to fetch SIDECAR_GROUP_ID environment variable. Sidecar container(s) might fail...")
+                groupSt = "0"
+        }</span>
+
+        <span class="cov10" title="5">group, err := strconv.Atoi(groupSt)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        // Change group of csi socket to non-root user for enabling the csi sidecar
+        <span class="cov10" title="5">if err := ops.Chown(addr, -1, group); err != nil </span><span class="cov4" title="2">{
+                return err
+        }</span>
+
+        // Modify permissions of csi socket
+        // Only the users and the group owners will have read/write access to csi socket
+        <span class="cov7" title="3">if err := ops.Chmod(addr, filePermission); err != nil </span><span class="cov1" title="1">{
+                return err
+        }</span>
+
+        <span class="cov4" title="2">logger.Info("Successfully set owner and permissions of csi socket file.")
+
+        return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">/**
+ *
+ * Copyright 2021- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package ibmcsidriver ...
+package ibmcsidriver
+
+import (
+        "fmt"
+        "os"
+
+        commonError "github.com/IBM/ibm-csi-common/pkg/messages"
+        mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
+        "github.com/IBM/ibm-csi-common/pkg/utils"
+        cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+        nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
+        csi "github.com/container-storage-interface/spec/lib/go/csi"
+        "go.uber.org/zap"
+)
+
+// IBMCSIDriver ...
+type IBMCSIDriver struct {
+        name          string
+        vendorVersion string
+        logger        *zap.Logger
+        region        string
+
+        ids *CSIIdentityServer
+        ns  *CSINodeServer
+        cs  *CSIControllerServer
+
+        vcap  []*csi.VolumeCapability_AccessMode
+        cscap []*csi.ControllerServiceCapability
+        nscap []*csi.NodeServiceCapability
+}
+
+var nodeMeta = nodeMetadata.NewNodeMetadata
+
+// GetIBMCSIDriver ...
+func GetIBMCSIDriver() *IBMCSIDriver <span class="cov8" title="56">{
+        return &amp;IBMCSIDriver{}
+}</span>
+
+// SetupIBMCSIDriver ...
+func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProviderInterface, mounter mountManager.Mounter, statsUtil StatsUtils, metadata nodeMetadata.NodeMetadata, lgr *zap.Logger, name, vendorVersion string) error <span class="cov8" title="58">{
+        icDriver.logger = lgr
+        icDriver.logger.Info("IBMCSIDriver-SetupIBMCSIDriver setting up IBM CSI Driver...")
+
+        if provider == nil </span><span class="cov1" title="1">{
+                return fmt.Errorf("provider not initialized")
+        }</span>
+
+        <span class="cov8" title="57">if mounter == nil </span><span class="cov1" title="1">{
+                return fmt.Errorf("mounter not initialized")
+        }</span>
+
+        <span class="cov8" title="56">if name == "" </span><span class="cov1" title="1">{
+                return fmt.Errorf("driver name missing")
+        }</span>
+
+        // Setup messaging
+        <span class="cov8" title="55">commonError.MessagesEn = commonError.InitMessages()
+
+        //icDriver.provider = provider
+        icDriver.name = name
+        icDriver.vendorVersion = vendorVersion
+
+        // Adding Capabilities
+        vcam := []csi.VolumeCapability_AccessMode_Mode{
+                csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,      // RWO
+                csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER, // RWX
+        }
+
+        _ = icDriver.AddVolumeCapabilityAccessModes(vcam) // #nosec G104: Attempt to AddVolumeCapabilityAccessModes only on best-effort basis. Error cannot be usefully handled.
+        csc := []csi.ControllerServiceCapability_RPC_Type{
+                csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+                //csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+                csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
+                // csi.ControllerServiceCapability_RPC_GET_CAPACITY,
+                // csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
+                // csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
+                // csi.ControllerServiceCapability_RPC_PUBLISH_READONLY,
+                csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
+        }
+        _ = icDriver.AddControllerServiceCapabilities(csc) // #nosec G104: Attempt to AddControllerServiceCapabilities only on best-effort basis. Error cannot be usefully handled.
+
+        ns := []csi.NodeServiceCapability_RPC_Type{
+                //csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
+                csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
+                //csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
+        }
+        _ = icDriver.AddNodeServiceCapabilities(ns) // #nosec G104: Attempt to AddNodeServiceCapabilities only on best-effort basis. Error cannot be usefully handled.
+
+        // Set up CSI RPC Servers
+        icDriver.ids = NewIdentityServer(icDriver)
+        icDriver.ns = NewNodeServer(icDriver, mounter, statsUtil, metadata)
+        icDriver.cs = NewControllerServer(icDriver, provider)
+
+        icDriver.logger.Info("Successfully setup IBM CSI driver")
+        // Set up Region
+        regionMetadata, err := nodeMeta(os.Getenv("KUBE_NODE_NAME"), lgr)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Controller_Helper: Failed to initialize node metadata")
+        }</span>
+        <span class="cov8" title="55">icDriver.region = regionMetadata.GetRegion()
+        return nil</span>
+}
+
+// AddVolumeCapabilityAccessModes ...
+func (icDriver *IBMCSIDriver) AddVolumeCapabilityAccessModes(vc []csi.VolumeCapability_AccessMode_Mode) error <span class="cov8" title="55">{
+        icDriver.logger.Info("IBMCSIDriver-AddVolumeCapabilityAccessModes...", zap.Reflect("VolumeCapabilityAccessModes", vc))
+        var vca []*csi.VolumeCapability_AccessMode
+        for _, c := range vc </span><span class="cov9" title="110">{
+                icDriver.logger.Info("Enabling volume access mode", zap.Reflect("Mode", c.String()))
+                vca = append(vca, utils.NewVolumeCapabilityAccessMode(c))
+        }</span>
+        <span class="cov8" title="55">icDriver.vcap = vca
+        icDriver.logger.Info("Successfully enabled Volume Capability Access Modes")
+        return nil</span>
+}
+
+// AddControllerServiceCapabilities ...
+func (icDriver *IBMCSIDriver) AddControllerServiceCapabilities(cl []csi.ControllerServiceCapability_RPC_Type) error <span class="cov8" title="55">{
+        icDriver.logger.Info("IBMCSIDriver-AddControllerServiceCapabilities...", zap.Reflect("ControllerServiceCapabilities", cl))
+        var csc []*csi.ControllerServiceCapability
+        for _, c := range cl </span><span class="cov10" title="165">{
+                icDriver.logger.Info("Adding controller service capability", zap.Reflect("Capability", c.String()))
+                csc = append(csc, utils.NewControllerServiceCapability(c))
+        }</span>
+        <span class="cov8" title="55">icDriver.cscap = csc
+        icDriver.logger.Info("Successfully added Controller Service Capabilities")
+        return nil</span>
+}
+
+// AddNodeServiceCapabilities ...
+func (icDriver *IBMCSIDriver) AddNodeServiceCapabilities(nl []csi.NodeServiceCapability_RPC_Type) error <span class="cov8" title="55">{
+        icDriver.logger.Info("IBMCSIDriver-AddNodeServiceCapabilities...", zap.Reflect("NodeServiceCapabilities", nl))
+        var nsc []*csi.NodeServiceCapability
+        for _, n := range nl </span><span class="cov8" title="55">{
+                icDriver.logger.Info("Adding node service capability", zap.Reflect("NodeServiceCapabilities", n.String()))
+                nsc = append(nsc, utils.NewNodeServiceCapability(n))
+        }</span>
+        <span class="cov8" title="55">icDriver.nscap = nsc
+        icDriver.logger.Info("Successfully added Node Service Capabilities")
+        return nil</span>
+}
+
+// ValidateControllerServiceRequest ...
+/*func (icDriver *IBMCSIDriver) ValidateControllerServiceRequest(c csi.ControllerServiceCapability_RPC_Type) error {
+        icDriver.logger.Info("In Driver's ValidateControllerServiceRequest ...", zap.Reflect("ControllerServiceRequest", c))
+        if c == csi.ControllerServiceCapability_RPC_UNKNOWN {
+                return nil
+        }
+
+        for _, cap := range icDriver.cscap {
+                if c == cap.GetRpc().Type {
+                        return nil
+                }
+        }
+
+        return status.Error(codes.InvalidArgument, "Invalid controller service request")
+}*/
+
+// NewIdentityServer ...
+func NewIdentityServer(icDriver *IBMCSIDriver) *CSIIdentityServer <span class="cov8" title="55">{
+        return &amp;CSIIdentityServer{
+                Driver: icDriver,
+        }
+}</span>
+
+// NewNodeServer ...
+func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUtil StatsUtils, nodeMetadata nodeMetadata.NodeMetadata) *CSINodeServer <span class="cov8" title="55">{
+        return &amp;CSINodeServer{
+                Driver:   icDriver,
+                Mounter:  mounter,
+                Stats:    statsUtil,
+                Metadata: nodeMetadata,
+        }
+}</span>
+
+// NewControllerServer ...
+func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface) *CSIControllerServer <span class="cov8" title="55">{
+        return &amp;CSIControllerServer{
+                Driver:      icDriver,
+                CSIProvider: provider,
+        }
+}</span>
+
+// Run ...
+func (icDriver *IBMCSIDriver) Run(endpoint string) <span class="cov0" title="0">{
+        icDriver.logger.Info("IBMCSIDriver-Run...", zap.Reflect("Endpoint", endpoint))
+        icDriver.logger.Info("CSI Driver Name", zap.Reflect("Name", icDriver.name))
+
+        //Start the nonblocking GRPC
+        s := NewNonBlockingGRPCServer(icDriver.logger)
+        // TODO(#34): Only start specific servers based on a flag.
+        // In the future have this only run specific combinations of servers depending on which version this is.
+        // The schema for that was in util. basically it was just s.start but with some nil servers.
+
+        s.Start(endpoint, icDriver.ids, icDriver.cs, icDriver.ns)
+        s.Wait()
+}</span>
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">/**
+ *
+ * Copyright 2021- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package ibmcsidriver ...
+package ibmcsidriver
+
+import (
+        commonError "github.com/IBM/ibm-csi-common/pkg/messages"
+        "github.com/IBM/ibm-csi-common/pkg/utils"
+        csi "github.com/container-storage-interface/spec/lib/go/csi"
+        "go.uber.org/zap"
+        "golang.org/x/net/context"
+)
+
+// CSIIdentityServer ...
+type CSIIdentityServer struct {
+        Driver *IBMCSIDriver
+}
+
+// GetPluginInfo ...
+func (csiIdentity *CSIIdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) <span class="cov10" title="2">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSIIdentityServer-GetPluginInfo...", zap.Reflect("Request", *req))
+
+        if csiIdentity.Driver == nil </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.DriverNotConfigured, requestID, nil)
+        }</span>
+
+        <span class="cov1" title="1">return &amp;csi.GetPluginInfoResponse{
+                Name:          csiIdentity.Driver.name,
+                VendorVersion: csiIdentity.Driver.vendorVersion,
+        }, nil</span>
+}
+
+// GetPluginCapabilities ...
+func (csiIdentity *CSIIdentityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) <span class="cov1" title="1">{
+        ctxLogger, _ := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSIIdentityServer-GetPluginCapabilities...", zap.Reflect("Request", *req))
+
+        return &amp;csi.GetPluginCapabilitiesResponse{
+                Capabilities: []*csi.PluginCapability{
+                        {
+                                Type: &amp;csi.PluginCapability_Service_{
+                                        Service: &amp;csi.PluginCapability_Service{
+                                                Type: csi.PluginCapability_Service_CONTROLLER_SERVICE,
+                                        },
+                                },
+                        },
+                        {
+                                Type: &amp;csi.PluginCapability_Service_{
+                                        Service: &amp;csi.PluginCapability_Service{
+                                                Type: csi.PluginCapability_Service_VOLUME_ACCESSIBILITY_CONSTRAINTS,
+                                        },
+                                },
+                        },
+                        /* TODO Add Volume Expansion {
+                                Type: &amp;csi.PluginCapability_Service_{
+                                        Service: &amp;csi.PluginCapability_Service{
+                                                Type: csi.PluginCapability_VolumeExpansion_ONLINE,
+                                        },
+                                },
+                        }, */
+                },
+        }, nil
+}</span>
+
+// Probe ...
+func (csiIdentity *CSIIdentityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) <span class="cov1" title="1">{
+        ctxLogger, _ := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSIIdentityServer-Probe...", zap.Reflect("Request", *req))
+        return &amp;csi.ProbeResponse{}, nil
+}</span>
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">/**
+ *
+ * Copyright 2021- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package ibmcsidriver ...
+package ibmcsidriver
+
+import (
+        "fmt"
+        "os"
+
+        "time"
+
+        commonError "github.com/IBM/ibm-csi-common/pkg/messages"
+        "github.com/IBM/ibm-csi-common/pkg/metrics"
+        "github.com/IBM/ibm-csi-common/pkg/mountmanager"
+        "github.com/IBM/ibm-csi-common/pkg/utils"
+        nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
+        csi "github.com/container-storage-interface/spec/lib/go/csi"
+        "go.uber.org/zap"
+        "golang.org/x/net/context"
+        "golang.org/x/sys/unix"
+        "k8s.io/kubernetes/pkg/volume/util/fs"
+        mount "k8s.io/mount-utils"
+)
+
+// CSINodeServer ...
+type CSINodeServer struct {
+        Driver   *IBMCSIDriver
+        Mounter  mountmanager.Mounter
+        Metadata nodeMetadata.NodeMetadata
+        Stats    StatsUtils
+        // TODO: Only lock mutually exclusive calls and make locking more fine grained
+        mutex utils.LockStore
+}
+
+// StatsUtils ...
+type StatsUtils interface {
+        FSInfo(path string) (int64, int64, int64, int64, int64, int64, error)
+        IsDevicePathNotExist(devicePath string) bool
+}
+
+// VolumeMountUtils ...
+type VolumeMountUtils struct {
+}
+
+// VolumeStatUtils ...
+type VolumeStatUtils struct {
+}
+
+// FSInfo ...
+func (su *VolumeStatUtils) FSInfo(path string) (int64, int64, int64, int64, int64, int64, error) <span class="cov0" title="0">{
+        return fs.Info(path)
+}</span>
+
+const (
+        // default file system type to be used when it is not provided
+        defaultFsType = "nfs"
+        // file system in case transit encryption is enabled
+        eitFsType = "ibmshare"
+)
+
+var _ csi.NodeServer = &amp;CSINodeServer{}
+
+// NodePublishVolume ...
+func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) <span class="cov10" title="7">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSINodeServer-NodePublishVolume...", zap.Reflect("Request", *req))
+        defer metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
+
+        volumeID := req.GetVolumeId()
+        if len(volumeID) == 0 </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
+        }</span>
+
+        <span class="cov9" title="6">source := req.GetVolumeContext()[NFSServerPath]
+        if len(source) == 0 </span><span class="cov7" title="4">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.NoStagingTargetPath, requestID, nil)
+        }</span>
+
+        <span class="cov4" title="2">target := req.GetTargetPath()
+        if len(target) == 0 </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
+        }</span>
+
+        <span class="cov4" title="2">volumeCapability := req.GetVolumeCapability()
+        if volumeCapability == nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.NoVolumeCapabilities, requestID, nil)
+        }</span>
+
+        <span class="cov4" title="2">volumeCapabilities := []*csi.VolumeCapability{volumeCapability}
+        // Validate volume capabilities, are all capabilities supported by driver or not
+        if !areVolumeCapabilitiesSupported(volumeCapabilities, csiNS.Driver.vcap) </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeCapabilitiesNotSupported, requestID, nil)
+        }</span>
+
+        // Check if targetPath is already mounted. If it already moounted return OK
+        <span class="cov4" title="2">notMounted, err := csiNS.Mounter.IsLikelyNotMountPoint(target)
+        if err != nil &amp;&amp; !os.IsNotExist(err) </span><span class="cov0" title="0">{
+                //Error other than PathNotExists
+                ctxLogger.Error(fmt.Sprintf("Can not validate target mount point: %s %v", target, err))
+                return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, err, target)
+        }</span>
+        // Its OK if IsLikelyNotMountPoint returns PathNotExists error
+        <span class="cov4" title="2">if !notMounted </span><span class="cov0" title="0">{
+                // The  target Path is already mounted, Retrun OK
+                /* TODO
+                1) Target Path MUST be the vol referenced by vol ID
+                2) Check volume capability matches for ALREADY_EXISTS
+                3) Readonly MUST match
+                */
+                ctxLogger.Warn("target Path is already mounted")
+                return &amp;csi.NodePublishVolumeResponse{}, nil
+        }</span>
+        <span class="cov4" title="2">mnt := volumeCapability.GetMount()
+        options := mnt.MountFlags
+
+        // find  FS type
+        fsType := defaultFsType
+        // In case EIT is enabled, use eitFsType
+        isEITEnabled := req.GetVolumeContext()[IsEITEnabled]
+        if isEITEnabled == TrueStr </span><span class="cov1" title="1">{
+                fsType = eitFsType
+        }</span>
+
+        <span class="cov4" title="2">var nodePublishResponse *csi.NodePublishVolumeResponse
+        var mountErr error
+
+        //Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
+        //This will not hold other volumes and target path processing.
+        csiNS.mutex.Lock(target)
+        defer csiNS.mutex.Unlock(target)
+
+        nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, source, target, fsType, options)
+
+        ctxLogger.Info("CSINodeServer-NodePublishVolume response...", zap.Reflect("Response", nodePublishResponse), zap.Error(mountErr))
+        return nodePublishResponse, mountErr</span>
+}
+
+// NodeUnpublishVolume ...
+func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) <span class="cov6" title="3">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSINodeServer-NodeUnpublishVolume...", zap.Reflect("Request", *req))
+        defer metrics.UpdateDurationFromStart(ctxLogger, "NodeUnpublishVolume", time.Now())
+
+        // Validate Arguments
+        targetPath := req.GetTargetPath()
+        volID := req.GetVolumeId()
+        if len(volID) == 0 </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
+        }</span>
+        <span class="cov4" title="2">if len(targetPath) == 0 </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
+        }</span>
+
+        //Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
+        //This will not hold other volumes and target path processing.
+        <span class="cov1" title="1">csiNS.mutex.Lock(targetPath)
+        defer csiNS.mutex.Unlock(targetPath)
+
+        ctxLogger.Info("Unmounting  target path", zap.String("targetPath", targetPath))
+        err := mount.CleanupMountPoint(targetPath, csiNS.Mounter, false /* bind mount */)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
+        }</span>
+
+        <span class="cov1" title="1">nodeUnpublishVolumeResponse := &amp;csi.NodeUnpublishVolumeResponse{}
+        ctxLogger.Info("Successfully unmounted target path", zap.String("targetPath", targetPath), zap.Error(err))
+        return nodeUnpublishVolumeResponse, err</span>
+}
+
+// NodeStageVolume ...
+func (csiNS *CSINodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSINodeServer-NodeStageVolume", zap.Reflect("Request", *req))
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeStageVolume")
+}</span>
+
+// NodeUnstageVolume ...
+func (csiNS *CSINodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSINodeServer-NodeUnstageVolume", zap.Reflect("Request", *req))
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeUnstageVolume")
+}</span>
+
+// NodeGetCapabilities ...
+func (csiNS *CSINodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) <span class="cov1" title="1">{
+        ctxLogger, _ := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSINodeServer-NodeGetCapabilities... ", zap.Reflect("Request", *req))
+
+        return &amp;csi.NodeGetCapabilitiesResponse{
+                Capabilities: csiNS.Driver.nscap,
+        }, nil
+}</span>
+
+// NodeGetInfo ...
+func (csiNS *CSINodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) <span class="cov4" title="2">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSINodeServer-NodeGetInfo... ", zap.Reflect("Request", *req))
+
+        // Check if node metadata service initialized properly
+        if csiNS.Metadata == nil </span><span class="cov1" title="1">{ //nolint
+                metadata, err := nodeMetadata.NewNodeMetadata(os.Getenv("KUBE_NODE_NAME"), ctxLogger)
+                if err != nil </span><span class="cov1" title="1">{
+                        ctxLogger.Error("Failed to initialize node metadata", zap.Error(err))
+                        return nil, commonError.GetCSIError(ctxLogger, commonError.NodeMetadataInitFailed, requestID, err)
+                }</span>
+                <span class="cov0" title="0">csiNS.Metadata = metadata</span>
+        }
+
+        <span class="cov1" title="1">top := &amp;csi.Topology{
+                Segments: map[string]string{
+                        utils.NodeRegionLabel: csiNS.Metadata.GetRegion(),
+                        utils.NodeZoneLabel:   csiNS.Metadata.GetZone(),
+                },
+        }
+
+        resp := &amp;csi.NodeGetInfoResponse{
+                NodeId:             csiNS.Metadata.GetWorkerID(),
+                AccessibleTopology: top,
+        }
+        ctxLogger.Info("NodeGetInfoResponse", zap.Reflect("NodeGetInfoResponse", resp))
+        return resp, nil</span>
+}
+
+// NodeGetVolumeStats ...
+func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) <span class="cov6" title="3">{
+        var resp *csi.NodeGetVolumeStatsResponse
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSINodeServer-NodeGetVolumeStats... ", zap.Reflect("Request", req))
+        defer metrics.UpdateDurationFromStart(ctxLogger, "NodeGetVolumeStats", time.Now())
+        if req == nil || req.VolumeId == "" </span><span class="cov1" title="1">{ //nolint
+                return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
+        }</span>
+
+        <span class="cov4" title="2">if req.VolumePath == "" </span><span class="cov1" title="1">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumePath, requestID, nil)
+        }</span>
+
+        <span class="cov1" title="1">volumePath := req.VolumePath
+        // Return if path does not exist
+        if csiNS.Stats.IsDevicePathNotExist(volumePath) </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.DevicePathNotExists, requestID, nil, volumePath, req.VolumeId)
+        }</span>
+
+        // else get the file system stats
+        <span class="cov1" title="1">available, capacity, usage, inodes, inodesFree, inodesUsed, err := csiNS.Stats.FSInfo(volumePath)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.GetFSInfoFailed, requestID, err)
+        }</span>
+        <span class="cov1" title="1">resp = &amp;csi.NodeGetVolumeStatsResponse{
+                Usage: []*csi.VolumeUsage{
+                        {
+                                Available: available,
+                                Total:     capacity,
+                                Used:      usage,
+                                Unit:      csi.VolumeUsage_BYTES,
+                        },
+                        {
+                                Available: inodesFree,
+                                Total:     inodes,
+                                Used:      inodesUsed,
+                                Unit:      csi.VolumeUsage_INODES,
+                        },
+                },
+        }
+
+        ctxLogger.Info("Response for Volume stats", zap.Reflect("Response", resp))
+        return resp, nil</span>
+}
+
+// NodeExpandVolume ...
+func (csiNS *CSINodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) <span class="cov1" title="1">{
+        ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+        ctxLogger.Info("CSINodeServer-NodeExpandVolume", zap.Reflect("Request", *req))
+        return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeExpandVolume")
+}</span>
+
+// IsDevicePathNotExist ...
+func (su *VolumeStatUtils) IsDevicePathNotExist(devicePath string) bool <span class="cov4" title="2">{
+        var stat unix.Stat_t
+        err := unix.Stat(devicePath, &amp;stat)
+        if err != nil </span><span class="cov1" title="1">{
+                if os.IsNotExist(err) </span><span class="cov1" title="1">{
+                        return true
+                }</span>
+        }
+        <span class="cov1" title="1">return false</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">/**
+ *
+ * Copyright 2021- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package ibmcsidriver ...
+package ibmcsidriver
+
+import (
+        "os"
+        "regexp"
+
+        commonError "github.com/IBM/ibm-csi-common/pkg/messages"
+        csi "github.com/container-storage-interface/spec/lib/go/csi"
+        "go.uber.org/zap"
+)
+
+func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mountPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) <span class="cov7" title="4">{
+        mountPathField := zap.String("mountPath", mountPath)
+        targetPathField := zap.String("targetPath", targetPath)
+        fsTypeField := zap.String("fsType", fsType)
+        optionsField := zap.Reflect("options", options)
+        ctxLogger.Info("CSINodeServer-processMount...", mountPathField, targetPathField, fsTypeField, optionsField)
+
+        if err := csiNS.Mounter.MakeDir(targetPath); err != nil </span><span class="cov0" title="0">{
+                return nil, commonError.GetCSIError(ctxLogger, commonError.TargetPathCreateFailed, requestID, err, targetPath)
+        }</span>
+
+        <span class="cov7" title="4">var err error
+        var errResponse string
+
+        ctxLogger.Info("Creating request for mounting volume...")
+        if fsType != eitFsType </span><span class="cov4" title="2">{
+                err = csiNS.Mounter.Mount(mountPath, targetPath, fsType, options)
+        }</span> else<span class="cov4" title="2"> {
+                errResponse, err = csiNS.Mounter.MountEITBasedFileShare(mountPath, targetPath, fsType, requestID)
+        }</span>
+
+        <span class="cov7" title="4">if err != nil </span><span class="cov0" title="0">{
+                notMnt, mntErr := csiNS.Mounter.IsLikelyNotMountPoint(targetPath)
+                if mntErr != nil </span><span class="cov0" title="0">{
+                        return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, mntErr, targetPath)
+                }</span>
+                <span class="cov0" title="0">if !notMnt </span><span class="cov0" title="0">{
+                        if mntErr = csiNS.Mounter.Unmount(targetPath); mntErr != nil </span><span class="cov0" title="0">{
+                                return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, mntErr, targetPath)
+                        }</span>
+                        <span class="cov0" title="0">notMnt, mntErr = csiNS.Mounter.IsLikelyNotMountPoint(targetPath)
+                        if mntErr != nil </span><span class="cov0" title="0">{
+                                return nil, commonError.GetCSIError(ctxLogger, commonError.MountPointValidateError, requestID, mntErr, targetPath)
+                        }</span>
+                        <span class="cov0" title="0">if !notMnt </span><span class="cov0" title="0">{
+                                // This is very odd, we don't expect it.  We'll try again next sync loop.
+                                return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
+                        }</span>
+                }
+                <span class="cov0" title="0">var errorCode string
+                errRemovePath := os.Remove(targetPath)
+                if errRemovePath != nil </span><span class="cov0" title="0">{
+                        ctxLogger.Warn("processMount: Remove targetPath failed", zap.String("targetPath", targetPath), zap.Error(errRemovePath))
+                        errorCode = commonError.CreateMountTargetFailed
+                }</span>
+                <span class="cov0" title="0">if fsType == eitFsType </span><span class="cov0" title="0">{
+                        errorCode = checkMountResponse(err)
+                        if errorCode != commonError.UnresponsiveMountHelperContainerUtility </span><span class="cov0" title="0">{
+                                ctxLogger.Error("Mount backend output: ", zap.String("Reponse:", errResponse))
+                        }</span>
+                }
+                <span class="cov0" title="0">return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)</span>
+        }
+
+        <span class="cov7" title="4">ctxLogger.Info("CSINodeServer-processMount successfully mounted", mountPathField, targetPathField, fsTypeField, optionsField)
+        return &amp;csi.NodePublishVolumeResponse{}, nil</span>
+}
+
+// checkMountResponse checks for known errors while mounting and return appropriate user error codes.
+func checkMountResponse(err error) string <span class="cov6" title="3">{
+        errorString := err.Error()
+
+        errorMap := map[string]string{
+                `exit status 1\b`:         commonError.MetadataServiceNotEnabled,
+                `connect: no such file\b`: commonError.UnresponsiveMountHelperContainerUtility,
+        }
+
+        for code, message := range errorMap </span><span class="cov10" title="6">{
+                regex := regexp.MustCompile(code)
+                if regex.MatchString(errorString) </span><span class="cov4" title="2">{
+                        return message
+                }</span>
+        }
+
+        <span class="cov1" title="1">return commonError.MountingTargetFailed</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">/**
+ *
+ * Copyright 2021- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Package ibmcsidriver ...
+package ibmcsidriver
+
+import (
+        "errors"
+        "net"
+        "net/url"
+        "os"
+        "os/signal"
+        "sync"
+        "syscall"
+
+        csi "github.com/container-storage-interface/spec/lib/go/csi"
+        "github.com/golang/glog"
+        "go.uber.org/zap"
+        "golang.org/x/net/context"
+        "google.golang.org/grpc"
+)
+
+// NonBlockingGRPCServer Defines Non blocking GRPC server interfaces
+type NonBlockingGRPCServer interface {
+        // Start services at the endpoint
+        Start(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer)
+        // Waits for the service to stop
+        Wait()
+        // Stops the service gracefully
+        Stop()
+        // Stops the service forcefully
+        ForceStop()
+}
+
+// NewNonBlockingGRPCServer ...
+func NewNonBlockingGRPCServer(logger *zap.Logger) NonBlockingGRPCServer <span class="cov1" title="1">{
+        return &amp;nonBlockingGRPCServer{logger: logger}
+}</span>
+
+// nonBlockingGRPCServer server
+type nonBlockingGRPCServer struct {
+        wg     sync.WaitGroup
+        server *grpc.Server
+        logger *zap.Logger
+}
+
+// Start ...
+func (s *nonBlockingGRPCServer) Start(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) <span class="cov0" title="0">{
+        s.wg.Add(1)
+
+        go s.serve(endpoint, ids, cs, ns)
+}</span>
+
+// Wait ...
+func (s *nonBlockingGRPCServer) Wait() <span class="cov1" title="1">{
+        s.wg.Wait()
+}</span>
+
+// Stop ...
+func (s *nonBlockingGRPCServer) Stop() <span class="cov1" title="1">{
+        s.server.GracefulStop()
+}</span>
+
+// ForceStop ...
+func (s *nonBlockingGRPCServer) ForceStop() <span class="cov4" title="2">{
+        s.server.Stop()
+}</span>
+
+// Setup ...
+func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) (net.Listener, error) <span class="cov10" title="6">{
+        s.logger.Info("nonBlockingGRPCServer-Setup...", zap.Reflect("Endpoint", endpoint))
+
+        opts := []grpc.ServerOption{
+                grpc.UnaryInterceptor(logGRPC),
+        }
+
+        u, err := url.Parse(endpoint)
+
+        if err != nil </span><span class="cov1" title="1">{
+                msg := "Failed to parse endpoint"
+                s.logger.Error(msg, zap.Error(err))
+                return nil, err
+        }</span>
+
+        <span class="cov9" title="5">var addr string
+        if u.Scheme == "unix" </span><span class="cov6" title="3">{
+                addr = u.Path
+                if err := os.Remove(addr); err != nil &amp;&amp; !os.IsNotExist(err) </span><span class="cov0" title="0">{
+                        s.logger.Error("Failed to remove", zap.Reflect("addr", addr), zap.Error(err))
+                        return nil, err
+                }</span>
+        } else<span class="cov4" title="2"> if u.Scheme == "tcp" </span><span class="cov1" title="1">{
+                addr = u.Host
+        }</span> else<span class="cov1" title="1"> {
+                msg := "endpoint scheme not supported"
+                s.logger.Error(msg, zap.Reflect("Scheme", u.Scheme))
+                return nil, errors.New(msg)
+        }</span>
+
+        <span class="cov7" title="4">s.logger.Info("Start listening GRPC Server", zap.Reflect("Scheme", u.Scheme), zap.Reflect("Addr", addr))
+
+        // Create listener
+        listener, err := net.Listen(u.Scheme, addr)
+        if err != nil </span><span class="cov0" title="0">{
+                msg := "failed to listen GRPC Server"
+                s.logger.Error(msg, zap.Reflect("Error", err))
+                return nil, errors.New(msg)
+        }</span>
+
+        // In case of nodeSerer container, setup desired csi socket permissions and user/group.
+        // This is required for running `livenessprobe` container as non-root user/group
+        <span class="cov7" title="4">if os.Getenv("IS_NODE_SERVER") == "true" </span><span class="cov1" title="1">{
+                fileops := &amp;opsSocketPermission{}
+                if err := setupSidecar(addr, fileops, s.logger); err != nil </span><span class="cov1" title="1">{
+                        s.logger.Error("setupSidecar failed.", zap.Error(err))
+                        return nil, err
+                }</span>
+        }
+
+        <span class="cov6" title="3">server := grpc.NewServer(opts...)
+        s.server = server
+
+        if ids != nil </span><span class="cov1" title="1">{
+                csi.RegisterIdentityServer(s.server, ids)
+        }</span>
+        <span class="cov6" title="3">if cs != nil </span><span class="cov1" title="1">{
+                csi.RegisterControllerServer(s.server, cs)
+        }</span>
+        <span class="cov6" title="3">if ns != nil </span><span class="cov1" title="1">{
+                csi.RegisterNodeServer(s.server, ns)
+        }</span>
+        <span class="cov6" title="3">go removeCSISocket(addr)
+        return listener, nil</span>
+}
+
+// serve ...
+func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, cs csi.ControllerServer, ns csi.NodeServer) <span class="cov0" title="0">{
+        s.logger.Info("nonBlockingGRPCServer-serve...", zap.Reflect("Endpoint", endpoint))
+        //! Setup
+        listener, err := s.Setup(endpoint, ids, cs, ns)
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.Fatal("Failed to setup GRPC Server", zap.Error(err))
+        }</span>
+        <span class="cov0" title="0">s.logger.Info("Listening GRPC server for connections", zap.Reflect("Addr", listener.Addr()))
+        if err := s.server.Serve(listener); err != nil </span><span class="cov0" title="0">{
+                s.logger.Info("Failed to serve", zap.Error(err))
+        }</span>
+}
+
+// logGRPC ...
+func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) <span class="cov4" title="2">{
+        glog.V(3).Infof("GRPC call: %s", info.FullMethod)
+        glog.V(5).Infof("GRPC request: %+v", req)
+        resp, err := handler(ctx, req)
+        if err != nil </span><span class="cov1" title="1">{
+                glog.Errorf("GRPC error: %v", err)
+        }</span> else<span class="cov1" title="1"> {
+                glog.V(5).Infof("GRPC response: %+v", resp)
+        }</span>
+        <span class="cov4" title="2">return resp, err</span>
+}
+
+func removeCSISocket(endPoint string) <span class="cov6" title="3">{
+        // Reference: https://github.com/kubernetes-csi/node-driver-registrar/blob/master/cmd/csi-node-driver-registrar/node_register.go#L168
+        sigc := make(chan os.Signal, 1)
+        signal.Notify(sigc, syscall.SIGTERM)
+        &lt;-sigc
+        err := os.Remove(endPoint)
+        if err != nil &amp;&amp; !os.IsNotExist(err) </span><span class="cov0" title="0">{
+                glog.Errorf("failed to remove socket: %s with error: %+v", endPoint, err)
+                os.Exit(1)
+        }</span>
+        <span class="cov0" title="0">os.Exit(0)</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
