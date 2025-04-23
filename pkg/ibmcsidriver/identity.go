@@ -36,7 +36,7 @@ type CSIIdentityServer struct {
 // GetPluginInfo ...
 func (csiIdentity *CSIIdentityServer) GetPluginInfo(ctx context.Context, req *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSIIdentityServer-GetPluginInfo...", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIIdentityServer-GetPluginInfo...", zap.Reflect("Request", req))
 
 	if csiIdentity.Driver == nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.DriverNotConfigured, requestID, nil)
@@ -51,7 +51,7 @@ func (csiIdentity *CSIIdentityServer) GetPluginInfo(ctx context.Context, req *cs
 // GetPluginCapabilities ...
 func (csiIdentity *CSIIdentityServer) GetPluginCapabilities(ctx context.Context, req *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
 	ctxLogger, _ := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSIIdentityServer-GetPluginCapabilities...", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIIdentityServer-GetPluginCapabilities...", zap.Reflect("Request", req))
 
 	return &csi.GetPluginCapabilitiesResponse{
 		Capabilities: []*csi.PluginCapability{
@@ -83,6 +83,6 @@ func (csiIdentity *CSIIdentityServer) GetPluginCapabilities(ctx context.Context,
 // Probe ...
 func (csiIdentity *CSIIdentityServer) Probe(ctx context.Context, req *csi.ProbeRequest) (*csi.ProbeResponse, error) {
 	ctxLogger, _ := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSIIdentityServer-Probe...", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIIdentityServer-Probe...", zap.Reflect("Request", req))
 	return &csi.ProbeResponse{}, nil
 }
