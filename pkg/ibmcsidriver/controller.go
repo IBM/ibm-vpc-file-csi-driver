@@ -39,6 +39,7 @@ import (
 type CSIControllerServer struct {
 	Driver      *IBMCSIDriver
 	CSIProvider cloudProvider.CloudProviderInterface
+	csi.UnimplementedControllerServer
 }
 
 const (

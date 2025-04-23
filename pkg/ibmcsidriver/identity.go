@@ -30,6 +30,7 @@ import (
 // CSIIdentityServer ...
 type CSIIdentityServer struct {
 	Driver *IBMCSIDriver
+	csi.UnimplementedIdentityServer
 }
 
 // GetPluginInfo ...

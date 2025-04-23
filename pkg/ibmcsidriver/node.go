@@ -46,6 +46,7 @@ type CSINodeServer struct {
 	Stats    StatsUtils
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
 	mutex utils.LockStore
+	csi.UnimplementedNodeServer
 }
 
 // StatsUtils ...
