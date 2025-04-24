@@ -46,10 +46,10 @@ func NewConfigWatcher(client rest.Interface, log *zap.Logger) *ConfigWatcher {
 
 func (cw *ConfigWatcher) Start() {
 	watchlist := cache.NewListWatchFromClient(cw.client, "configmaps", ConfigmapNamespace, fields.Set{"metadata.name": ConfigmapName}.AsSelector())
-	informerOptions := cache.InformerOptions{	
+	informerOptions := cache.InformerOptions{
 		ListerWatcher: watchlist,
-		ObjectType:      &v1.ConfigMap{},
-		ResyncPeriod:       time.Second * 0,
+		ObjectType:    &v1.ConfigMap{},
+		ResyncPeriod:  time.Second * 0,
 		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    nil,
 			DeleteFunc: nil,
