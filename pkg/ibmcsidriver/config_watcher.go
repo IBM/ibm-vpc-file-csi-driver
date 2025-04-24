@@ -46,13 +46,17 @@ func NewConfigWatcher(client rest.Interface, log *zap.Logger) *ConfigWatcher {
 
 func (cw *ConfigWatcher) Start() {
 	watchlist := cache.NewListWatchFromClient(cw.client, "configmaps", ConfigmapNamespace, fields.Set{"metadata.name": ConfigmapName}.AsSelector())
-	_, controller := cache.NewInformer(watchlist, &v1.ConfigMap{}, time.Second*0,
-		cache.ResourceEventHandlerFuncs{
+	informerOptions := cache.InformerOptions{
+		ListerWatcher: watchlist,
+		ObjectType:    &v1.ConfigMap{},
+		ResyncPeriod:  time.Second * 0,
+		Handler: cache.ResourceEventHandlerFuncs{
 			AddFunc:    nil,
 			DeleteFunc: nil,
 			UpdateFunc: cw.updateSubnetList,
 		},
-	)
+	}
+	_, controller := cache.NewInformerWithOptions(informerOptions)
 	stopch := wait.NeverStop
 	go controller.Run(stopch)
 	cw.logger.Info("ConfigWatcher started - start watching for any updates in subnet list", zap.Any("configmap name", ConfigmapName), zap.Any("configmap namespace", ConfigmapNamespace))
