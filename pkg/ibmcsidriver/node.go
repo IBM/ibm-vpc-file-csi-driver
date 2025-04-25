@@ -46,6 +46,7 @@ type CSINodeServer struct {
 	Stats    StatsUtils
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
 	mutex utils.LockStore
+	csi.UnimplementedNodeServer
 }
 
 // StatsUtils ...
@@ -79,7 +80,7 @@ var _ csi.NodeServer = &CSINodeServer{}
 // NodePublishVolume ...
 func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodePublishVolume...", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSINodeServer-NodePublishVolume...", zap.Reflect("Request", req))
 	defer metrics.UpdateDurationFromStart(ctxLogger, "NodePublishVolume", time.Now())
 
 	volumeID := req.GetVolumeId()
@@ -154,7 +155,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 // NodeUnpublishVolume ...
 func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodeUnpublishVolume...", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSINodeServer-NodeUnpublishVolume...", zap.Reflect("Request", req))
 	defer metrics.UpdateDurationFromStart(ctxLogger, "NodeUnpublishVolume", time.Now())
 
 	// Validate Arguments
@@ -186,21 +187,21 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 // NodeStageVolume ...
 func (csiNS *CSINodeServer) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodeStageVolume", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSINodeServer-NodeStageVolume", zap.Reflect("Request", req))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeStageVolume")
 }
 
 // NodeUnstageVolume ...
 func (csiNS *CSINodeServer) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodeUnstageVolume", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSINodeServer-NodeUnstageVolume", zap.Reflect("Request", req))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeUnstageVolume")
 }
 
 // NodeGetCapabilities ...
 func (csiNS *CSINodeServer) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
 	ctxLogger, _ := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodeGetCapabilities... ", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSINodeServer-NodeGetCapabilities... ", zap.Reflect("Request", req))
 
 	return &csi.NodeGetCapabilitiesResponse{
 		Capabilities: csiNS.Driver.nscap,
@@ -210,7 +211,7 @@ func (csiNS *CSINodeServer) NodeGetCapabilities(ctx context.Context, req *csi.No
 // NodeGetInfo ...
 func (csiNS *CSINodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodeGetInfo... ", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSINodeServer-NodeGetInfo... ", zap.Reflect("Request", req))
 
 	// Check if node metadata service initialized properly
 	if csiNS.Metadata == nil { //nolint
@@ -286,7 +287,7 @@ func (csiNS *CSINodeServer) NodeGetVolumeStats(ctx context.Context, req *csi.Nod
 // NodeExpandVolume ...
 func (csiNS *CSINodeServer) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	ctxLogger.Info("CSINodeServer-NodeExpandVolume", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSINodeServer-NodeExpandVolume", zap.Reflect("Request", req))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "NodeExpandVolume")
 }
 

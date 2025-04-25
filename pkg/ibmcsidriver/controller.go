@@ -39,6 +39,7 @@ import (
 type CSIControllerServer struct {
 	Driver      *IBMCSIDriver
 	CSIProvider cloudProvider.CloudProviderInterface
+	csi.UnimplementedControllerServer
 }
 
 const (
@@ -54,7 +55,7 @@ func (csiCS *CSIControllerServer) ControllerGetCapabilities(ctx context.Context,
 	// populate requestID in the context
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 
-	ctxLogger.Info("CSIControllerServer-ControllerGetCapabilities", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-ControllerGetCapabilities", zap.Reflect("Request", req))
 	// Return the capabilities as per provider volume capabilities
 	return &csi.ControllerGetCapabilitiesResponse{
 		Capabilities: csiCS.Driver.cscap,
@@ -70,7 +71,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
-	ctxLogger.Info("CSIControllerServer-CreateVolume... ", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-CreateVolume... ", zap.Reflect("Request", req))
 	defer metrics.UpdateDurationFromStart(ctxLogger, "CSICreateVolume", time.Now())
 
 	// Check basic parameters validations i.e PVC name given
@@ -306,7 +307,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
 	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIDeleteVolume", time.Now())
-	ctxLogger.Info("CSIControllerServer-DeleteVolume... ", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-DeleteVolume... ", zap.Reflect("Request", req))
 
 	// Validate arguments
 	volumeID := req.GetVolumeId()
@@ -383,7 +384,7 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
-	ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities", zap.Reflect("Request", req))
 
 	// Validate Arguments
 	if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 {
@@ -434,7 +435,7 @@ func (csiCS *CSIControllerServer) ListVolumes(ctx context.Context, req *csi.List
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
 	ctx = context.WithValue(ctx, provider.RequestID, requestID)
-	ctxLogger.Info("CSIControllerServer-ListVolumes...", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-ListVolumes...", zap.Reflect("Request", req))
 	defer metrics.UpdateDurationFromStart(ctxLogger, metrics.FunctionLabel("CSIListVolumes"), time.Now())
 
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
@@ -525,7 +526,7 @@ func (csiCS *CSIControllerServer) ControllerPublishVolume(ctx context.Context, r
 	// populate requestID in the context
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 
-	ctxLogger.Info("CSIControllerServer-ControllerPublishVolume", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-ControllerPublishVolume", zap.Reflect("Request", req))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "PublishVolume")
 }
 
@@ -535,7 +536,7 @@ func (csiCS *CSIControllerServer) ControllerUnpublishVolume(ctx context.Context,
 	// populate requestID in the context
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 
-	ctxLogger.Info("CSIControllerServer-ControllerUnpublishVolume", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-ControllerUnpublishVolume", zap.Reflect("Request", req))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnsupported, requestID, nil, "UnpublishVolume")
 }
 
@@ -545,7 +546,7 @@ func (csiCS *CSIControllerServer) GetCapacity(ctx context.Context, req *csi.GetC
 	// populate requestID in the context
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 
-	ctxLogger.Info("CSIControllerServer-GetCapacity", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-GetCapacity", zap.Reflect("Request", req))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "GetCapacity")
 }
 
@@ -555,7 +556,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	// populate requestID in the context
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 
-	ctxLogger.Info("CSIControllerServer-CreateSnapshot", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-CreateSnapshot", zap.Reflect("Request", req))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "CreateSnapshot")
 }
 
@@ -565,7 +566,7 @@ func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.D
 	// populate requestID in the context
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 
-	ctxLogger.Info("CSIControllerServer-DeleteSnapshot", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-DeleteSnapshot", zap.Reflect("Request", req))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "DeleteSnapshot")
 }
 
@@ -575,7 +576,7 @@ func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.Li
 	// populate requestID in the context
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 
-	ctxLogger.Info("CSIControllerServer-ListSnapshots", zap.Reflect("Request", *req))
+	ctxLogger.Info("CSIControllerServer-ListSnapshots", zap.Reflect("Request", req))
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ListSnapshots")
 }
 
