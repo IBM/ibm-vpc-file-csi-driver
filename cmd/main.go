@@ -35,6 +35,7 @@ import (
 	csiConfig "github.com/IBM/ibm-vpc-file-csi-driver/config"
 	driver "github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+	nodeInfoManager "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	"github.com/IBM/ibmcloud-volume-file-vpc/pkg/watcher"
 	k8sUtils "github.com/IBM/secret-utils-lib/pkg/k8s_utils"
 	"go.uber.org/zap"
@@ -100,9 +101,15 @@ func handle(logger *zap.Logger) {
 	// Get new instance for the Mount Manager
 	mounter := mountManager.NewNodeMounter()
 
+	nodeName := os.Getenv("KUBE_NODE_NAME")
+
+	nodeInfo := nodeInfoManager.NodeInfoManager{
+		NodeName: nodeName,
+	}
+
 	statUtil := &(driver.VolumeStatUtils{})
 
-	err = ibmCSIDriver.SetupIBMCSIDriver(ibmcloudProvider, mounter, statUtil, nil, logger, csiConfig.CSIDriverName, vendorVersion)
+	err = ibmCSIDriver.SetupIBMCSIDriver(ibmcloudProvider, mounter, statUtil, nil, &nodeInfo, logger, csiConfig.CSIDriverName, vendorVersion)
 	if err != nil {
 		logger.Fatal("Failed to initialize driver...", zap.Error(err))
 	}

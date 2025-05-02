@@ -21,6 +21,7 @@ package ibmcsidriver
 
 import (
 	"os"
+	"strings"
 	"time"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
@@ -447,6 +448,12 @@ func (csiCS *CSIControllerServer) ListVolumes(ctx context.Context, req *csi.List
 	tags := map[string]string{}
 	volumeList, err := session.ListVolumes(maxEntries, req.StartingToken, tags)
 	if err != nil {
+		errCode := err.(providerError.Message).Code
+		if strings.Contains(errCode, "InvalidListVolumesLimit") {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
+		} else if strings.Contains(errCode, "StartVolumeIDNotFound") {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.StartVolumeIDNotFound, requestID, err, req.StartingToken)
+		}
 		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 
