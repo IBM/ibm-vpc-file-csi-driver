@@ -59,7 +59,7 @@
 				
 				<option value="file1">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/controller.go (91.5%)</option>
 				
-				<option value="file2">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/controller_helper.go (92.5%)</option>
+				<option value="file2">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/controller_helper.go (92.9%)</option>
 				
 				<option value="file3">github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/fileOps.go (81.2%)</option>
 				
@@ -1107,30 +1107,30 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 }
 
 // setSecurityGroupList
-func setSecurityGroupList(volume *provider.Volume, value string) <span class="cov3" title="3">{
+func setSecurityGroupList(volume *provider.Volume, value string) <span class="cov3" title="4">{
         securityGroupstr := strings.TrimSpace(value)
         securityGroupList := strings.Split(securityGroupstr, ",")
         var securityGroups []provider.SecurityGroup
-        for _, securityGroup := range securityGroupList </span><span class="cov3" title="3">{
+        for _, securityGroup := range securityGroupList </span><span class="cov3" title="4">{
                 securityGroups = append(securityGroups, provider.SecurityGroup{ID: securityGroup})
         }</span>
-        <span class="cov3" title="3">volume.VPCVolume.SecurityGroups = &amp;securityGroups</span>
+        <span class="cov3" title="4">volume.VPCVolume.SecurityGroups = &amp;securityGroups</span>
 }
 
 // setISENIEnabled
-func setISENIEnabled(volume *provider.Volume, key string, value string) error <span class="cov5" title="8">{
+func setISENIEnabled(volume *provider.Volume, key string, value string) error <span class="cov5" title="10">{
         var err error
         if value != TrueStr &amp;&amp; value != FalseStr </span><span class="cov0" title="0">{
                 err = fmt.Errorf("'&lt;%v&gt;' is invalid, value of '%s' should be [true|false]", value, key)
-        }</span> else<span class="cov5" title="8"> {
-                if value == TrueStr </span><span class="cov3" title="3">{
+        }</span> else<span class="cov5" title="10"> {
+                if value == TrueStr </span><span class="cov3" title="4">{
                         volume.VPCVolume.AccessControlMode = SecurityGroup
-                }</span> else<span class="cov4" title="5"> {
+                }</span> else<span class="cov4" title="6"> {
                         volume.VPCVolume.AccessControlMode = VPC
                 }</span>
         }
 
-        <span class="cov5" title="8">return err</span>
+        <span class="cov5" title="10">return err</span>
 }
 
 // setPrimaryIPID
@@ -1192,19 +1192,19 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
                 return fmt.Errorf("invalid volume parameter")
         }</span>
 
-        <span class="cov7" title="22">for key, value := range req.GetSecrets() </span><span class="cov7" title="21">{
+        <span class="cov7" title="22">for key, value := range req.GetSecrets() </span><span class="cov7" title="28">{
                 switch key </span>{
-                case ResourceGroup:<span class="cov2" title="2">
+                case ResourceGroup:<span class="cov3" title="3">
                         if len(value) &gt; ResourceGroupIDMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d bytes ", key, value, ResourceGroupIDMaxLen)
-                        }</span> else<span class="cov1" title="1"> {
+                        }</span> else<span class="cov2" title="2"> {
                                 logger.Info("override", zap.Any(ResourceGroup, value))
                                 volume.VPCVolume.ResourceGroup = &amp;provider.ResourceGroup{ID: value}
                         }</span>
-                case Encrypted:<span class="cov2" title="2">
+                case Encrypted:<span class="cov3" title="3">
                         if value != TrueStr &amp;&amp; value != FalseStr </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("&lt;%v&gt; is invalid, value for '%s' should be [true|false]", value, key)
-                        }</span> else<span class="cov1" title="1"> {
+                        }</span> else<span class="cov2" title="2"> {
                                 logger.Info("override", zap.Any(Encrypted, value))
                                 encrypt = value
                         }</span>
@@ -1217,26 +1217,26 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
                                         volume.VPCVolume.VolumeEncryptionKey = &amp;provider.VolumeEncryptionKey{CRN: value}
                                 }</span>
                         }
-                case Tag:<span class="cov2" title="2">
+                case Tag:<span class="cov3" title="3">
                         if len(value) &gt; TagMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, TagMaxLen)
-                        }</span> else<span class="cov1" title="1"> {
-                                if len(value) != 0 </span><span class="cov1" title="1">{
+                        }</span> else<span class="cov2" title="2"> {
+                                if len(value) != 0 </span><span class="cov2" title="2">{
                                         logger.Info("append", zap.Any(Tag, value))
                                         volume.VPCVolume.Tags = append(volume.VPCVolume.Tags, value)
                                 }</span>
                         }
-                case Zone:<span class="cov3" title="3">
+                case Zone:<span class="cov2" title="2">
                         if len(value) &gt; ZoneNameMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, ZoneNameMaxLen)
-                        }</span> else<span class="cov2" title="2"> {
+                        }</span> else<span class="cov1" title="1"> {
                                 logger.Info("override", zap.Any(Zone, value))
                                 volume.Az = value
                         }</span>
-                case Region:<span class="cov2" title="2">
+                case Region:<span class="cov3" title="3">
                         if len(value) &gt; RegionMaxLen </span><span class="cov1" title="1">{
                                 err = fmt.Errorf("%s:&lt;%v&gt; exceeds %d chars", key, value, RegionMaxLen)
-                        }</span> else<span class="cov1" title="1"> {
+                        }</span> else<span class="cov2" title="2"> {
                                 volume.Region = value
                         }</span>
                 case IOPS:<span class="cov3" title="4">
@@ -1255,8 +1255,8 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
                                         }</span>
                                 }
                         }
-                case SecurityGroupIDs:<span class="cov1" title="1">
-                        if len(value) != 0 </span><span class="cov1" title="1">{
+                case SecurityGroupIDs:<span class="cov2" title="2">
+                        if len(value) != 0 </span><span class="cov2" title="2">{
                                 setSecurityGroupList(volume, value)
                         }</span>
                 case PrimaryIPID:<span class="cov1" title="1">
@@ -1267,16 +1267,16 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
                         if len(value) != 0 </span><span class="cov0" title="0">{
                                 err = setPrimaryIPAddress(volume, key, value)
                         }</span>
-                case SubnetID:<span class="cov1" title="1">
-                        if len(value) != 0 </span><span class="cov1" title="1">{
+                case SubnetID:<span class="cov2" title="2">
+                        if len(value) != 0 </span><span class="cov2" title="2">{
                                 volume.VPCVolume.SubnetID = value
                         }</span>
-                case IsENIEnabled:<span class="cov0" title="0">
+                case IsENIEnabled:<span class="cov2" title="2">
                         err = setISENIEnabled(volume, key, strings.ToLower(value))</span>
                 default:<span class="cov1" title="1">
                         err = fmt.Errorf("&lt;%s&gt; is an invalid parameter", key)</span>
                 }
-                <span class="cov7" title="21">if err != nil </span><span class="cov5" title="10">{
+                <span class="cov7" title="28">if err != nil </span><span class="cov5" title="10">{
                         logger.Error("overrideParams", zap.NamedError("Secret Parameters", err))
                         return err
                 }</span>
