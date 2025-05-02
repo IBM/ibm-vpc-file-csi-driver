@@ -33,6 +33,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
+	nodeInfo "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata/fake"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
@@ -79,6 +80,7 @@ func TestSanity(t *testing.T) {
 	}
 
 	os.Setenv("VPC_SUBNET_IDS", "subnet-id")
+
 	// Create a fake CSI driver
 	csiSanityDriver := initCSIDriverForSanity(t)
 
@@ -157,12 +159,14 @@ func initCSIDriverForSanity(t *testing.T) *csiDriver.IBMCSIDriver {
 
 	// fake node metadata
 	fakeNodeData := nodeMetadata.FakeNodeMetadata{}
+	fakeNodeInfo := nodeInfo.FakeNodeInfo{}
 	fakeNodeData.GetRegionReturns("testregion")
 	fakeNodeData.GetZoneReturns("testzone")
 	fakeNodeData.GetWorkerIDReturns("testworker")
+	fakeNodeInfo.NewNodeMetadataReturns(&fakeNodeData, nil)
 
 	// Setup the IBM CSI Driver
-	err := csiSanityDriver.SetupIBMCSIDriver(provider, mounter, statsUtil, &fakeNodeData, logger, driver, vendorVersion)
+	err := csiSanityDriver.SetupIBMCSIDriver(provider, mounter, statsUtil, &fakeNodeData, &fakeNodeInfo, logger, driver, vendorVersion)
 	if err != nil {
 		t.Fatalf("Failed to setup IBM CSI Driver: %v", err)
 	}
