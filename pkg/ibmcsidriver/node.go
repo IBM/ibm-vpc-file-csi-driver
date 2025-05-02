@@ -213,14 +213,14 @@ func (csiNS *CSINodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInf
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	ctxLogger.Info("CSINodeServer-NodeGetInfo... ", zap.Reflect("Request", req))
 
-	nodeName := os.Getenv("KUBE_NODE_NAME")
-
-	nodeInfo := nodeMetadata.NodeInfoManager{
-		NodeName: nodeName,
-	}
-
 	// Check if node metadata service initialized properly
 	if csiNS.Metadata == nil { //nolint
+		nodeName := os.Getenv("KUBE_NODE_NAME")
+
+		nodeInfo := nodeMetadata.NodeInfoManager{
+			NodeName: nodeName,
+		}
+
 		metadata, err := nodeInfo.NewNodeMetadata(ctxLogger)
 		if err != nil {
 			ctxLogger.Error("Failed to initialize node metadata", zap.Error(err))
