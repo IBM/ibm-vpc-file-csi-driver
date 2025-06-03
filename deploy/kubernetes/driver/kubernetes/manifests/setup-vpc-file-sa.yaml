@@ -28,7 +28,7 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["configmaps"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list"]
 
 ---
 kind: ClusterRoleBinding
@@ -94,7 +94,7 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["configmaps"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list"]
 
 ---
 kind: ClusterRoleBinding
