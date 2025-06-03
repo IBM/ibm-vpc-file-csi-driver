@@ -7,11 +7,16 @@ metadata:
   labels:
     app.kubernetes.io/name: ibm-vpc-file-csi-driver
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: ibm-vpc-file-csi-controller
       app.kubernetes.io/name: ibm-vpc-file-csi-driver
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
   template:
     metadata:
       annotations:
@@ -40,6 +45,9 @@ spec:
             - "--csi-address=$(CSI_ADDRESS)"
             - "--timeout=600s"
             - "--feature-gates=Topology=true"
+            - "--leader-election=true"
+            - "--kube-api-qps=15"
+            - "--kube-api-burst=20"
           env:
             - name: CSI_ADDRESS
               valueFrom:
@@ -67,6 +75,9 @@ spec:
             - "--csi-address=$(ADDRESS)"
             - "--timeout=600s"
             - "--handle-volume-inuse-error=false"
+            - "--leader-election=true"
+            - "--kube-api-qps=15"
+            - "--kube-api-burst=20"
           env:
             - name: ADDRESS
               value: /csi/csi-vpc-file.sock

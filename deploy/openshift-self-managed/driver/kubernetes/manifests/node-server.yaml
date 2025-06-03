@@ -39,6 +39,14 @@ spec:
             - "--v=5"
             - "--csi-address=$(CSI_ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REGISTRATION_SOCK)"
+          livenessProbe: # GoodToHave check https://github.com/kubernetes-csi/node-driver-registrar?tab=readme-ov-file#health-check-with-the-http-server
+            exec:
+              command:
+              - /csi-node-driver-registrar
+              - --kubelet-registration-path=$(DRIVER_REGISTRATION_SOCK)
+              - --mode=kubelet-registration-probe
+            initialDelaySeconds: 30
+            timeoutSeconds: 15
           env:
             - name: CSI_ADDRESS
               valueFrom:
@@ -252,3 +260,4 @@ spec:
         - name: mh-logs
           hostPath:
             path: /opt/ibm/mount-ibmshare/
+          type: DirectoryOrCreate
