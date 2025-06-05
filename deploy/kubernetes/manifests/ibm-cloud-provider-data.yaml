@@ -1,0 +1,11 @@
+---
+# This file is only required for usage of the CSI Driver with OCP
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ibm-cloud-provider-data
+  namespace: <KUSTOMIZE> 
+data:
+  # VPC Subnet IDs used for Compute Worker nodes in each IBM Cloud Availability Zone
+  vpc_id: <KUSTOMIZE VALUES>
+  vpc_subnet_ids: <KUSTOMIZE VALUES>
