@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ibm-cloud-provider-data
+  namespace: kube-system
+data:
+  vpc_id: actual-vpc-id-123
+  vpc_subnet_ids: subnet-id-1,subnet-id-2

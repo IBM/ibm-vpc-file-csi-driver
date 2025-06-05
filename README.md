@@ -487,8 +487,8 @@ subdirectory_target="kubernetes"
 cd $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver/deploy/$subdirectory_target/driver/kubernetes
 
 # Choose version of the driver to install - dev, stage, stable, release
-# If no argument provided to script, will default to stable
-./deploy-vpc-file-driver.sh stable
+# If no argument provided to script, will default to dev
+./deploy-vpc-file-driver.sh dev
 
 # The script will execute 'kustomize build' and use the given release with the overlays subdirectory
 # This will on-the-fly alter the manifests subdirectory
