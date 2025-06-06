@@ -4,5 +4,5 @@ metadata:
   name: ibm-cloud-provider-data
   namespace: <KUSTOMIZE>
 data:
-  vpc_id: "<VPC ID>"
-  vpc_subnet_ids: "<VPC SUBNET IDS>" # comma-separated list of subnet IDs
+  vpc_id: "<GIVE VPC ID>"
+  vpc_subnet_ids: "<GIVE VPC SUBNET ID(s)>" # comma-separated list of subnet IDs

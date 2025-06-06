@@ -13,12 +13,12 @@ if [ $? != 0 ]; then
 	echo "Creating storage-secret-store in kube-system namespace..."
 	if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 		echo $OSTYPE	
-		encodeVal=$(base64 -w 0 "${SCRIPT_DIR}/../slclient_Gen2.toml")
+		encodeVal=$(base64 -w 0 "${SCRIPT_DIR}/../overlays/dev/slclient_Gen2.toml")
 			sed -i "s/REPLACE_ME/$encodeVal/g" "${SCRIPT_DIR}/../manifests/storage-secret-store.yaml"
 
 	elif [[ "$OSTYPE" == "darwin"* ]]; then
 		echo $OSTYPE
-		encodeVal=$(base64 "${SCRIPT_DIR}/../slclient_Gen2.toml")
+		encodeVal=$(base64 "${SCRIPT_DIR}/../overlays/dev/slclient_Gen2.toml")
 			sed -i '.bak' "s/REPLACE_ME/$encodeVal/g" "${SCRIPT_DIR}/../manifests/storage-secret-store.yaml"
 	fi
 fi

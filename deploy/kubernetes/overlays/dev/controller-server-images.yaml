@@ -18,5 +18,5 @@ spec:
           image: registry.k8s.io/sig-storage/csi-resizer:v1.13.2
           imagePullPolicy: IfNotPresent
         - name: iks-vpc-file-driver
-          image: <USER CREATED IMAGE TAG>
+          image: <UPDATE THIS>
           imagePullPolicy: Always
