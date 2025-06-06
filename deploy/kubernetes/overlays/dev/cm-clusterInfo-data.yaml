@@ -2,10 +2,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cluster-info
-  namespace: kube-system
+  namespace: <KUSTOMIZE>
 data:
   cluster-config.json: |
     {
-      "cluster_id": "$EDIT_REQUIRED_MANUAL_CLUSTER_ID",
-      "account_id": "$EDIT_REQUIRED_MANUAL_IBMCLOUD_ACCOUNT_ID"
+      "cluster_id": "<GIVE CLUSTER_ID>",
+      "account_id": "<GIVE ACCOUNT ID>"
     }
