@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ibm-cloud-provider-data
+  namespace: <KUSTOMIZE>
+data:
+  vpc_id: "<GIVE VPC ID>"
+  vpc_subnet_ids: "<GIVE VPC SUBNET ID(s)>" # comma-separated list of subnet IDs
