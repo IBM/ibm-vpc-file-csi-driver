@@ -139,6 +139,10 @@ spec:
                   name: ibm-cloud-provider-data
                   key: vpc_subnet_ids
                   optional: true
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           resources:
             limits:
               cpu: 500m
