@@ -6,6 +6,7 @@ metadata:
   namespace: default
 spec:
   attachRequired: false
+  fsGroupPolicy: File
   podInfoOnMount: true
   fsGroupPolicy: ReadWriteOnceWithFSType
   volumeLifecycleModes:
