@@ -1,0 +1,13 @@
+---
+# This file is only required for usage of the CSI Driver with OCP
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-info
+  namespace: <KUSTOMIZE>
+data:
+  cluster-config.json: |
+    {
+      "cluster_id": "<KUSTOMIZE VALUES>",
+      "account_id": "<KUSTOMIZE VALUES>",
+    }
