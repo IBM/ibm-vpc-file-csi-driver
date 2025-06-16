@@ -9,3 +9,5 @@ patches:
 - path: node-server-images.yaml
 - path: cm-providerData-data.yaml
 - path: cm-clusterInfo-data.yaml
+- path: sa-controller-secrets.yaml
+- path: sa-node-secrets.yaml

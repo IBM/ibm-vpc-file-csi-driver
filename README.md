@@ -67,7 +67,7 @@ User can either use the image which is created for _addon_ for "managed" IBMClou
 - To use the "_addon_" image, refer to [file version change log](https://cloud.ibm.com/docs/containers?topic=containers-cl-add-ons-vpc-file-csi-driver) and get the image tag. For eg, you will find version `2.0.10_334`, so the image tag will be `v2.0.10`.
 - To build the image manually run command `make buildimage` in the root of the repository. This will create a container image with tag `latest-<CPU_ARCH>`, where `<CPU_ARCH>` is the CPU architecture of the host machine, such as `amd64` or `arm64`. Note: The image will be created under the name `ibm-vpc-file-csi-driver`.
 
-### Push container image to a container registry
+#### Push container image to a container registry
 
 The container image should be pushed to any container registry that the cluster worker nodes have access/authorization to pull images from; these can be private or public. You may use [docker.io](https://hub.docker.com/) or [IBM Cloud Container Registry](https://cloud.ibm.com/docs/Registry). 
 
@@ -129,6 +129,10 @@ Note: More details about steps 5, 6, and 7 can be found in the [Apply manifests]
 - The `deploy/kubernetes/deploy-vpc-file-driver.sh` script is used to apply manifests on the targeted cluster. The script is capable of installing kustomize and using it to deploy the driver in the cluster. The script will use the `deploy/kubernetes/manifests/overlays/dev` folder by default, but can be used with other overlays as well going forward.
 
 1. User needs to update all the values marked with `<UPDATE THIS>` in the `deploy/kubernetes/manifests/overlays/dev` folder, such as:
+  - `slclient_gen2.yaml`:
+    - `g2_riaas_endpoint_url`: Infrastructure endpoint URL, ref, https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc
+    - `g2_resource_group_id`: Ref, https://cloud.ibm.com/docs/account?topic=account-rgs&interface=cli  
+    - `g2_api_key`: Ref, https://cloud.ibm.com/docs/account?topic=account-userapikey&interface=cli
   - `kustomization.yaml`: 
     - `namespace`: The namespace to deploy the driver, such as `kube-system` or `openshift-cluster-csi-drivers`.
   - `cm-clusterInfo-data.yaml`: 
@@ -138,6 +142,7 @@ Note: More details about steps 5, 6, and 7 can be found in the [Apply manifests]
     - `vpc_id`: Obtain VPC ID using `ibmcloud is vpcs`
     - `vpc_subnet_ids`: Obtain VPC Subnet IDs using `ibmcloud is subnets --vpc-id <vpc_id>`
   - `node-server-images.yaml` and `controller-server-images.yaml`: The container image to be used. Refer to the section [Image To be used](#image-to-be-used) above for more details on how to get the image tag.
+  - `sa-controller-secrets.yaml` and `sa-node-secrets.yaml`: The image pull secret to be used in [Push container image to a container registry](#push-container-image-to-a-container-registry) section above.
 2. Once all the values are added, user can run below command to deploy the driver in the cluster. This will run the `deploy-vpc-file-driver.sh` script with the `dev` overlay by default.
 ```shell
 bash ./deploy/kubernetes/deploy-vpc-file-driver.sh
