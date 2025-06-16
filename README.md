@@ -10,26 +10,39 @@ The driver consists mainly of,
 - **vpc-file-csi-node** node server daemonset pods.
 
 **Note:** 
-- This CSI Driver is ONLY tested for use with **IBM Cloud Managed services**: IBM Kubernetes Service (IKS) and RedHat OpenShift Kubernetes Service (ROKS).
-- In order to use in **self-managed** Kubernetes or RedHat OpenShift Container Platform (OCP) clusters, please refer to the [Self-Managed Prerequisites](#self-managed-prerequisites) section below.
+- The manifests provided in this repository is for **self-managed** Kubernetes or RedHat OpenShift Container Platform (OCP) clusters only, but the driver is NOT TESTED for self-managed clusters. The driver has been tested ONLY on **IBM Cloud Managed services**: IBM Kubernetes Service (IKS) and RedHat OpenShift Kubernetes Service (ROKS).
+- The steps shared below "should" work for **self-managed** Kubernetes or RedHat OpenShift Container Platform (OCP) clusters but in case of any issues please open an issue in this repo. Refer to the [Self-Managed Prerequisites](#self-managed-prerequisites) section below for more details.
 
 ## Supported features
 
-1. Dynamic PVC/PV creation and deletion with ReadWriteMany capability.
-2. POD creation and deletion which will mount/unmount the file storage volumes.
-3. Volume expansion for existing PVCs.
-4. Defining custom storage class by providing gid/uid will allow non-root users access to file storage volumes.
-5. Encryption at rest using [IBM Cloud Key Protect Service](https://cloud.ibm.com/docs/key-protect?topic=key-protect-getting-started-tutorial) or [IBM Cloud Hyper Protect Crypto Service](https://cloud.ibm.com/docs/hs-crypto?topic=hs-crypto-get-started).
-6. Encryption in transit using TLS. Refer to the [Encryption in transit](https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-vpc-eit) for more details.
+| Feature | Description | Supported |
+|---------|-------------|-----------|
+| Static Provisioning   | Associate an externally-created IBM FileShare volume with a [PersistentVolume](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) (PV) and use it with your application.| ✅ |
+| Dynamic Provisioning  | Automatically create IBM FileShare volumes and associated [PersistentVolumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) (PV) from [PersistentVolumeClaims](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#dynamic) (PVC). Parameters can be passed via a [StorageClass](https://kubernetes.io/docs/concepts/storage/storage-classes/#the-storageclass-resource) for fine-grained control over volume creation. | ✅ |
+| Volume Resizing       | Expand the volume by specifying a new size in the [PersistentVolumeClaim](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#expanding-persistent-volumes-claims) (PVC).| ✅ |
+| Volume Modification   | Change the properties (type, iops, or throughput) [via a `VolumeAttributesClass`](examples/kubernetes/modify-volume). | ✅ |
+| Volume Snapshots      | Create and restore volume snapshots.| ❌ |
+| Volume Cloning        | Create a new volume from an existing volume.| ❌ |
+
 
 For more imformation visit the public documentation of file addon for IKS and ROKS at [IBM Cloud File Storage Share CSI Driver](https://cloud.ibm.com/docs/containers?topic=containers-storage-file-vpc-apps).
 
 ## Supported platforms
 
-This CSI Driver can be used on all supported versions on IKS and ROKS. To get the versions supported, please refer to
+This CSI Driver can be used on all supported versions of **IBM Cloud Managed services**: IBM Kubernetes Service (IKS) and RedHat OpenShift Kubernetes Service (ROKS). To get the versions supported, please refer to
 
 - [Kubernetes Version Information](https://cloud.ibm.com/docs/containers?topic=containers-cs_versions#cs_versions_available)
 - [RedHat Openshift on IBM Cloud Version Information](https://cloud.ibm.com/docs/openshift?topic=openshift-openshift_versions#os-openshift-with-coreos)
+
+## Utilities Needed
+
+Make sure to have these tools installed in your system:
+- [Go](https://golang.org/doc/install) (Any supported version)
+- make (GNU Make) (version 3.8 or later)
+- [Docker](https://docs.docker.com/get-docker/) (version 20.10.24 or later)
+- [Kustomize](https://kubernetes-sigs.github.io/kustomize/installation/) (version 5.0.1 or later)
+- [Kubectl](https://kubernetes.io/docs/tasks/tools/) (Any supported version)
+- [IBM Cloud CLI](https://cloud.ibm.com/docs/cli?topic=cli-install-ibmcloud-cli) (Any supported version)
 
 ## How to contribute
 
@@ -44,15 +57,15 @@ Pull requests are very welcome! Make sure your patches are well tested. Ideally 
 5. Create new Pull Request
 6. Add the test results in the PR
 
-## Tools to get started
+```shell
+mkdir -p $GOPATH/src/github.com/IBM
+cd $GOPATH/src/github.com/IBM
+# Fork the repository, use your fork URL instead of the original repo URL
+git clone https://github.com/myusername/ibm-vpc-file-csi-driver.git
+cd ibm-vpc-file-csi-driver
+```
 
-Make sure to have these tools installed in your system:
-- [Go](https://golang.org/doc/install) (version 1.23.0 or later)
-- make (GNU Make) (version 3.8 or later)
-- [Docker](https://docs.docker.com/get-docker/) (version 20.10.24 or later)
-- [Kustomize](https://kubernetes-sigs.github.io/kustomize/installation/) (version 5.0.1 or later)
-- [Kubectl](https://kubernetes.io/docs/tasks/tools/) (version 1.32.3 or later)
-- [IBM Cloud CLI](https://cloud.ibm.com/docs/cli?topic=cli-install-ibmcloud-cli) (version 1.20.0 or later)
+## Makefile Targets
 
 The Makefile provides several targets to help with development, testing, and building the driver. Here are some of the key targets:
 
@@ -129,7 +142,7 @@ Note: More details about steps 5, 6, and 7 can be found in the [Apply manifests]
 - The `deploy/kubernetes/deploy-vpc-file-driver.sh` script is used to apply manifests on the targeted cluster. The script is capable of installing kustomize and using it to deploy the driver in the cluster. The script will use the `deploy/kubernetes/manifests/overlays/dev` folder by default, but can be used with other overlays as well going forward.
 
 1. User needs to update all the values marked with `<UPDATE THIS>` in the `deploy/kubernetes/manifests/overlays/dev` folder, such as:
-  - `slclient_gen2.yaml`:
+  - `slclient_gen2.toml`:
     - `g2_riaas_endpoint_url`: Infrastructure endpoint URL, ref, https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc
     - `g2_resource_group_id`: Ref, https://cloud.ibm.com/docs/account?topic=account-rgs&interface=cli  
     - `g2_api_key`: Ref, https://cloud.ibm.com/docs/account?topic=account-userapikey&interface=cli
@@ -143,6 +156,7 @@ Note: More details about steps 5, 6, and 7 can be found in the [Apply manifests]
     - `vpc_subnet_ids`: Obtain VPC Subnet IDs using `ibmcloud is subnets --vpc-id <vpc_id>`
   - `node-server-images.yaml` and `controller-server-images.yaml`: The container image to be used. Refer to the section [Image To be used](#image-to-be-used) above for more details on how to get the image tag.
   - `sa-controller-secrets.yaml` and `sa-node-secrets.yaml`: The image pull secret to be used in [Push container image to a container registry](#push-container-image-to-a-container-registry) section above.
+
 2. Once all the values are added, user can run below command to deploy the driver in the cluster. This will run the `deploy-vpc-file-driver.sh` script with the `dev` overlay by default.
 ```shell
 bash ./deploy/kubernetes/deploy-vpc-file-driver.sh
