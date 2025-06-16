@@ -1,0 +1,19 @@
+---
+# Kustomize v5.5.0 syntax
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+- includeSelectors: true
+  pairs:
+    app: ibm-vpc-file-csi-driver
+namespace: <KUSTOMIZE>
+resources:
+- config-map.yaml
+- cluster-info.yaml
+- ibm-cloud-provider-data.yaml
+- node-server.yaml
+- controller-server.yaml
+- setup-vpc-file-sa.yaml
+- csidriver.yaml
+- scc.yaml
+- storage-secret-store.yaml
