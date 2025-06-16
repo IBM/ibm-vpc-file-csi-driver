@@ -64,7 +64,7 @@ The Makefile provides several targets to help with development, testing, and bui
 
 ## Image To be used
 User can either use the image which is created for _addon_ for "managed" IBMCloud clusters, or can build the image manually.
-- To use the "_addon_" image, refer to [file version change log](https://cloud.ibm.com/docs/containers?topic=containers-cl-add-ons-vpc-file-csi-driver) and get the image tag. For eg, you will find version `2.0.10_334`, so the image tag will be `2.0.10`.
+- To use the "_addon_" image, refer to [file version change log](https://cloud.ibm.com/docs/containers?topic=containers-cl-add-ons-vpc-file-csi-driver) and get the image tag. For eg, you will find version `2.0.10_334`, so the image tag will be `v2.0.10`.
 - To build the image manually run command `make buildimage` in the root of the repository. This will create a container image with tag `latest-<CPU_ARCH>`, where `<CPU_ARCH>` is the CPU architecture of the host machine, such as `amd64` or `arm64`. Note: The image will be created under the name `ibm-vpc-file-csi-driver`.
 
 ### Push container image to a container registry
@@ -126,7 +126,7 @@ Note: More details about steps 5, 6, and 7 can be found in the [Apply manifests]
 - The repo uses kustomize to manage the deployment manifests.
 - The deployment manifests are available in the `deploy/kubernetes/manifests` folder.
 - The deployment manifests are organized in overlays for different environments such as `dev`, `stage`, `stable`, and `release`. But for now we **only maintain** `dev` (used for development and testing purposes)
-- The `deploy/kubernetes/deploy-vpc-file-driver.sh` script is script which is capable of installing kustomize and using it to deploy the driver in the cluster. The script will use the `deploy/kubernetes/manifests/overlays/dev` folder by default, but can be used with other overlays as well going forward.
+- The `deploy/kubernetes/deploy-vpc-file-driver.sh` script is used to apply manifests on the targeted cluster. The script is capable of installing kustomize and using it to deploy the driver in the cluster. The script will use the `deploy/kubernetes/manifests/overlays/dev` folder by default, but can be used with other overlays as well going forward.
 
 1. User needs to update all the values marked with `<UPDATE THIS>` in the `deploy/kubernetes/manifests/overlays/dev` folder, such as:
   - `kustomization.yaml`: 

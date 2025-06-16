@@ -12,13 +12,14 @@ Verify the PVC is created and bound to a Persistent Volume (PV):
 ```sh
 $ kubectl get pvc
 NAME            STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS                VOLUMEATTRIBUTESCLASS   AGE
-file-share-pvc  Bound     pvc-xxx   5Gi        RWO            ibmc-vpc-file-5iops-tier   <unset>                 3m57s
+file-share-pvc  Bound     pvc-xxx   10Gi        RWO            ibmc-vpc-file-5iops-tier   <unset>                 3m57s
 ```
 
 Verify the application pod is running and exec:
 ```sh
-$ kubectl exec -it file-share-pod -- ls -al /dev/xvda
-brw-rw----    1 root     disk      202, 23296 Mar 12 04:23 /dev/xvda
+$ kubectl exec -it file-share-pod -- df -h
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/mapper/ibm--vpc--file--5iops--tier-pvc-xxx  10Gi   20M  9.8Gi   1% /mnt/file-share
 ```
 
 ## Create PVC with custom parameters
