@@ -1,13 +1,23 @@
-## Usage
+# Usage
 This document provides examples of how to use the Kubernetes CSI driver for managing storage resources. The examples include creating Persistent Volume Claims (PVCs), deploying applications, and accessing file shares.
 
-### Create PVC and use in Application
+## Dynamic Provisioning (using default storage class)
 ```sh
 kubectl apply -f examples/kubernetes/file-share-pvc.yaml
 kubectl apply -f examples/kubernetes/file-share-deploy.yaml
 ```
 
-### Access File Share
+## Create PVC with custom parameters
+You can create a Persistent Volume Claim (PVC) with custom parameters by defining a storage class and specifying the parameters in the PVC definition.
+
+1. Fill storage class YAML file, for example [examples/kubernetes/my-storageclass.yaml](./my-storageclass.yaml) and apply it in your cluster.
+```sh
+kubectl apply -f examples/kubernetes/my-storageclass.yaml
+```
+2. Create PVC like shown above but changing the `storageClassName` to the name of your storage class.
+3. Use PVC in your application deployment and apply in your cluster.
+
+#### Access File Share
 Verify the PVC is created and bound to a Persistent Volume (PV):
 ```sh
 $ kubectl get pvc
@@ -22,13 +32,8 @@ Filesystem      Size  Used Avail Use% Mounted on
 /dev/mapper/ibm--vpc--file--5iops--tier-pvc-xxx  10Gi   20M  9.8Gi   1% /mnt/file-share
 ```
 
-## Create PVC with custom parameters
-You can create a Persistent Volume Claim (PVC) with custom parameters by defining a storage class and specifying the parameters in the PVC definition.
-
-1. Fill storage class YAML file, for example [examples/kubernetes/my-storageclass.yaml](./my-storageclass.yaml) and apply it in your cluster.
-2. Create PVC like shown above but changing the `storageClassName` to the name of your storage class.
-3. Use PVC in your application deployment and apply in your cluster.
-
+## Static Provisioning
+To statically provision a Persistent Volume (PV) and use it in your application, follow the public doc [Attaching existing file storage to an app](https://cloud.ibm.com/docs/containers?topic=containers-storage-file-vpc-apps#vpc-add-file-static).
 
 ## StorageClass secret
 We can use the storage class secret to overwrite the default values of storageClass parameters. The example below will show how to specify your PVC settings in a Kubernetes secret and reference this secret in a customized storage class. Then, use the customized storage class to create a PVC with the custom parameters that you set in your secret.

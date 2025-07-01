@@ -176,16 +176,20 @@ To test the deployment of the IBM Cloud File Storage Share CSI Driver, you can u
 For troubleshooting, use debug commands such as:
 
 ```shell
-pod_controller=$(kubectl get pods --namespace openshift-cluster-csi-drivers | grep ibm-vpc-file-csi-controller | awk '{print $1}')
-pod_node_sample=$(kubectl get pods --namespace openshift-cluster-csi-drivers | grep ibm-vpc-file-csi-node | awk '{print $1}' | head -n 1)
+pod_controller=$(kubectl get pods --namespace kube-system | grep ibm-vpc-file-csi-controller | awk '{print $1}')
+pod_node_sample=$(kubectl get pods --namespace kube-system | grep ibm-vpc-file-csi-node | awk '{print $1}' | head -n 1)
 
-oc describe pod $pod_controller --namespace openshift-cluster-csi-drivers | grep Event -A 20
-oc describe pod $pod_node_sample --namespace openshift-cluster-csi-drivers | grep Event -A 20
+kubectl describe pod $pod_controller --namespace kube-system | grep Event -A 20
+kubectl describe pod $pod_node_sample --namespace kube-system | grep Event -A 20
 
-oc logs $pod_controller  --namespace openshift-cluster-csi-drivers --container csi-provisioner
-oc logs $pod_controller  --namespace openshift-cluster-csi-drivers --container iks-vpc-file-driver
-oc logs $pod_node_sample --namespace openshift-cluster-csi-drivers --container iks-vpc-file-node-driver
+kubectl logs $pod_controller  --namespace kube-system --container csi-provisioner
+kubectl logs $pod_controller  --namespace kube-system --container iks-vpc-file-driver
+kubectl logs $pod_node_sample --namespace kube-system --container iks-vpc-file-node-driver
 ```
+
+Note:
+- You may need to change the namespace from `kube-system` to the namespace where you have deployed the driver.
+- There are 2 replicas of the controller pod and the containers inside that pod have leader election enabled. The pods switch leadership based on leases and hence you may have to check both pods for logs and events.
 
 ## E2E Tests
 Please refer [this](https://github.com/IBM/ibmcloud-volume-file-vpc/tree/master/e2e) repository for e2e tests.
