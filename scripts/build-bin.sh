@@ -1,6 +1,6 @@
 #!/bin/bash
 #/*
-# Copyright 2021 The Kubernetes Authors.
+# Copyright 2025 The Kubernetes Authors.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,4 +15,5 @@ set -e
 set +x
 set -x
 cd /go/src/github.com/IBM/ibm-vpc-file-csi-driver
-CGO_ENABLED=0 go build -a -ldflags '-X main.vendorVersion='"vpcFileDriver-${TAG}"' -extldflags "-static"' -o /go/bin/ibm-vpc-file-csi-driver ./cmd/
+# Always build for linux/amd64 architecture as the image is supported for linux based systems.
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags '-X main.vendorVersion='"vpcFileDriver-${TAG}"' -extldflags "-static"' -o /go/bin/ibm-vpc-file-csi-driver ./cmd/
