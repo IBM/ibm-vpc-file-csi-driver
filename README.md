@@ -170,6 +170,11 @@ To delete the manifests applied in the cluster, you can use the `delete-vpc-file
 bash ./deploy/kubernetes/delete-vpc-file-driver.sh
 ```
 
+In case of OCP clusters, run additional command to set SecurityContextConstraints(SCC).
+```shell
+oc apply -f deploy/openshift/scc.yaml
+```
+
 ## Testing and Troubleshooting
 To test the deployment of the IBM Cloud File Storage Share CSI Driver, you can use the provided example manifests in the `examples/` folder. More details can be found in the [examples/README.md](examples/README.md) file.
 
