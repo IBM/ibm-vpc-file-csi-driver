@@ -10,7 +10,8 @@ The driver consists mainly of,
 - **vpc-file-csi-node** node server daemonset pods.
 
 **Note:** 
-- The manifests provided in this repository is for **self-managed** Kubernetes or RedHat OpenShift Container Platform (OCP) clusters only, but the driver is NOT TESTED for self-managed clusters. The driver has been tested ONLY on **IBM Cloud Managed services**: IBM Kubernetes Service (IKS) and RedHat OpenShift Kubernetes Service (ROKS).
+- The _code maintained_ in this repository is for both **Self-managed clusters**: Kubernetes or RedHat OpenShift Container Platform (OCP) clusters and **IBM Cloud Managed services**: IBM Kubernetes Service (IKS) and RedHat OpenShift Kubernetes Service (ROKS).
+- The _manifests provided_ though here applies for **self-managed** Kubernetes or RedHat OpenShift Container Platform (OCP) clusters ONLY, but the driver is **NOT TESTED for self-managed clusters**.
 - The steps shared below "should" work for **self-managed** Kubernetes or RedHat OpenShift Container Platform (OCP) clusters but in case of any issues please open an issue in this repo. Refer to the [Self-Managed Prerequisites](#self-managed-prerequisites) section below for more details.
 
 ## Supported features
@@ -20,7 +21,6 @@ The driver consists mainly of,
 | Static Provisioning   | Associate an externally-created IBM FileShare volume with a [PersistentVolume](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) (PV) and use it with your application.| ✅ |
 | Dynamic Provisioning  | Automatically create IBM FileShare volumes and associated [PersistentVolumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) (PV) from [PersistentVolumeClaims](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#dynamic) (PVC). Parameters can be passed via a [StorageClass](https://kubernetes.io/docs/concepts/storage/storage-classes/#the-storageclass-resource) for fine-grained control over volume creation. | ✅ |
 | Volume Resizing       | Expand the volume by specifying a new size in the [PersistentVolumeClaim](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#expanding-persistent-volumes-claims) (PVC).| ✅ |
-| Volume Modification   | Change the properties (type, iops, or throughput) [via a `VolumeAttributesClass`](examples/kubernetes/modify-volume). | ✅ |
 | Volume Snapshots      | Create and restore volume snapshots.| ❌ |
 | Volume Cloning        | Create a new volume from an existing volume.| ❌ |
 
