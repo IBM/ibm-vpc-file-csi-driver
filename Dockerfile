@@ -1,6 +1,6 @@
 #FROM alpine:3.7
 ARG PROXY_IMAGE_URL=blank
-FROM ubuntu:16.04
+FROM ubuntu:24.04
 
 # Default values
 ARG git_commit_id=unknown

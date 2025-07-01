@@ -1,0 +1,13 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kube-system # Change this in case you want to deploy in a different namespace
+resources:
+- ../../manifests
+patches:
+- path: controller-server-images.yaml
+- path: node-server-images.yaml
+- path: cm-providerData-data.yaml
+- path: cm-clusterInfo-data.yaml
+- path: sa-controller-secrets.yaml
+- path: sa-node-secrets.yaml
