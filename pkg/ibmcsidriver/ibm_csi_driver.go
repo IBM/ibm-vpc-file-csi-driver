@@ -52,7 +52,7 @@ func GetIBMCSIDriver() *IBMCSIDriver {
 }
 
 // SetupIBMCSIDriver ...
-func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProviderInterface, mounter mountManager.Mounter, statsUtil StatsUtils, metadata nodeMetadata.NodeMetadata, lgr *zap.Logger, name, vendorVersion string) error {
+func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProviderInterface, mounter mountManager.Mounter, statsUtil StatsUtils, metadata nodeMetadata.NodeMetadata, nodeInfo nodeMetadata.NodeInfo, lgr *zap.Logger, name, vendorVersion string) error {
 	icDriver.logger = lgr
 	icDriver.logger.Info("IBMCSIDriver-SetupIBMCSIDriver setting up IBM CSI Driver...")
 

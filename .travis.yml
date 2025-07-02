@@ -28,6 +28,7 @@ script:
 - rsync -az . $GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver
 
 - make fmt
+- make test-sanity
 - travis_wait 300 make test
 - make coverage && touch "Passing" || touch "Failed"
 - make driver
