@@ -44,7 +44,6 @@ import (
 
 	csiConfig "github.com/IBM/ibm-vpc-file-csi-driver/config"
 	csiDriver "github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver"
-	nodeInfo "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata/fake"
 )
 
 const (
@@ -158,13 +157,12 @@ func initCSIDriverForSanity(t *testing.T) *csiDriver.IBMCSIDriver {
 
 	// fake node metadata
 	fakeNodeData := nodeMetadata.FakeNodeMetadata{}
-	fakeNodeInfo := nodeInfo.FakeNodeInfo{}
 	fakeNodeData.GetRegionReturns("testregion")
 	fakeNodeData.GetZoneReturns("testzone")
 	fakeNodeData.GetWorkerIDReturns("testworker")
 
 	// Setup the IBM CSI Driver
-	err := csiSanityDriver.SetupIBMCSIDriver(provider, mounter, statsUtil, &fakeNodeData, &fakeNodeInfo, logger, driver, vendorVersion)
+	err := csiSanityDriver.SetupIBMCSIDriver(provider, mounter, statsUtil, &fakeNodeData, logger, driver, vendorVersion)
 	if err != nil {
 		t.Fatalf("Failed to setup IBM CSI Driver: %v", err)
 	}
