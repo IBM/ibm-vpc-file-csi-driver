@@ -10,9 +10,8 @@ The driver consists mainly of,
 - **vpc-file-csi-node** node server daemonset pods.
 
 **Note:** 
-- The _code maintained_ in this repository is for both **Self-managed clusters**: Kubernetes or RedHat OpenShift Container Platform (OCP) clusters and **IBM Cloud Managed services**: IBM Kubernetes Service (IKS) and RedHat OpenShift Kubernetes Service (ROKS).
-- The _manifests provided_ though here applies for **self-managed** Kubernetes or RedHat OpenShift Container Platform (OCP) clusters ONLY, but the driver is **NOT TESTED for self-managed clusters**.
-- The steps shared below "should" work for **self-managed** Kubernetes or RedHat OpenShift Container Platform (OCP) clusters but in case of any issues please open an issue in this repo. Refer to the [Self-Managed Prerequisites](#self-managed-prerequisites) section below for more details.
+- If using **IBM Cloud Managed services**: IBM Kubernetes Service (IKS) and RedHat OpenShift Kubernetes Service (ROKS), stick to **vpc-file-csi-driver** **_addon_**. For more info follow [IBM Cloud File Storage Share CSI Driver](https://cloud.ibm.com/docs/containers?topic=containers-storage-file-vpc-install).
+- If using **Self-Managed cluster**: Kubernetes or RedHat OpenShift Container Platform (OCP), use the steps shared below. Please open an issue in this repo in case of any problems faced. Refer to the [Self-Managed Prerequisites](#self-managed-prerequisites) section below for more details.
 
 ## Supported features
 
@@ -23,9 +22,6 @@ The driver consists mainly of,
 | Volume Resizing       | Expand the volume by specifying a new size in the [PersistentVolumeClaim](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#expanding-persistent-volumes-claims) (PVC).| ✅ |
 | Volume Snapshots      | Create and restore volume snapshots.| ❌ |
 | Volume Cloning        | Create a new volume from an existing volume.| ❌ |
-
-
-For more imformation visit the public documentation of file addon for IKS and ROKS at [IBM Cloud File Storage Share CSI Driver](https://cloud.ibm.com/docs/containers?topic=containers-storage-file-vpc-apps).
 
 ## Supported platforms
 
@@ -75,10 +71,12 @@ The Makefile provides several targets to help with development, testing, and bui
 - `make build`        - Build the CSI Driver binary
 - `make buildimage`   - Build the CSI Driver container image
 
-## Image To be used
-User can either use the image which is created for _addon_ for "managed" IBMCloud clusters, or can build the image manually.
-- To use the "_addon_" image, refer to [file version change log](https://cloud.ibm.com/docs/containers?topic=containers-cl-add-ons-vpc-file-csi-driver) and get the image tag. For eg, you will find version `2.0.10_334`, so the image tag will be `v2.0.10`.
-- To build the image manually run command `make buildimage` in the root of the repository. This will create a container image with tag `latest-<CPU_ARCH>`, where `<CPU_ARCH>` is the CPU architecture of the host machine, such as `amd64` or `arm64`. Note: The image will be created under the name `ibm-vpc-file-csi-driver`.
+## Build Image
+
+- One must always build image manually in order to use this driver.
+- Run command `make buildimage` in the root of the repository. This will create a container image with tag `latest-<CPU_ARCH>`, where `<CPU_ARCH>` is the CPU architecture of the host machine, such as `amd64` or `arm64`.
+
+**Note**: The image will be created under the name `ibm-vpc-file-csi-driver`.
 
 #### Push container image to a container registry
 
@@ -101,7 +99,7 @@ The container image should be pushed to any container registry that the cluster 
 Following are the prerequisites to use the IBM Cloud File Storage Share CSI Driver:
 
 1. User should have either Red Hat® OpenShift® or Kubernetes cluster running on IBM Cloud Infrastructure, with VPC networking.
-  - This CSI Driver does not apply to cluster resources using IBM Cloud (Classic) with VLANs, aka. IBM Cloud Classic Infrastructure.
+  - This CSI Driver **does not apply** to cluster resources using **IBM Cloud (Classic)** with VLANs, aka. IBM Cloud Classic Infrastructure.
 2. Access to IBM Cloud to identify the required worker/node details. Either using `ibmcloud` CLI with the Infrastructure services CLI Plugin (`ibmcloud plugin install is`), or [`IBM Cloud Console`](https://cloud.ibm.com) Web GUI.
 3. The VPC Security Group applied to the cluster worker node's (e.g. `-cluster-wide`) must allow TCP 2049 for the NFS protocol.
 4. The cluster's worker node should have following labels for Region and Availability Zone, if not please apply labels to all target nodes before deploying the IBM Cloud File Storage Share CSI Driver.
@@ -154,7 +152,7 @@ Note: More details about steps 5, 6, and 7 can be found in the [Apply manifests]
   - `cm-providerData-data.yaml`
     - `vpc_id`: Obtain VPC ID using `ibmcloud is vpcs`
     - `vpc_subnet_ids`: Obtain VPC Subnet IDs using `ibmcloud is subnets --vpc-id <vpc_id>`
-  - `node-server-images.yaml` and `controller-server-images.yaml`: The container image to be used. Refer to the section [Image To be used](#image-to-be-used) above for more details on how to get the image tag.
+  - `node-server-images.yaml` and `controller-server-images.yaml`: The container image to be used. Refer to the section [Build Image](#build-image) above for more details on how to get the image tag.
   - `sa-controller-secrets.yaml` and `sa-node-secrets.yaml`: The image pull secret to be used in [Push container image to a container registry](#push-container-image-to-a-container-registry) section above.
 
 2. Once all the values are added, user can run below command to deploy the driver in the cluster. This will run the `deploy-vpc-file-driver.sh` script with the `dev` overlay by default.
