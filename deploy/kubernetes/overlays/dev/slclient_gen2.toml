@@ -1,0 +1,11 @@
+[server]
+debug_trace = false
+
+[vpc]
+iam_client_id = "bx"
+iam_client_secret = "bx"
+provider_type = "g2"
+g2_token_exchange_endpoint_url = "https://iam.cloud.ibm.com"
+g2_riaas_endpoint_url = "<UPDATE THIS>"     #Ref, https://cloud.ibm.com/docs/vpc?topic=vpc-service-endpoints-for-vpc
+g2_resource_group_id = "<UPDATE THIS>"      #Ref, https://cloud.ibm.com/docs/account?topic=account-rgs&interface=cli  
+g2_api_key = "<UPDATE THIS>"                #Ref, https://cloud.ibm.com/docs/account?topic=account-userapikey&interface=cli
