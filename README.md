@@ -137,7 +137,7 @@ Note: More details about steps 5, 6, and 7 can be found in the [Apply manifests]
 - The repo uses kustomize to manage the deployment manifests.
 - The deployment manifests are available in the `deploy/kubernetes/manifests` folder.
 - The deployment manifests are organized in overlays for different environments such as `dev`, `stage`, `stable`, and `release`. But for now we **only maintain** `dev` (used for development and testing purposes)
-- The `deploy/kubernetes/deploy-vpc-file-driver.sh` script is used to apply manifests on the targeted cluster. The script is capable of installing kustomize and using it to deploy the driver in the cluster. The script will use the `deploy/kubernetes/manifests/overlays/dev` folder by default, but can be used with other overlays as well going forward.
+- The `deploy/kubernetes/deploy-vpc-file-csi-driver.sh` script is used to apply manifests on the targeted cluster. The script is capable of installing kustomize and using it to deploy the driver in the cluster. The script will use the `deploy/kubernetes/manifests/overlays/dev` folder by default, but can be used with other overlays as well going forward.
 
 1. User needs to update all the values marked with `<UPDATE THIS>` in the `deploy/kubernetes/manifests/overlays/dev` folder, such as:
   - `slclient_gen2.toml`:
@@ -155,17 +155,17 @@ Note: More details about steps 5, 6, and 7 can be found in the [Apply manifests]
   - `node-server-images.yaml` and `controller-server-images.yaml`: The container image to be used. Refer to the section [Build Image](#build-image) above for more details on how to get the image tag.
   - `sa-controller-secrets.yaml` and `sa-node-secrets.yaml`: The image pull secret to be used in [Push container image to a container registry](#push-container-image-to-a-container-registry) section above.
 
-2. Once all the values are added, user can run below command to deploy the driver in the cluster. This will run the `deploy-vpc-file-driver.sh` script with the `dev` overlay by default.
+2. Once all the values are added, user can run below command to deploy the driver in the cluster. This will run the `deploy-vpc-file-csi-driver.sh` script with the `dev` overlay by default.
 ```shell
-bash ./deploy/kubernetes/deploy-vpc-file-driver.sh
+bash ./deploy/kubernetes/deploy-vpc-file-csi-driver.sh
 ```
 
 ## Delete manifests
 
-To delete the manifests applied in the cluster, you can use the `delete-vpc-file-driver.sh` script. This script will remove all the resources created by the `deploy-vpc-file-driver.sh` script.
+To delete the manifests applied in the cluster, you can use the `delete-vpc-file-csi-driver.sh` script. This script will remove all the resources created by the `deploy-vpc-file-csi-driver.sh` script.
 
 ```shell
-bash ./deploy/kubernetes/delete-vpc-file-driver.sh
+bash ./deploy/kubernetes/delete-vpc-file-csi-driver.sh
 ```
 
 In case of OCP clusters, run additional command to set SecurityContextConstraints(SCC).

@@ -45,3 +45,4 @@ else
 fi
 echo "Kustomize version:" 
 ${KUSTOMIZE_PATH} version
+echo ""

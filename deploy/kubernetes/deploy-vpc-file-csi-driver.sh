@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 "${SCRIPT_DIR}/scripts/setup-kustomize.sh"
 
 # Check if the storage-secret-store exists in the kube-system namespace
-"${SCRIPT_DIR}/scripts/verify-storage-secret-store.sh"; rc=$?
+"${SCRIPT_DIR}/scripts/verify-storage-secret-store.sh"
 
 # Check for arguments
 if [ $# != 1 ]; then
