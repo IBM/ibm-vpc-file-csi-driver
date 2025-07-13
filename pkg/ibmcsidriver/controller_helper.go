@@ -227,6 +227,17 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				iops := value
 				volume.Iops = &iops
 			}
+		case Bandwidth:
+			if len(value) != 0 {
+				bandwidthInt64, err := strconv.ParseInt(value, 10, 64)
+				if err != nil {
+					err = fmt.Errorf("invalid bandwidth: %v", err)
+					logger.Error("Invalid bandwidth value", zap.NamedError("error", err))
+					return volume, err
+				}
+				bandwidthStr := strconv.FormatInt(bandwidthInt64, 10)
+				volume.Bandwidth = &bandwidthStr
+			}
 		case UID:
 			uid, err = strconv.Atoi(value)
 			if err != nil {
@@ -295,11 +306,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		err = fmt.Errorf("volume capabilities are empty")
 		logger.Error("overrideParams", zap.NamedError("invalid parameter", err))
 		return volume, err
-	}
-
-	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name != DP2Profile {
-		// Specify IOPS only for custom class or DP2 class
-		volume.Iops = nil
 	}
 
 	//If ENI/VNI enabled then check for scenarios where zone and subnetId is mandatory
@@ -491,20 +497,22 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 				volume.Region = value
 			}
 		case IOPS:
-			// Override IOPS only for custom or dp2
-			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == DP2Profile {
-				var iops int
-				var check bool
-				iops, err = strconv.Atoi(value)
+			if len(value) != 0 {
+				logger.Info("override (IOPS)", zap.Any(IOPS, value))
+				iopsStr := value
+				volume.Iops = &iopsStr
+			}
+		case Bandwidth:
+			if len(value) != 0 {
+				logger.Info("override", zap.Any("bandwidth", value))
+				bandwidthInt, err := strconv.ParseInt(value, 10, 64)
 				if err != nil {
-					err = fmt.Errorf("%v:<%v> invalid value", key, value)
-				} else {
-					if check, err = isValidCapacityIOPS(*(volume.Capacity), iops, volume.VPCVolume.Profile.Name); check {
-						iopsStr := value
-						logger.Info("override", zap.Any(IOPS, value))
-						volume.Iops = &iopsStr
-					}
+					err = fmt.Errorf("invalid bandwidth: %v", err)
+					logger.Error("Invalid bandwidth value", zap.NamedError("error", err))
+					return err
 				}
+				bandwidthStr := strconv.FormatInt(bandwidthInt, 10)
+				volume.Bandwidth = &bandwidthStr
 			}
 		case SecurityGroupIDs:
 			if len(value) != 0 {

@@ -32,6 +32,9 @@ const (
 	// IOPS per PVC
 	IOPS = "iops"
 
+	// IOPS per PVC
+	Bandwidth = "bandwidth"
+
 	// SizeRangeSupported ...
 	SizeRangeSupported = "sizeRange"
 
