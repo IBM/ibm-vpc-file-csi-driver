@@ -229,14 +229,8 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			}
 		case Bandwidth:
 			if len(value) != 0 {
-				bandwidthInt64, err := strconv.ParseInt(value, 10, 64)
-				if err != nil {
-					err = fmt.Errorf("invalid bandwidth: %v", err)
-					logger.Error("Invalid bandwidth value", zap.NamedError("error", err))
-					return volume, err
-				}
-				bandwidthStr := strconv.FormatInt(bandwidthInt64, 10)
-				volume.Bandwidth = &bandwidthStr
+				bandwidth := value
+				volume.Bandwidth = &bandwidth
 			}
 		case UID:
 			uid, err = strconv.Atoi(value)
@@ -345,6 +339,22 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		}
 		volume.Region = zones[utils.NodeRegionLabel]
 		volume.Az = zones[utils.NodeZoneLabel]
+	}
+
+	//validation for 'rfs' profile
+	if volume.VPCVolume.Profile != nil && strings.EqualFold(volume.VPCVolume.Profile.Name, RFSProfile) {
+		// Reject if IOPS is set
+		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
+			err = fmt.Errorf("iops is not supported for 'rfs' profile; received iops='%s'", *volume.Iops)
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
+		}
+
+		// Unset zone explicitly for 'rfs'
+		if len(strings.TrimSpace(volume.Az)) > 0 {
+			logger.Warn("getVolumeParameters", zap.String("info", "zone will be ignored for 'rfs' profile"))
+			volume.Az = ""
+		}
 	}
 
 	return volume, nil
@@ -504,14 +514,8 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case Bandwidth:
 			if len(value) != 0 {
-				logger.Info("override", zap.Any("bandwidth", value))
-				bandwidthInt, err := strconv.ParseInt(value, 10, 64)
-				if err != nil {
-					err = fmt.Errorf("invalid bandwidth: %v", err)
-					logger.Error("Invalid bandwidth value", zap.NamedError("error", err))
-					return err
-				}
-				bandwidthStr := strconv.FormatInt(bandwidthInt, 10)
+				logger.Info("override (IOPS)", zap.Any(Bandwidth, value))
+				bandwidthStr := value
 				volume.Bandwidth = &bandwidthStr
 			}
 		case SecurityGroupIDs:

@@ -62,6 +62,9 @@ const (
 	// DP2Profile ...
 	DP2Profile = "dp2"
 
+	// RFSProfile ...
+	RFSProfile = "rfs"
+
 	// ClassVersion ...
 	ClassVersion = "classVersion"
 
@@ -131,6 +134,9 @@ const (
 	// IOPSLabel ...
 	IOPSLabel = "iops"
 
+	// BandwidthLabel ...
+	BandwidthLabel = "bandwidth"
+
 	// ZoneLabel ...
 	ZoneLabel = "zone"
 
@@ -184,4 +190,4 @@ const (
 var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
-var SupportedProfile = []string{"dp2"}
+var SupportedProfile = []string{"dp2", "rfs"}
