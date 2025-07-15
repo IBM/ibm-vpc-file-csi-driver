@@ -514,7 +514,7 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case Bandwidth:
 			if len(value) != 0 {
-				logger.Info("override (IOPS)", zap.Any(Bandwidth, value))
+				logger.Info("override (Bandwidth)", zap.Any(Bandwidth, value))
 				bandwidthStr := value
 				volume.Bandwidth = &bandwidthStr
 			}
