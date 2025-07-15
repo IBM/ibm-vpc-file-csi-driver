@@ -9,7 +9,7 @@ require (
 	github.com/IBM/ibmcloud-volume-interface v1.2.13
 =======
 	github.com/IBM/ibm-csi-common v1.1.20
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250714144821-27d39026dd71
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250715070629-136f1c36ac8f
 	github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250714144332-376a7ca376e6
 >>>>>>> 4fa8327 (Addressed csi driver comments)
 	github.com/IBM/secret-utils-lib v1.1.14
