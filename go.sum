@@ -17,8 +17,8 @@ github.com/IBM/ibmcloud-volume-interface v1.2.13/go.mod h1:F9QxX6NZ4LLPGQ6YWVnYp
 =======
 github.com/IBM/ibm-csi-common v1.1.20 h1:83tWmb+39G/Mm4E9nZwn5/EL0SMcyEyLJDN6hAS4eg4=
 github.com/IBM/ibm-csi-common v1.1.20/go.mod h1:z9U3OmpKN92eUVdhhdbrr5kAT3MPRT9xwr6MVltLBFI=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250715075036-d77fdaaf3f51 h1:YnYFzMLLNd3QVIlGtXV490nR1+1jpvoaijfdmJOgoYw=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250715075036-d77fdaaf3f51/go.mod h1:VjxChd1gP5KVKUCRRxsvmNnuK87tjIGXlg79wgzn7Nc=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250716134427-47f853f17160 h1:0CY4mMYOWQXB8mMKqlVSrLNqoDL8KH07+Q7WDl3o4HM=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250716134427-47f853f17160/go.mod h1:VjxChd1gP5KVKUCRRxsvmNnuK87tjIGXlg79wgzn7Nc=
 github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250714144332-376a7ca376e6 h1:jqy8FqRiJNsaGnw/gZyAeYAEaXz8QYsmBtuUXFMoYK4=
 github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250714144332-376a7ca376e6/go.mod h1:F9QxX6NZ4LLPGQ6YWVnYpW0JV+H+pZp8RY10PAZ76JA=
 >>>>>>> 4fa8327 (Addressed csi driver comments)
