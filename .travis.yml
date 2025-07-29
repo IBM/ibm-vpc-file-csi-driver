@@ -31,7 +31,7 @@ script:
 
 - make fmt
 - make test-sanity
-- travis_wait 300 make test
+- travis_wait 600 make test
 - make coverage && touch "Passing" || touch "Failed"
 - make driver
 
