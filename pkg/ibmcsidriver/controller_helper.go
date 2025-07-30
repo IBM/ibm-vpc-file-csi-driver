@@ -227,10 +227,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				iops := value
 				volume.Iops = &iops
 			}
-		case Bandwidth:
+		case Throughput:
+			// getting throughput value from storage class if it is provided
 			if len(value) != 0 {
-				bandwidth := value
-				volume.Bandwidth = &bandwidth
+				bandwidth, errParse := strconv.ParseInt(value, 10, 32)
+				if errParse != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be an int32 type", value, key)
+				} else {
+					volume.VPCVolume.Bandwidth = int32(bandwidth)
+				}
 			}
 		case UID:
 			uid, err = strconv.Atoi(value)
@@ -328,6 +333,20 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
+
+	// validate bandwidth for dp2 profile
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == "dp2" && volume.VPCVolume.Bandwidth == 0 {
+		err = fmt.Errorf("bandwidth must be specified for dp2 profile fileShare. provide a non-zero 'bandwidth' value in the storage class parameters")
+		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+		return volume, err
+	}
+
+	// validate zone for rfs profile
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == "rfs" && len(strings.TrimSpace(volume.Az)) != 0 {
+		err = fmt.Errorf("zone must not be specified for rfs profile fileShare. remove 'zone' parameter from the storage class for rfs volumes")
+		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+		return volume, err
+	}
 
 	//If the zone is not provided in storage class parameters then we pick from the Topology
 	if len(strings.TrimSpace(volume.Az)) == 0 {
@@ -512,11 +531,14 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 				iopsStr := value
 				volume.Iops = &iopsStr
 			}
-		case Bandwidth:
+		case Throughput:
 			if len(value) != 0 {
-				logger.Info("override (Bandwidth)", zap.Any(Bandwidth, value))
-				bandwidthStr := value
-				volume.Bandwidth = &bandwidthStr
+				logger.Info("override (throughput)", zap.Any(Throughput, value))
+				throughputInt, err := strconv.Atoi(value)
+				if err != nil {
+					return fmt.Errorf("invalid throughput value: %v", err)
+				}
+				volume.VPCVolume.Bandwidth = int32(throughputInt)
 			}
 		case SecurityGroupIDs:
 			if len(value) != 0 {

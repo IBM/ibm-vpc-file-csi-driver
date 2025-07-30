@@ -32,8 +32,8 @@ const (
 	// IOPS per PVC
 	IOPS = "iops"
 
-	// IOPS per PVC
-	Bandwidth = "bandwidth"
+	// Throughput ...
+	Throughput = "throughput"
 
 	// SizeRangeSupported ...
 	SizeRangeSupported = "sizeRange"
@@ -134,8 +134,8 @@ const (
 	// IOPSLabel ...
 	IOPSLabel = "iops"
 
-	// BandwidthLabel ...
-	BandwidthLabel = "bandwidth"
+	// ThroughputLabel ...
+	ThroughputLabel = "throughput"
 
 	// ZoneLabel ...
 	ZoneLabel = "zone"
