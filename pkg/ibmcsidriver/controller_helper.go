@@ -360,19 +360,21 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.Az = zones[utils.NodeZoneLabel]
 	}
 
-	//validation for 'rfs' profile
+	// validation for 'rfs' profile
 	if volume.VPCVolume.Profile != nil && strings.EqualFold(volume.VPCVolume.Profile.Name, RFSProfile) {
-		// Reject if IOPS is set
-		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
-			err = fmt.Errorf("iops is not supported for 'rfs' profile; received iops='%s'", *volume.Iops)
-			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+		// Reject if either IOPS is set OR Zone is provided
+		if (volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0) || len(strings.TrimSpace(volume.Az)) > 0 {
+			err = fmt.Errorf("iops and zone are not supported for 'rfs' profile; received iops='%v', zone='%s'",
+				func() string {
+					if volume.Iops != nil {
+						return *volume.Iops
+					}
+					return ""
+				}(),
+				volume.Az,
+			)
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
-		}
-
-		// Unset zone explicitly for 'rfs'
-		if len(strings.TrimSpace(volume.Az)) > 0 {
-			logger.Warn("getVolumeParameters", zap.String("info", "zone will be ignored for 'rfs' profile"))
-			volume.Az = ""
 		}
 	}
 
@@ -532,13 +534,14 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 				volume.Iops = &iopsStr
 			}
 		case Throughput:
+			// getting throughput value from storage class if it is provided
 			if len(value) != 0 {
-				logger.Info("override (throughput)", zap.Any(Throughput, value))
-				throughputInt, err := strconv.Atoi(value)
-				if err != nil {
-					return fmt.Errorf("invalid throughput value: %v", err)
+				bandwidth, errParse := strconv.ParseInt(value, 10, 32)
+				if errParse != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be an int32 type", value, key)
+				} else {
+					volume.Bandwidth = int32(bandwidth)
 				}
-				volume.VPCVolume.Bandwidth = int32(throughputInt)
 			}
 		case SecurityGroupIDs:
 			if len(value) != 0 {
