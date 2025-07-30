@@ -335,15 +335,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
 	// validate bandwidth for dp2 profile
-	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
-		err = fmt.Errorf("bandwidth must be specified for dp2 profile fileShare. provide a non-zero 'bandwidth' value in the storage class parameters")
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
+		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property or set it to zero")
 		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 		return volume, err
 	}
 
 	// validate zone for rfs profile
-	if volume.VPCVolume.Profile.Name == RFSProfile && len(strings.TrimSpace(volume.Az)) != 0 {
-		err = fmt.Errorf("zone must not be specified for rfs profile fileShare. remove 'zone' parameter from the storage class for rfs volumes")
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == RFSProfile && len(strings.TrimSpace(volume.Az)) != 0 {
+		err = fmt.Errorf("zone is not valid for rfs profile; please remove the zone parameter from the storage class")
 		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 		return volume, err
 	}
@@ -361,17 +361,24 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	// validation for 'rfs' profile
-	if volume.VPCVolume.Profile != nil && strings.EqualFold(volume.VPCVolume.Profile.Name, RFSProfile) {
-		// Reject if either IOPS is set OR Zone is provided
-		if (volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0) || len(strings.TrimSpace(volume.Az)) > 0 {
-			err = fmt.Errorf("iops and zone are not supported for 'rfs' profile; received iops='%v', zone='%s'",
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == RFSProfile {
+		iopsSet := volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0
+		zoneSet := len(strings.TrimSpace(volume.Az)) > 0
+
+		if iopsSet || zoneSet {
+			err = fmt.Errorf("iops and zone are not supported for 'rfs' profile; received iops='%s', zone='%s'",
 				func() string {
-					if volume.Iops != nil {
+					if iopsSet {
 						return *volume.Iops
 					}
-					return ""
+					return "not set"
 				}(),
-				volume.Az,
+				func() string {
+					if zoneSet {
+						return volume.Az
+					}
+					return "not set"
+				}(),
 			)
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
