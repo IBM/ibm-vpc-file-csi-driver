@@ -341,10 +341,18 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		return volume, err
 	}
 
-	// validate zone for rfs profile
-	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == RFSProfile && len(strings.TrimSpace(volume.Az)) != 0 {
-		err = fmt.Errorf("zone is not valid for rfs profile; please remove the zone parameter from the storage class")
-		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+	// validation zone and iops for 'rfs' profile
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == RFSProfile {
+		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
+			err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
+		}
+		if len(strings.TrimSpace(volume.Az)) > 0 {
+			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
+		}
 		return volume, err
 	}
 
@@ -358,31 +366,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		}
 		volume.Region = zones[utils.NodeRegionLabel]
 		volume.Az = zones[utils.NodeZoneLabel]
-	}
-
-	// validation for 'rfs' profile
-	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == RFSProfile {
-		iopsSet := volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0
-		zoneSet := len(strings.TrimSpace(volume.Az)) > 0
-
-		if iopsSet || zoneSet {
-			err = fmt.Errorf("iops and zone are not supported for 'rfs' profile; received iops='%s', zone='%s'",
-				func() string {
-					if iopsSet {
-						return *volume.Iops
-					}
-					return "not set"
-				}(),
-				func() string {
-					if zoneSet {
-						return volume.Az
-					}
-					return "not set"
-				}(),
-			)
-			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-			return volume, err
-		}
 	}
 
 	return volume, nil
