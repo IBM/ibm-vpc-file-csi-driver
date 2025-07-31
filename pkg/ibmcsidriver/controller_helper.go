@@ -353,7 +353,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
-		return volume, err
 	}
 
 	//If the zone is not provided in storage class parameters then we pick from the Topology
