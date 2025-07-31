@@ -364,7 +364,11 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			return volume, err
 		}
 		volume.Region = zones[utils.NodeRegionLabel]
-		volume.Az = zones[utils.NodeZoneLabel]
+
+		// Only assign zone if profile is NOT rfs
+		if volume.VPCVolume.Profile == nil || volume.VPCVolume.Profile.Name != RFSProfile {
+			volume.Az = zones[utils.NodeZoneLabel]
+		}
 	}
 
 	return volume, nil
