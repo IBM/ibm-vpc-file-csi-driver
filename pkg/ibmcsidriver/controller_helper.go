@@ -344,12 +344,12 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	// validation zone and iops for 'rfs' profile
 	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == RFSProfile {
 		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
-			err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
+			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
 		if len(strings.TrimSpace(volume.Az)) > 0 {
-			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
+			err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
@@ -622,6 +622,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	}
 
 	labels[FileShareIDLabel] = vol.VolumeID
+	labels[ThroughputLabel] = strconv.Itoa(int(vol.VPCVolume.Bandwidth))
 	labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
 
 	if vol.Region != "" {
