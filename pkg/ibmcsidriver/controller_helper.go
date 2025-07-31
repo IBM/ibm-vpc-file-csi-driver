@@ -356,7 +356,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	//If the zone is not provided in storage class parameters then we pick from the Topology
-	if len(strings.TrimSpace(volume.Az)) == 0 {
+	if len(strings.TrimSpace(volume.Az)) == 0 && volume.VPCVolume.Profile.Name != RFSProfile {
 		zones, err := pickTargetTopologyParams(req.GetAccessibilityRequirements())
 		if err != nil {
 			err = fmt.Errorf("unable to fetch zone information: '%v'", err)
@@ -364,11 +364,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			return volume, err
 		}
 		volume.Region = zones[utils.NodeRegionLabel]
-
-		// Only assign zone if profile is NOT rfs
-		if volume.VPCVolume.Profile == nil || volume.VPCVolume.Profile.Name != RFSProfile {
-			volume.Az = zones[utils.NodeZoneLabel]
-		}
 	}
 
 	return volume, nil
