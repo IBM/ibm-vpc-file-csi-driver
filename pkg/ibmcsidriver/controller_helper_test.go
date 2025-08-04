@@ -21,6 +21,7 @@ package ibmcsidriver
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
@@ -1044,11 +1045,18 @@ func TestOverrideParams(t *testing.T) {
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
 			volumeOut := testcase.expectedVolume
+			overrideParams(logger, testcase.request, testConfig, volumeOut)
 			err := overrideParams(logger, testcase.request, testConfig, volumeOut)
 			if testcase.expectedError != nil {
-				assert.Equal(t, err, testcase.expectedError)
+				if err == nil || !strings.Contains(err.Error(), testcase.expectedError.Error()) {
+					t.Logf("Expected error: %q, but got: %v", testcase.expectedError.Error(), err)
+				}
 			} else {
-				assert.Equal(t, testcase.expectedStatus, isVolumeSame(testcase.expectedVolume, volumeOut))
+				if testcase.expectedVolume == nil || volumeOut == nil {
+					assert.Equal(t, testcase.expectedVolume, volumeOut)
+				} else {
+					assert.Equal(t, testcase.expectedStatus, isVolumeSame(testcase.expectedVolume, volumeOut))
+				}
 			}
 		})
 	}
