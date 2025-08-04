@@ -1045,7 +1045,6 @@ func TestOverrideParams(t *testing.T) {
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
 			volumeOut := testcase.expectedVolume
-			overrideParams(logger, testcase.request, testConfig, volumeOut)
 			err := overrideParams(logger, testcase.request, testConfig, volumeOut)
 			if testcase.expectedError != nil {
 				if err == nil || !strings.Contains(err.Error(), testcase.expectedError.Error()) {
