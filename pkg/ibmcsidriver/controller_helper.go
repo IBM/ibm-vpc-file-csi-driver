@@ -622,7 +622,13 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	}
 
 	labels[FileShareIDLabel] = vol.VolumeID
-	labels[ThroughputLabel] = strconv.Itoa(int(vol.VPCVolume.Bandwidth))
+	if vol.VPCVolume.Bandwidth > 0 && strings.EqualFold(vol.VPCVolume.Profile.Name, RFSProfile) {
+		labels[ThroughputLabel] = strconv.Itoa(int(vol.VPCVolume.Bandwidth))
+	}
+
+	// if vol.VPCVolume.Bandwidth > 0 {
+	// 	labels[ThroughputLabel] = strconv.Itoa(int(vol.VPCVolume.Bandwidth))
+	// }
 	labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
 
 	if vol.Region != "" {

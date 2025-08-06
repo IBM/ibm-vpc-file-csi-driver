@@ -206,6 +206,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 	// test cases
 	testCases := []struct {
 		name                          string
+		profile                       string
 		req                           *csi.CreateVolumeRequest
 		expVol                        *csi.Volume
 		expErrCode                    codes.Code
@@ -218,9 +219,11 @@ func TestCreateVolumeArguments(t *testing.T) {
 		libVolumeError                error
 		libVolumeAccessPointError     error
 		libVolumeAccessPointWaitError error
+		Throughput                    int32
 	}{
 		{
-			name: "Success VPC mode",
+			name:    "Success VPC mode for dp2",
+			profile: "dp2",
 			req: &csi.CreateVolumeRequest{
 				Name:               volName,
 				CapacityRange:      stdCapRange,
@@ -269,7 +272,8 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeAccessPointWaitError: nil,
 		},
 		{
-			name: "Success securityGroup mode default",
+			name:    "Success securityGroup mode default for dp2",
+			profile: "dp2",
 			req: &csi.CreateVolumeRequest{
 				Name:               volName,
 				CapacityRange:      stdCapRange,
@@ -464,56 +468,56 @@ func TestCreateVolumeArguments(t *testing.T) {
 	defer teardown()
 
 	// Run test cases
+
 	for _, tc := range testCases {
-		t.Logf("test case: %s", tc.name)
-		// Setup new driver each time so no interference
-		icDriver := initIBMCSIDriver(t)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("▶ Running test case: %s", tc.name)
 
-		// Set the response for CreateVolume
-		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-		assert.Nil(t, err)
-		fakeStructSession, ok := fakeSession.(*fake.FakeSession)
-		assert.Equal(t, true, ok)
-		fakeStructSession.CreateVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
-		fakeStructSession.GetSubnetForVolumeAccessPointReturns(tc.subnetID, tc.subnetError)
-		fakeStructSession.GetSecurityGroupForVolumeAccessPointReturns(tc.securityGroupID, tc.securityGroupError)
-		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeError)
-		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
-		fakeStructSession.CreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, nil)
-		fakeStructSession.WaitForCreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointWaitError)
+			// Setup driver and fake session
+			icDriver := initIBMCSIDriver(t)
+			fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
+			assert.NoError(t, err, "failed to get provider session")
 
-		// Call CSI CreateVolume
-		resp, err := icDriver.cs.CreateVolume(context.Background(), tc.req)
-		if err != nil {
-			//errorType := providerError.GetErrorType(err)
-			serverError, ok := status.FromError(err)
-			if !ok {
-				t.Fatalf("Could not get error status code from err: %v", serverError)
+			fakeStructSession, ok := fakeSession.(*fake.FakeSession)
+			assert.True(t, ok, "session type mismatch")
+
+			//Set fake responses
+			fakeStructSession.CreateVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
+			fakeStructSession.GetSubnetForVolumeAccessPointReturns(tc.subnetID, tc.subnetError)
+			fakeStructSession.GetSecurityGroupForVolumeAccessPointReturns(tc.securityGroupID, tc.securityGroupError)
+			fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeError)
+			fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
+			fakeStructSession.CreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointError)
+			fakeStructSession.WaitForCreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointWaitError)
+
+			//Call CreateVolume and validate
+			resp, err := icDriver.cs.CreateVolume(context.Background(), tc.req)
+
+			if tc.expErrCode != codes.OK {
+				assert.Error(t, err, "expected error but got nil")
+
+				statusErr, ok := status.FromError(err)
+				assert.True(t, ok, "expected gRPC error status")
+
+				assert.Equal(t, tc.expErrCode, statusErr.Code(), "unexpected gRPC error code")
+				assert.Nil(t, resp.GetVolume(), "volume should be nil on failure")
+				return
 			}
-			if serverError.Code() != tc.expErrCode {
-				t.Fatalf("Expected error code-> %v, Actual error code: %v. err : %v", tc.expErrCode, serverError.Code(), err)
-			}
-			continue
-		}
-		if tc.expErrCode != codes.OK {
-			t.Fatalf("Expected error-> %v, actual no error", tc.expErrCode)
-		}
 
-		// Make sure responses match
-		vol := resp.GetVolume()
-		if vol == nil {
-			t.Fatalf("Expected volume-> %v, Actual volume is nil", tc.expVol)
-		}
+			assert.NoError(t, err, "expected no error but got one")
+			assert.NotNil(t, resp, "response should not be nil")
 
-		// Validate output
-		if !reflect.DeepEqual(vol, tc.expVol) {
-			errStr := fmt.Sprintf("Expected volume-> %#v\nTopology %#v\n\n Actual volume: %#v\nTopology %#v\n\n",
-				tc.expVol, tc.expVol.GetAccessibleTopology()[0], vol, vol.GetAccessibleTopology()[0])
-			for i := 0; i < len(vol.GetAccessibleTopology()); i++ {
-				errStr = errStr + fmt.Sprintf("Actual topology-> %#v\nExpected toplogy-> %#v\n\n", vol.GetAccessibleTopology()[i], tc.expVol.GetAccessibleTopology()[i])
+			vol := resp.GetVolume()
+			assert.NotNil(t, vol, "volume should not be nil")
+
+			// Clean assert for expected vs actual volume
+			assert.Equal(t, tc.expVol, vol, "volume mismatch")
+
+			//Log topology details if needed
+			if len(vol.GetAccessibleTopology()) > 0 {
+				t.Logf("AccessibleTopology: %v", vol.GetAccessibleTopology())
 			}
-			t.Error(errStr)
-		}
+		})
 	}
 }
 
