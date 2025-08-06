@@ -206,7 +206,6 @@ func TestCreateVolumeArguments(t *testing.T) {
 	// test cases
 	testCases := []struct {
 		name                          string
-		profile                       string
 		req                           *csi.CreateVolumeRequest
 		expVol                        *csi.Volume
 		expErrCode                    codes.Code
@@ -222,8 +221,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 		Throughput                    int32
 	}{
 		{
-			name:    "Success VPC mode for dp2",
-			profile: "dp2",
+			name: "Success VPC mode for dp2",
 			req: &csi.CreateVolumeRequest{
 				Name:               volName,
 				CapacityRange:      stdCapRange,
@@ -272,8 +270,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeAccessPointWaitError: nil,
 		},
 		{
-			name:    "Success securityGroup mode default for dp2",
-			profile: "dp2",
+			name: "Success securityGroup mode default for dp2",
 			req: &csi.CreateVolumeRequest{
 				Name:               volName,
 				CapacityRange:      stdCapRange,
