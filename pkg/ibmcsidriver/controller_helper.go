@@ -616,6 +616,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[ClusterIDLabel] = clusterID
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
+	labels[ProfileLabel] = Profile
 	labels[Tag] = strings.Join(vol.Tags, ",")
 	if vol.Iops != nil && len(*vol.Iops) > 0 {
 		labels[IOPSLabel] = *vol.Iops
