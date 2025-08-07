@@ -218,7 +218,6 @@ func TestCreateVolumeArguments(t *testing.T) {
 		libVolumeError                error
 		libVolumeAccessPointError     error
 		libVolumeAccessPointWaitError error
-		Throughput                    int32
 	}{
 		{
 			name: "Success VPC mode",
