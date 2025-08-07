@@ -23,6 +23,7 @@ github.com/IBM/ibm-csi-common v1.1.20/go.mod h1:z9U3OmpKN92eUVdhhdbrr5kAT3MPRT9x
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250716134427-47f853f17160 h1:0CY4mMYOWQXB8mMKqlVSrLNqoDL8KH07+Q7WDl3o4HM=
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250716134427-47f853f17160/go.mod h1:VjxChd1gP5KVKUCRRxsvmNnuK87tjIGXlg79wgzn7Nc=
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250729082250-337202695846 h1:6itbAJckknsRwmqYg68a3UZNQ8QKBdGMyO4BD1x9Ebg=
@@ -53,6 +54,10 @@ github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807114058-6279162e41b4/go
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807124712-98d30afb7919 h1:4dIRdcIWOIv19kTLVKDbFH4lBtvEQNPDJyZzt8b6G0E=
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807124712-98d30afb7919/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
 >>>>>>> a304adf (Added accessprotocol to library)
+=======
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807143338-ae2674ab186a h1:EvWUMvQ3Ea4RgxwmPvpwSENbRJL/YLdalnTshvxRfaU=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807143338-ae2674ab186a/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
+>>>>>>> 5d34cf2 (added go.mod go.sum)
 github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250730121137-788087caceb2 h1:nV2Ob5XfshwHsoeu6CEyw6LoiQ52I6PV9SZYaXjRUhM=
 github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250730121137-788087caceb2/go.mod h1:F9QxX6NZ4LLPGQ6YWVnYpW0JV+H+pZp8RY10PAZ76JA=
 >>>>>>> 68b572d (Addressed comments)
