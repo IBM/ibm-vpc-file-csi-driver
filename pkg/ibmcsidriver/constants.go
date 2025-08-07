@@ -181,4 +181,4 @@ const (
 var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
-var SupportedProfile = []string{"dp2"}
+var SupportedProfile = []string{"dp2", "rfs"}
