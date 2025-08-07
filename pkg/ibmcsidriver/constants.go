@@ -110,6 +110,9 @@ const (
 	//ENISubnetID ...
 	ENISubnetID = "ENISubnetId"
 
+	//ProfileLabel
+	ProfileLabel = "profile"
+
 	//ENISecurityGroupIds ...
 	ENISecurityGroupIDs = "ENISecurityGroupIds"
 
