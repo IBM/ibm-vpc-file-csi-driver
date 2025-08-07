@@ -120,6 +120,10 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 	var isVolumeExist bool = false
 
+	if requestedVolume.Profile.Name == "rfs" {
+		session.SetMaturityBeta(true)
+	}
+
 	volumeObj, err := checkIfVolumeExists(session, *requestedVolume, ctxLogger)
 	if volumeObj != nil && err == nil {
 		ctxLogger.Info("Volume already exists", zap.Reflect("ExistingVolume", volumeObj))
@@ -129,7 +133,6 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 			return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeAlreadyExists, requestID, err, name, *requestedVolume.Capacity)
 		}
 	}
-
 	/*
 		//IF ENI/VNI is enabled
 
@@ -337,6 +340,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	volume.VolumeID = tokens[0]
 
 	existingVol, err := checkIfVolumeExists(session, *volume, ctxLogger)
+
 	if existingVol == nil && err == nil {
 		ctxLogger.Info("Volume not found. Returning success without deletion...")
 		return &csi.DeleteVolumeResponse{}, nil

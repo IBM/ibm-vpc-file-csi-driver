@@ -9,10 +9,10 @@ github.com/IBM/go-sdk-core/v5 v5.17.4 h1:VGb9+mRrnS2HpHZFM5hy4J6ppIWnwNrw0G+tLSg
 github.com/IBM/go-sdk-core/v5 v5.17.4/go.mod h1:KsAAI7eStAWwQa4F96MLy+whYSh39JzNjklZRbN/8ns=
 github.com/IBM/ibm-csi-common v1.1.21 h1:/OmjpF+YgmkLmtehFmmfWp9kHGP9iMNkTU/KQDYXzrY=
 github.com/IBM/ibm-csi-common v1.1.21/go.mod h1:AgjHhkYgDwYz1OmFGTgtOv+GCMsD67Yel+ZKsY90PYY=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.11-0.20250730151304-ce220bbc8cc9 h1:aXDvIQ1oc/9oWKcrIYCrQdFQ06qomvqGKUtEfrwrSFQ=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.11-0.20250730151304-ce220bbc8cc9/go.mod h1:IQx9BDp+AE/IWAvjOS0i7oNz3oDkOg/pPkVx/bZqWSs=
-github.com/IBM/ibmcloud-volume-interface v1.2.13 h1:7/uANoxNafhB0npJMUJfcFWgiUiovlcYudsk3mucY1g=
-github.com/IBM/ibmcloud-volume-interface v1.2.13/go.mod h1:F9QxX6NZ4LLPGQ6YWVnYpW0JV+H+pZp8RY10PAZ76JA=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.11-0.20250807065131-f683405c4bef h1:oFAp9BOkAs4wYPvwbLFAKmZc20N97di2/HuNhb+8sCg=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.11-0.20250807065131-f683405c4bef/go.mod h1:QsgYPqaMUu2jzbcLmRAWfTRtyNEw015CfVPdVLhzHjI=
+github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250807063714-791258b23157 h1:w2Lcbj6K8zMddteV4xv26qEzw4nbhBwirBoqO7LrQf0=
+github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250807063714-791258b23157/go.mod h1:F9QxX6NZ4LLPGQ6YWVnYpW0JV+H+pZp8RY10PAZ76JA=
 github.com/IBM/secret-common-lib v1.1.13 h1:94YIuXew6lBXf0cfhyfM1iNUbUsV34abc4+BGvnXCTQ=
 github.com/IBM/secret-common-lib v1.1.13/go.mod h1:33mQHLZyAq7HmS9SYDQXpf0OhBhe4TRHDaRBktDxnm0=
 github.com/IBM/secret-utils-lib v1.1.14 h1:Gv5Ca2hZTQMr9+PkOq7AE2lUUnNEeQJ0uiKaxKT1Sdk=
@@ -216,6 +216,8 @@ github.com/onsi/gomega v1.17.0/go.mod h1:HnhC7FXeEQY45zxNK3PPoIUhzk/80Xly9PcubAl
 github.com/onsi/gomega v1.19.0/go.mod h1:LY+I3pBVzYsTBU1AnDwOSxaYi9WoWiqgwooUqq9yPro=
 github.com/onsi/gomega v1.35.1 h1:Cwbd75ZBPxFSuZ6T+rN/WCb/gOc6YgFBXLlZLhC7Ds4=
 github.com/onsi/gomega v1.35.1/go.mod h1:PvZbdDc8J6XJEpDK4HCuRBm8a6Fzp9/DmhC9C7yFlog=
+github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0 h1:i5VIxp6QB8oWZ8IkK8zrDgeT6ORGIUeiN+61iETwJbI=
+github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0/go.mod h1:4xpMLz7RBWyB+ElzHu8Llua96TRCB3YwX+l5EP1wmHk=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=

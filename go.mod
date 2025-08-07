@@ -4,8 +4,8 @@ go 1.23.10
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.21
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.11-0.20250730151304-ce220bbc8cc9
-	github.com/IBM/ibmcloud-volume-interface v1.2.13
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.11-0.20250807065131-f683405c4bef
+	github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250807063714-791258b23157
 	github.com/IBM/secret-utils-lib v1.1.14
 	github.com/container-storage-interface/spec v1.11.0
 	github.com/golang/glog v1.2.4
@@ -76,6 +76,7 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/onsi/gomega v1.35.1 // indirect
+	github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
