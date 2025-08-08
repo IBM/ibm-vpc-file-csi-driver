@@ -7,70 +7,14 @@ github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7 h1:eHgfQl6IeSmzWUyiSi13CvoFYsovoyq
 github.com/IBM-Cloud/ibm-cloud-cli-sdk v0.6.7/go.mod h1:RiUvKuHKTBmBApDMUQzBL14pQUGKcx/IioKQPIcRQjs=
 github.com/IBM/go-sdk-core/v5 v5.17.4 h1:VGb9+mRrnS2HpHZFM5hy4J6ppIWnwNrw0G+tLSgcJLc=
 github.com/IBM/go-sdk-core/v5 v5.17.4/go.mod h1:KsAAI7eStAWwQa4F96MLy+whYSh39JzNjklZRbN/8ns=
-<<<<<<< HEAD
 github.com/IBM/ibm-csi-common v1.1.21 h1:/OmjpF+YgmkLmtehFmmfWp9kHGP9iMNkTU/KQDYXzrY=
 github.com/IBM/ibm-csi-common v1.1.21/go.mod h1:AgjHhkYgDwYz1OmFGTgtOv+GCMsD67Yel+ZKsY90PYY=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250716134427-47f853f17160/go.mod h1:VjxChd1gP5KVKUCRRxsvmNnuK87tjIGXlg79wgzn7Nc=
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.10 h1:kzhBIAYd4j37jdWBjADANM+hBuun4QKdwPS90xYx33E=
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.10/go.mod h1:IQx9BDp+AE/IWAvjOS0i7oNz3oDkOg/pPkVx/bZqWSs=
 github.com/IBM/ibmcloud-volume-interface v1.2.13 h1:7/uANoxNafhB0npJMUJfcFWgiUiovlcYudsk3mucY1g=
 github.com/IBM/ibmcloud-volume-interface v1.2.13/go.mod h1:F9QxX6NZ4LLPGQ6YWVnYpW0JV+H+pZp8RY10PAZ76JA=
-=======
-github.com/IBM/ibm-csi-common v1.1.20 h1:83tWmb+39G/Mm4E9nZwn5/EL0SMcyEyLJDN6hAS4eg4=
-github.com/IBM/ibm-csi-common v1.1.20/go.mod h1:z9U3OmpKN92eUVdhhdbrr5kAT3MPRT9xwr6MVltLBFI=
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250716134427-47f853f17160 h1:0CY4mMYOWQXB8mMKqlVSrLNqoDL8KH07+Q7WDl3o4HM=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250716134427-47f853f17160/go.mod h1:VjxChd1gP5KVKUCRRxsvmNnuK87tjIGXlg79wgzn7Nc=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250729082250-337202695846 h1:6itbAJckknsRwmqYg68a3UZNQ8QKBdGMyO4BD1x9Ebg=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250729082250-337202695846/go.mod h1:VjxChd1gP5KVKUCRRxsvmNnuK87tjIGXlg79wgzn7Nc=
-github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250714144332-376a7ca376e6 h1:jqy8FqRiJNsaGnw/gZyAeYAEaXz8QYsmBtuUXFMoYK4=
 github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250714144332-376a7ca376e6/go.mod h1:F9QxX6NZ4LLPGQ6YWVnYpW0JV+H+pZp8RY10PAZ76JA=
->>>>>>> 4fa8327 (Addressed csi driver comments)
-=======
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250730121811-ed2d8dd693c3 h1:eHYxgksvW6bFf7P5EWDmXMdkpJzcVP74Zy4xVsZmywU=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250730121811-ed2d8dd693c3/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
-=======
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250730140250-78a9d077e028 h1:8go9Cc8AoG/pnKS+ivaZeGmptR1YcoRw1qdI0whcQVA=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250730140250-78a9d077e028/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
->>>>>>> ad04493 (Addressed comments)
-=======
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250801125103-b7d99639229c h1:JZU89Etkt74Q8KoGluEkWNEomnt6170xFEdVeowaYi0=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250801125103-b7d99639229c/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
->>>>>>> 2967096 (fixed existing test cases for travis)
-=======
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250806085922-690116a7e912 h1:ZwkVCu5TncQP3BIQSUedBdLIDwZTaQO7NG/hUiyz0OI=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250806085922-690116a7e912/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
->>>>>>> 10ec4aa (Added go.mod and go.sum files)
-=======
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807114058-6279162e41b4 h1:kpMqx5JlEBp+OFM5vZeW3AHoVO+XclZXoCmVidwBcbw=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807114058-6279162e41b4/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
->>>>>>> 358b327 (Added profile label)
-=======
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807124712-98d30afb7919 h1:4dIRdcIWOIv19kTLVKDbFH4lBtvEQNPDJyZzt8b6G0E=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807124712-98d30afb7919/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
->>>>>>> a304adf (Added accessprotocol to library)
-=======
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807143338-ae2674ab186a h1:EvWUMvQ3Ea4RgxwmPvpwSENbRJL/YLdalnTshvxRfaU=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807143338-ae2674ab186a/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
->>>>>>> 5d34cf2 (added go.mod go.sum)
-=======
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807150319-7fd2032f7cb6 h1:ua6WQV0bhMBAsG8+UAAPUA/9Ije3eTS4nrFnsRSMBQw=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807150319-7fd2032f7cb6/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
->>>>>>> f92e175 (Added accessprotocol)
-=======
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807172559-a84ce64273a2 h1:AYkhH3ABSEvDA5JxSL5MDPlw4/81I2KSZRcgYKSD3RA=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.10-0.20250807172559-a84ce64273a2/go.mod h1:V6oC1304obLEV0q6luQQsRJ6UmtbhAs8C4a9WEV6t94=
->>>>>>> f333365 (Addressed PR comments)
-github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250730121137-788087caceb2 h1:nV2Ob5XfshwHsoeu6CEyw6LoiQ52I6PV9SZYaXjRUhM=
-github.com/IBM/ibmcloud-volume-interface v1.2.14-0.20250730121137-788087caceb2/go.mod h1:F9QxX6NZ4LLPGQ6YWVnYpW0JV+H+pZp8RY10PAZ76JA=
->>>>>>> 68b572d (Addressed comments)
 github.com/IBM/secret-common-lib v1.1.13 h1:94YIuXew6lBXf0cfhyfM1iNUbUsV34abc4+BGvnXCTQ=
 github.com/IBM/secret-common-lib v1.1.13/go.mod h1:33mQHLZyAq7HmS9SYDQXpf0OhBhe4TRHDaRBktDxnm0=
 github.com/IBM/secret-utils-lib v1.1.14 h1:Gv5Ca2hZTQMr9+PkOq7AE2lUUnNEeQJ0uiKaxKT1Sdk=
@@ -274,6 +218,8 @@ github.com/onsi/gomega v1.17.0/go.mod h1:HnhC7FXeEQY45zxNK3PPoIUhzk/80Xly9PcubAl
 github.com/onsi/gomega v1.19.0/go.mod h1:LY+I3pBVzYsTBU1AnDwOSxaYi9WoWiqgwooUqq9yPro=
 github.com/onsi/gomega v1.35.1 h1:Cwbd75ZBPxFSuZ6T+rN/WCb/gOc6YgFBXLlZLhC7Ds4=
 github.com/onsi/gomega v1.35.1/go.mod h1:PvZbdDc8J6XJEpDK4HCuRBm8a6Fzp9/DmhC9C7yFlog=
+github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0 h1:i5VIxp6QB8oWZ8IkK8zrDgeT6ORGIUeiN+61iETwJbI=
+github.com/pierrre/gotestcover v0.0.0-20160517101806-924dca7d15f0/go.mod h1:4xpMLz7RBWyB+ElzHu8Llua96TRCB3YwX+l5EP1wmHk=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
