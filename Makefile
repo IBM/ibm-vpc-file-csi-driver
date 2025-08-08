@@ -1,5 +1,5 @@
 #
-# Copyright 2019 IBM Corp.
+# Copyright 2025 IBM Corp.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,12 +25,6 @@ GIT_REMOTE_URL="$(shell git config --get remote.origin.url 2>/dev/null)"
 BUILD_DATE="$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")"
 OSS_FILES := go.mod Dockerfile
 
-# Search for Client Arch, adjust for docker and podman differences
-# https://github.com/docker/cli/blob/master/cli/command/system/version.go#L32
-# https://github.com/containers/podman/blob/main/cmd/podman/system/version.go#L100
-# ARCH=$(shell docker version -f {{.Client.Arch}})
-ARCH=$(shell docker version -f {{.Client.Arch}} || docker version -f {{.Client.OsArch}} | xargs basename)
-
 # Jenkins vars. Set to `unknown` if the variable is not yet defined
 BUILD_NUMBER?=unknown
 GO111MODULE_FLAG?=on
@@ -50,7 +44,6 @@ driver: deps buildimage
 .PHONY: deps
 deps:
 	echo "Installing dependencies ..."
-	#glide install --strip-vendor
 	go mod download
 	go get github.com/pierrre/gotestcover
 	go install github.com/pierrre/gotestcover
@@ -74,9 +67,9 @@ lint:
 # Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
 build:
-	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH) \
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 		go mod vendor
-	CGO_ENABLED=0 GOOS=$(shell go env GOOS) GOARCH=$(shell go env GOARCH) \
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 		go build -mod=vendor -a \
 		-ldflags '-X main.vendorVersion='"${DRIVER_NAME}-${GIT_COMMIT_SHA}"' -extldflags "-static"' \
 		-o ${GOPATH}/bin/${EXE_DRIVER_NAME} \
@@ -105,10 +98,7 @@ buildimage: build-systemutil
         --build-arg jenkins_build_number=${BUILD_NUMBER} \
         --build-arg REPO_SOURCE_URL=${REPO_SOURCE_URL} \
         --build-arg BUILD_URL=${BUILD_URL} \
-	-t $(IMAGE):$(VERSION)-$(ARCH) -f Dockerfile .
-ifeq ($(ARCH), amd64)
-	docker tag $(IMAGE):$(VERSION)-$(ARCH) $(IMAGE):$(VERSION)
-endif
+	-t $(IMAGE):$(VERSION)-amd64 -f Dockerfile .
 
 .PHONY: build-systemutil
 build-systemutil:
@@ -124,26 +114,3 @@ test-sanity: deps fmt
 clean:
 	rm -rf ${EXE_DRIVER_NAME}
 	rm -rf $(GOPATH)/bin/${EXE_DRIVER_NAME}
-
-.PHONY: runanalyzedeps
-runanalyzedeps:
-	@docker build --rm --build-arg ARTIFACTORY_API_KEY="${ARTIFACTORY_API_KEY}"  -t armada/analyze-deps -f Dockerfile.dependencycheck .
-	docker run -v `pwd`/dependency-check:/results armada/analyze-deps
-
-.PHONY: analyzedeps
-analyzedeps:
-	/tmp/dependency-check/bin/dependency-check.sh --enableExperimental --log /results/logfile --out /results --disableAssembly \
-		--suppress /src/dependency-check/suppression-file.xml --format JSON --prettyPrint --failOnCVSS 0 --scan /src
-
-.PHONY: showanalyzedeps
-showanalyzedeps:
-	grep "VULNERABILITY FOUND" dependency-check/logfile;
-	cat dependency-check/dependency-check-report.json |jq '.dependencies[] | select(.vulnerabilities | length>0)';
-
-.PHONY: updatebaseline
-updatebaseline:
-	detect-secrets scan --update .secrets.baseline --all-files --exclude-files go.sum --db2-scan
-
-.PHONY: auditbaseline
-auditbaseline:
-	detect-secrets audit .secrets.baseline

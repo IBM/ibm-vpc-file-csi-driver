@@ -1,9 +1,11 @@
 language: go
 
 go:
-- "1.23.8"
+- "1.23.10"
 - tip
 group: bluezone
+os: linux
+dist: noble
 
 matrix:
   fast_finish: true

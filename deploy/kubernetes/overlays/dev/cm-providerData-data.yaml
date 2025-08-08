@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ibm-cloud-provider-data
+  namespace: <KUSTOMIZE> # DoNotEdit. Taken from kustomization.yaml
+data:
+  vpc_id: "<UPDATE THIS>"
+  vpc_subnet_ids: "<UPDATE THIS>" # comma-separated list of subnet IDs
