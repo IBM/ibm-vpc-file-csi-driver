@@ -227,6 +227,16 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				iops := value
 				volume.Iops = &iops
 			}
+		case Throughput:
+			// getting throughput value from storage class if it is provided
+			if len(value) != 0 {
+				bandwidth, errParse := strconv.ParseInt(value, 10, 32)
+				if errParse != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be an int32 type", value, key)
+				} else {
+					volume.VPCVolume.Bandwidth = int32(bandwidth)
+				}
+			}
 		case UID:
 			uid, err = strconv.Atoi(value)
 			if err != nil {
@@ -329,8 +339,29 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
+	// validate bandwidth for dp2 profile
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
+		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property or set it to zero")
+		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+		return volume, err
+	}
+
+	// validation zone and iops for 'rfs' profile
+	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == RFSProfile {
+		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
+			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
+		}
+		if len(strings.TrimSpace(volume.Az)) > 0 {
+			err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
+		}
+	}
+
 	//If the zone is not provided in storage class parameters then we pick from the Topology
-	if len(strings.TrimSpace(volume.Az)) == 0 {
+	if len(strings.TrimSpace(volume.Az)) == 0 && volume.VPCVolume.Profile.Name != RFSProfile {
 		zones, err := pickTargetTopologyParams(req.GetAccessibilityRequirements())
 		if err != nil {
 			err = fmt.Errorf("unable to fetch zone information: '%v'", err)
@@ -491,19 +522,19 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 				volume.Region = value
 			}
 		case IOPS:
-			// Override IOPS only for custom or dp2
-			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == DP2Profile {
-				var iops int
-				var check bool
-				iops, err = strconv.Atoi(value)
-				if err != nil {
-					err = fmt.Errorf("%v:<%v> invalid value", key, value)
+			if len(value) != 0 {
+				logger.Info("override (IOPS)", zap.Any(IOPS, value))
+				iopsStr := value
+				volume.Iops = &iopsStr
+			}
+		case Throughput:
+			// getting throughput value from storage class if it is provided
+			if len(value) != 0 {
+				bandwidth, errParse := strconv.ParseInt(value, 10, 32)
+				if errParse != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be an int32 type", value, key)
 				} else {
-					if check, err = isValidCapacityIOPS(*(volume.Capacity), iops, volume.VPCVolume.Profile.Name); check {
-						iopsStr := value
-						logger.Info("override", zap.Any(IOPS, value))
-						volume.Iops = &iopsStr
-					}
+					volume.Bandwidth = int32(bandwidth)
 				}
 			}
 		case SecurityGroupIDs:
@@ -589,13 +620,18 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[VolumeIDLabel] = vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
+	if vol.Profile != nil {
+		labels[ProfileLabel] = vol.Profile.Name
+	}
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
 	labels[Tag] = strings.Join(vol.Tags, ",")
 	if vol.Iops != nil && len(*vol.Iops) > 0 {
 		labels[IOPSLabel] = *vol.Iops
 	}
-
+	if vol.VPCVolume.Bandwidth > 0 {
+		labels[ThroughputLabel] = strconv.Itoa(int(vol.VPCVolume.Bandwidth))
+	}
 	labels[FileShareIDLabel] = vol.VolumeID
 	labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
 

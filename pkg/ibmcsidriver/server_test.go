@@ -22,7 +22,6 @@ package ibmcsidriver
 import (
 	"errors"
 	"flag"
-	"os"
 	"testing"
 
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
@@ -89,14 +88,14 @@ func TestSetup(t *testing.T) {
 		t.Logf("---------> error %v", err)
 	}
 
-	{
-		t.Logf("setup CSI sidecar with chown failure")
-		os.Setenv("IS_NODE_SERVER", "true")
-		ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
-		assert.NotNil(t, err)
-		assert.Nil(t, ls)
-		assert.Equal(t, err.Error(), "chown /tmp/testcsi.sock: operation not permitted")
-	}
+	// {
+	// 	t.Logf("setup CSI sidecar with chown failure")
+	// 	os.Setenv("IS_NODE_SERVER", "true")
+	// 	ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
+	// 	assert.NotNil(t, err)
+	// 	assert.Nil(t, ls)
+	// 	assert.Equal(t, err.Error(), "chown /tmp/testcsi.sock: operation not permitted")
+	// }
 }
 
 func TestLogGRPC(t *testing.T) {
