@@ -620,8 +620,13 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[VolumeIDLabel] = vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
+	labels[VolumeHrefLabel] = vol.VPCVolume.Href
+	labels[ProfileLabel] = Profile
 	if vol.Profile != nil {
 		labels[ProfileLabel] = vol.Profile.Name
+	}
+	if vol.Az != "" {
+		labels[utils.NodeZoneLabel] = vol.Az
 	}
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID

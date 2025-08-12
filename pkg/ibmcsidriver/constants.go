@@ -125,6 +125,9 @@ const (
 	// VolumeCRNLabel ...
 	VolumeCRNLabel = "volumeCRN"
 
+	//VolumeHrefLabel ...
+	VolumeHrefLabel = "volumeHref"
+
 	// ClusterIDLabel ...
 	ClusterIDLabel = "clusterID"
 
