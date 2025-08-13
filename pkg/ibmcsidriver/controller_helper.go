@@ -635,7 +635,8 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 		labels[IOPSLabel] = *vol.Iops
 	}
 	if vol.VPCVolume.Bandwidth > 0 {
-		labels[ThroughputLabel] = fmt.Sprintf("%d mbps", vol.VPCVolume.Bandwidth)
+		labels[ThroughputLabel] = strconv.Itoa(int(vol.VPCVolume.Bandwidth))
+
 	}
 	labels[FileShareIDLabel] = vol.VolumeID
 	labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
