@@ -32,6 +32,9 @@ const (
 	// IOPS per PVC
 	IOPS = "iops"
 
+	// Throughput ...
+	Throughput = "throughput"
+
 	// SizeRangeSupported ...
 	SizeRangeSupported = "sizeRange"
 
@@ -58,6 +61,9 @@ const (
 
 	// DP2Profile ...
 	DP2Profile = "dp2"
+
+	// RFSProfile ...
+	RFSProfile = "rfs"
 
 	// ClassVersion ...
 	ClassVersion = "classVersion"
@@ -104,6 +110,9 @@ const (
 	//ENISubnetID ...
 	ENISubnetID = "ENISubnetId"
 
+	//ProfileLabel
+	ProfileLabel = "profile"
+
 	//ENISecurityGroupIds ...
 	ENISecurityGroupIDs = "ENISecurityGroupIds"
 
@@ -116,6 +125,9 @@ const (
 	// VolumeCRNLabel ...
 	VolumeCRNLabel = "volumeCRN"
 
+	//VolumeHrefLabel ...
+	VolumeHrefLabel = "volumeHref"
+
 	// ClusterIDLabel ...
 	ClusterIDLabel = "clusterID"
 
@@ -127,6 +139,9 @@ const (
 
 	// IOPSLabel ...
 	IOPSLabel = "iops"
+
+	// ThroughputLabel ...
+	ThroughputLabel = "throughput"
 
 	// ZoneLabel ...
 	ZoneLabel = "zone"
@@ -181,4 +196,4 @@ const (
 var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
-var SupportedProfile = []string{"dp2"}
+var SupportedProfile = []string{"dp2", "rfs"}
