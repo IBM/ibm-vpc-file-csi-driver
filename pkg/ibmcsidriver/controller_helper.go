@@ -382,6 +382,14 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.Region = zones[utils.NodeRegionLabel]
 		volume.Az = zones[utils.NodeZoneLabel]
 	}
+	// if EIT enabled
+	if volume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == DP2Profile {
+		volume.TransitEncryption = IPSEC
+	} else if volume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == RFSProfile {
+		volume.TransitEncryption = STUNNEL
+	} else { //Some default value has to be set
+		volume.TransitEncryption = NONE
+	}
 
 	// if EIT enabled
 	if volume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == DP2Profile {
@@ -709,7 +717,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
 
 	// Update label in case EIT is enabled
-	if vol.TransitEncryption == IPSEC {
+	if vol.TransitEncryption == IPSEC || vol.TransitEncryption == STUNNEL {
 		labels[IsEITEnabled] = TrueStr
 	}
 

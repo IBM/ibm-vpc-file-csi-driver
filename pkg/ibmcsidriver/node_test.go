@@ -22,12 +22,15 @@ package ibmcsidriver
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
 	"context"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/stunnel"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -100,6 +103,54 @@ func TestNodePublishVolume(t *testing.T) {
 				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz", IsEITEnabled: "true"},
 			},
 			expErrCode: codes.OK,
+		},
+		{
+			name: "RFS profile with EIT enabled but no stunnel manager",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext: map[string]string{
+					NFSServerPath: "10.240.0.5:/share123",
+					IsEITEnabled:  "true",
+					ProfileLabel:  "rfs",
+				},
+			},
+			expErrCode: codes.Internal, // Should fail - stunnel manager required for RFS+EIT
+		},
+		{
+			name: "Valid request with DP2 profile and EIT enabled",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext: map[string]string{
+					NFSServerPath: "10.240.0.5:/share456",
+					IsEITEnabled:  "true",
+					ProfileLabel:  "dp2",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed with IPSEC
+		},
+		{
+			name: "Valid request with RFS profile but EIT disabled",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext: map[string]string{
+					NFSServerPath: "10.240.0.5:/share789",
+					IsEITEnabled:  "false",
+					ProfileLabel:  "rfs",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed with regular NFS mount
 		},
 		{
 			name: "Empty volume ID",
@@ -177,6 +228,126 @@ func TestNodePublishVolume(t *testing.T) {
 			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
 		}
 	}
+}
+
+// TestNodePublishVolume_RFSWithStunnel tests RFS profile with stunnel manager configured
+func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
+	// Create a temporary directory for stunnel configs
+	tempDir := t.TempDir()
+
+	// Create a mock CA file
+	caFile := tempDir + "/ca-bundle.crt"
+	if err := os.WriteFile(caFile, []byte("mock CA cert"), 0644); err != nil {
+		t.Fatalf("Failed to create mock CA file: %v", err)
+	}
+
+	// Initialize stunnel manager
+	logger, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	stunnelMgr, err := stunnel.NewSimpleManager(&stunnel.Config{
+		ServicesDir: tempDir + "/services",
+		BasePort:    10001,
+		PortRange:   100,
+		CAFile:      caFile,
+		LogDir:      tempDir + "/logs",
+		DebugLevel:  4,
+		Logger:      logger,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create stunnel manager: %v", err)
+	}
+
+	// Create directories
+	if err := os.MkdirAll(tempDir+"/services", 0755); err != nil {
+		t.Fatalf("Failed to create services dir: %v", err)
+	}
+	if err := os.MkdirAll(tempDir+"/logs", 0755); err != nil {
+		t.Fatalf("Failed to create logs dir: %v", err)
+	}
+
+	// Initialize IBM CSI Driver with stunnel manager
+	icDriver := initIBMCSIDriver(t)
+	icDriver.ns.StunnelMgr = stunnelMgr
+
+	testCases := []struct {
+		name       string
+		req        *csi.NodePublishVolumeRequest
+		expErrCode codes.Code
+	}{
+		{
+			name: "RFS profile with EIT enabled and stunnel manager configured",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-001",
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.5:/share123",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-001",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed with stunnel manager
+		},
+		{
+			name: "RFS profile with different volume",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-002",
+				TargetPath:        "/mnt/test2",
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.6:/share456",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-002",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed and allocate different port
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Logf("Test case: %s", tc.name)
+		resp, err := icDriver.ns.NodePublishVolume(context.Background(), tc.req)
+		if err != nil {
+			serverError, ok := status.FromError(err)
+			if !ok {
+				t.Fatalf("Could not get error status code from err: %v", err)
+			}
+			if serverError.Code() != tc.expErrCode {
+				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
+			continue
+		}
+		if tc.expErrCode != codes.OK {
+			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
+		}
+
+		// Verify tunnel was created
+		fileShareID := tc.req.VolumeContext[FileShareIDLabel]
+		port, exists := stunnelMgr.GetTunnelPort(fileShareID)
+		if !exists {
+			t.Fatalf("Expected tunnel to be created for %s, but it doesn't exist", fileShareID)
+		}
+		t.Logf("Tunnel created successfully for %s on port %d", fileShareID, port)
+		assert.NotNil(t, resp)
+	}
+
+	// Verify different ports were allocated
+	port1, exists1 := stunnelMgr.GetTunnelPort("share-rfs-001")
+	port2, exists2 := stunnelMgr.GetTunnelPort("share-rfs-002")
+	if !exists1 || !exists2 {
+		t.Fatalf("Expected both tunnels to exist")
+	}
+	if port1 == port2 {
+		t.Fatalf("Expected different ports for different volumes, got same port: %d", port1)
+	}
+	t.Logf("Successfully allocated different ports: %d and %d", port1, port2)
 }
 
 func TestNodeUnpublishVolume(t *testing.T) {
