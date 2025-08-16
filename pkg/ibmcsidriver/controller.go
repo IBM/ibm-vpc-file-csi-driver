@@ -110,8 +110,9 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
 	}
 
-	if requestedVolume.Profile != nil && !csiCS.Driver.rfsEnabled {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, nil)
+	if requestedVolume.Profile != nil && requestedVolume.Profile.Name == RFSProfile && !csiCS.Driver.rfsEnabled {
+		ctxLogger.Error("RFS Profile is not accessible, please allowlist it from VPC team and restart the VPC FILE CSI Driver")
+			return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeInvalidArguments, requestID, nil)
 	}
 
 	// TODO: Determine Zones and Region for the disk
