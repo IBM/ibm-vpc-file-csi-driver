@@ -28,7 +28,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mountPath, targetPath, fsType string, options []string) (*csi.NodePublishVolumeResponse, error) {
+func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mountPath, targetPath, fsType string, transitEncryption string, options []string) (*csi.NodePublishVolumeResponse, error) {
 	mountPathField := zap.String("mountPath", mountPath)
 	targetPathField := zap.String("targetPath", targetPath)
 	fsTypeField := zap.String("fsType", fsType)
@@ -46,7 +46,7 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mount
 	if fsType != eitFsType {
 		err = csiNS.Mounter.Mount(mountPath, targetPath, fsType, options)
 	} else {
-		errResponse, err = csiNS.Mounter.MountEITBasedFileShare(mountPath, targetPath, fsType, requestID)
+		errResponse, err = csiNS.Mounter.MountEITBasedFileShare(mountPath, targetPath, fsType, transitEncryption, requestID)
 	}
 
 	if err != nil {
