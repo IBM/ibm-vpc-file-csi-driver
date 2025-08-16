@@ -20,6 +20,7 @@
 package ibmcsidriver
 
 import (
+	"context"
 	"fmt"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
@@ -37,6 +38,7 @@ type IBMCSIDriver struct {
 	vendorVersion string
 	logger        *zap.Logger
 	region        string
+	rfsEnabled    bool
 
 	ids *CSIIdentityServer
 	ns  *CSINodeServer
@@ -108,12 +110,30 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	icDriver.cs = NewControllerServer(icDriver, provider)
 
 	icDriver.logger.Info("Successfully setup IBM CSI driver")
+
 	// Set up Region
 	regionMetadata, err := nodeInfo.NewNodeMetadata(lgr)
 	if err != nil {
 		return fmt.Errorf("Controller_Helper: Failed to initialize node metadata: error: %v", err)
 	}
 	icDriver.region = regionMetadata.GetRegion()
+
+	// get the session
+	icDriver.rfsEnabled = false
+	session, err := provider.GetProviderSession(context.Background(), lgr)
+	if err != nil {
+		icDriver.logger.Warn("Cannot fetch session for verifying RFS profile")
+		return nil
+	}
+
+	err = session.GetVolumeProfileByName(RFSProfile)
+	if err != nil {
+		icDriver.rfsEnabled = false
+		icDriver.logger.Warn("RFS profile is not supported")
+	} else {
+		icDriver.rfsEnabled = true
+		icDriver.logger.Info("RFS profile is supported")
+	}
 	return nil
 }
 

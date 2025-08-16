@@ -20,6 +20,7 @@
 package ibmcsidriver
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -108,6 +109,11 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	if err != nil {
 		ctxLogger.Error("Unable to extract parameters", zap.Error(err))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
+	}
+
+	if requestedVolume.Profile != nil && requestedVolume.Profile.Name == RFSProfile && !csiCS.Driver.rfsEnabled {
+		err = fmt.Errorf("RFS Profile is not accessible, please allowlist it from VPC team and restart the VPC FILE CSI Driver")
+		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeInvalidArguments, requestID, err)
 	}
 
 	// TODO: Determine Zones and Region for the disk
