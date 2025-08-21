@@ -129,6 +129,8 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	}
 	mnt := volumeCapability.GetMount()
 	options := mnt.MountFlags
+	transitEncryption := "ipsec"
+	profileName := req.GetVolumeContext()[ProfileLabel]
 
 	// find  FS type
 	fsType := defaultFsType
@@ -136,6 +138,9 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	isEITEnabled := req.GetVolumeContext()[IsEITEnabled]
 	if isEITEnabled == TrueStr {
 		fsType = eitFsType
+		if profileName == RFSProfile {
+			transitEncryption = "stunnel"
+		}
 	}
 
 	var nodePublishResponse *csi.NodePublishVolumeResponse
@@ -146,7 +151,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	csiNS.mutex.Lock(target)
 	defer csiNS.mutex.Unlock(target)
 
-	nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, source, target, fsType, options)
+	nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, source, target, fsType, transitEncryption, options)
 
 	ctxLogger.Info("CSINodeServer-NodePublishVolume response...", zap.Reflect("Response", nodePublishResponse), zap.Error(mountErr))
 	return nodePublishResponse, mountErr
