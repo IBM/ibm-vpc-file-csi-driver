@@ -1,4 +1,4 @@
-name: IBM VPC File CSI Driver Workflow
+name: Workflow
 
 on:
   push:
