@@ -339,28 +339,31 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
-	// validate bandwidth for dp2 profile
-	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
-		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property or set it to zero")
-		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-		return volume, err
-	}
-
-	// validation zone and iops for 'rfs' profile
-	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == RFSProfile {
-		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
-			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
+	if volume.VPCVolume.Profile != nil {
+		// validate bandwidth for dp2 profile
+		if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
+			err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property or set it to zero")
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
-		if len(strings.TrimSpace(volume.Az)) > 0 {
-			err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
-			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-			return volume, err
+
+		// validation zone and iops for 'rfs' profile
+		if volume.VPCVolume.Profile.Name == RFSProfile {
+			if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
+				err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
+				logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+				return volume, err
+			}
+			if len(strings.TrimSpace(volume.Az)) > 0 {
+				err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
+				logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+				return volume, err
+			}
 		}
 	}
 
-	//If the zone is not provided in storage class parameters then we pick from the Topology
+	// If the zone is not provided in storage class parameters then we pick from the Topology
+	// We need to skip picking up zone from topology for rfs profile
 	if len(strings.TrimSpace(volume.Az)) == 0 && volume.VPCVolume.Profile.Name != RFSProfile {
 		zones, err := pickTargetTopologyParams(req.GetAccessibilityRequirements())
 		if err != nil {

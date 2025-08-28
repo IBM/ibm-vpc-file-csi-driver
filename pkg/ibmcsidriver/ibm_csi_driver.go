@@ -126,10 +126,9 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		return nil
 	}
 
-	err = session.GetVolumeProfileByName(RFSProfile)
+	_ ,err = session.GetVolumeProfileByName(RFSProfile)
 	if err != nil {
-		icDriver.rfsEnabled = false
-		icDriver.logger.Warn("RFS profile is not supported")
+		icDriver.logger.Warn("RFS Profile is not accessible, please open support ticket on VPC for allowlisting. Restart of VPC FILE CSI Driver is required post allowlisting")
 	} else {
 		icDriver.rfsEnabled = true
 		icDriver.logger.Info("RFS profile is supported")

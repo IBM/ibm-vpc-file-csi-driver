@@ -111,8 +111,9 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
 	}
 
+	// Check if RFS Profile is accessible
 	if requestedVolume.Profile != nil && requestedVolume.Profile.Name == RFSProfile && !csiCS.Driver.rfsEnabled {
-		err = fmt.Errorf("RFS Profile is not accessible, please allowlist it from VPC team and restart the VPC FILE CSI Driver")
+		err = fmt.Errorf("RFS Profile is not accessible, please open support ticket on VPC for allowlisting. Restart of VPC FILE CSI Driver is required post allowlisting")
 		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeInvalidArguments, requestID, err)
 	}
 
