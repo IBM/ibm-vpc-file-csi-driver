@@ -305,6 +305,9 @@ func TestGetVolumeParameters(t *testing.T) {
 					}},
 				},
 			},
+
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class"),
 		},
 		{
 			testCaseName: "RFS - IOPS Misuse",
@@ -315,6 +318,7 @@ func TestGetVolumeParameters(t *testing.T) {
 					Throughput:    "8192",
 					Region:        "us-south",
 					IOPS:          "300",
+					Zone:          "",
 					Tag:           "test-tag",
 					ResourceGroup: "myresourcegroups",
 					Encrypted:     "false",
@@ -327,6 +331,9 @@ func TestGetVolumeParameters(t *testing.T) {
 					}},
 				},
 			},
+
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class"),
 		},
 		{
 			testCaseName: "Valid create volume request-success with PrimaryIPID",
@@ -645,6 +652,16 @@ func TestGetVolumeParameters(t *testing.T) {
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
 			expectedError:  fmt.Errorf("%s:<%v> exceeds %d chars", Tag, exceededTag, TagMaxLen),
+		},
+		{
+			testCaseName: "Invalid Throughput",
+			request: &csi.CreateVolumeRequest{Parameters: map[string]string{
+				Throughput: "th10",
+			},
+			},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("'<th10>' is invalid, value of 'throughput' should be an int32 type"),
 		},
 		{
 			testCaseName: "Wrong encrypted key's value",

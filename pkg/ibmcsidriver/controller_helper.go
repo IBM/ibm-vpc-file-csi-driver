@@ -307,11 +307,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		return volume, err
 	}
 
-	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name != DP2Profile {
-		// Specify IOPS only for custom class or DP2 class
-		volume.Iops = nil
-	}
-
 	//If ENI/VNI enabled then check for scenarios where zone and subnetId is mandatory
 	if volume.VPCVolume.AccessControlMode == SecurityGroup {
 
