@@ -65,12 +65,16 @@ var dp2CapacityIopsRanges = []classRange{
 }
 
 // normalize the requested capacity(in GiB) to what is supported by the driver
-func getRequestedCapacity(capRange *csi.CapacityRange) (int64, error) {
+func getRequestedCapacity(capRange *csi.CapacityRange, profileName string) (int64, error) {
 	// Input is in bytes from csi
 	var capBytes int64
 	// Default case where nothing is set
 	if capRange == nil {
-		capBytes = utils.MinimumVolumeSizeInBytes
+		if profileName == RFSProfile { // RFS profile minimum size is 1GB
+			capBytes = MinimumRFSVolumeSizeInBytes
+		} else {
+			capBytes = utils.MinimumVolumeSizeInBytes // tierd and custom profile minimum size is 10 GB
+		}
 		// returns in GiB
 		return capBytes, nil
 	}
@@ -97,7 +101,8 @@ func getRequestedCapacity(capRange *csi.CapacityRange) (int64, error) {
 
 	// Limit is more than Required, but larger than Minimum. So we just set capcity to Minimum
 	// Too small, default
-	if capBytes < utils.MinimumVolumeSizeInBytes {
+	// If profile is RFS profile then no need to check for minimum size as the RoundUpBytes will giving minimum value as 1 GiB
+	if capBytes < utils.MinimumVolumeSizeInBytes && profileName != RFSProfile {
 		capBytes = utils.MinimumVolumeSizeInBytes
 	}
 
@@ -277,9 +282,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		}
 	}
 
+	if volume.VPCVolume.Profile == nil {
+		err = fmt.Errorf("volume profile is empty, you need to pass valid profile name")
+		logger.Error("getVolumeParameters", zap.NamedError("InvalidRequest", err))
+		return volume, err
+	}
+
 	// Get the requested capacity from the request
 	capacityRange := req.GetCapacityRange()
-	capBytes, err := getRequestedCapacity(capacityRange)
+	capBytes, err := getRequestedCapacity(capacityRange, volume.VPCVolume.Profile.Name)
 	if err != nil {
 		err = fmt.Errorf("invalid PVC capacity size: '%v'", err)
 		logger.Error("getVolumeParameters", zap.NamedError("invalid parameter", err))
@@ -334,26 +345,24 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
-	if volume.VPCVolume.Profile != nil {
-		// validate bandwidth for dp2 profile
-		if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
-			err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property or set it to zero")
+	// validate bandwidth for dp2 profile
+	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth >= 0 {
+		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property")
+		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+		return volume, err
+	}
+
+	// validation zone and iops for 'rfs' profile
+	if volume.VPCVolume.Profile.Name == RFSProfile {
+		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) >= 0 {
+			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
-
-		// validation zone and iops for 'rfs' profile
-		if volume.VPCVolume.Profile.Name == RFSProfile {
-			if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
-				err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
-				logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-				return volume, err
-			}
-			if len(strings.TrimSpace(volume.Az)) > 0 {
-				err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
-				logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-				return volume, err
-			}
+		if len(strings.TrimSpace(volume.Az)) > 0 {
+			err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
 		}
 	}
 

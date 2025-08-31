@@ -19,6 +19,8 @@
 // Package ibmcsidriver ...
 package ibmcsidriver
 
+import "github.com/IBM/ibm-csi-common/pkg/utils"
+
 const (
 	// Profile ...
 	Profile = "profile"
@@ -190,6 +192,9 @@ const (
 
 	// ConfigmapDataKey
 	ConfigmapDataKey = "vpc_subnet_ids"
+
+	// MinimumRFSVolumeSizeInBytes ... This is minimum size require for rfs profile
+	MinimumRFSVolumeSizeInBytes int64 = 1 * utils.GiB
 )
 
 // SupportedFS the supported FS types

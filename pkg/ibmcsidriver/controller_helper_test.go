@@ -44,23 +44,41 @@ func TestGetRequestedCapacity(t *testing.T) {
 	testCases := []struct {
 		testCaseName  string
 		capRange      *csi.CapacityRange
+		profileName   string
 		expectedValue int64
 		expectedError error
 	}{
 		{
+			testCaseName:  "Check minimum size supported by volume provider in case of nil passed as input for rfs profile",
+			capRange:      nil,
+			profileName:   "rfs",
+			expectedValue: MinimumRFSVolumeSizeInBytes,
+			expectedError: nil,
+		},
+		{
+			testCaseName:  "Check minimum size supported by volume provider in case of lower value passed as input for rfs profile",
+			capRange:      &csi.CapacityRange{RequiredBytes: 1024},
+			profileName:   "rfs",
+			expectedValue: MinimumRFSVolumeSizeInBytes,
+			expectedError: nil,
+		},
+		{
 			testCaseName:  "Check minimum size supported by volume provider in case of nil passed as input",
+			profileName:   "dp2",
 			capRange:      &csi.CapacityRange{},
 			expectedValue: utils.MinimumVolumeSizeInBytes,
 			expectedError: nil,
 		},
 		{
 			testCaseName:  "Capacity range is nil",
+			profileName:   "dp2",
 			capRange:      nil,
 			expectedValue: utils.MinimumVolumeSizeInBytes,
 			expectedError: nil,
 		},
 		{
 			testCaseName: "Check minimum size supported by volume provider",
+			profileName:  "dp2",
 			capRange: &csi.CapacityRange{RequiredBytes: 1024,
 				LimitBytes: utils.MinimumVolumeSizeInBytes},
 			expectedValue: utils.MinimumVolumeSizeInBytes,
@@ -68,6 +86,7 @@ func TestGetRequestedCapacity(t *testing.T) {
 		},
 		{
 			testCaseName: "Check size passed as actual value",
+			profileName:  "dp2",
 			capRange: &csi.CapacityRange{RequiredBytes: 11811160064,
 				LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes}, // MinimumVolumeSizeInBytes->10737418240
 			expectedValue: 11811160064,
@@ -75,6 +94,7 @@ func TestGetRequestedCapacity(t *testing.T) {
 		},
 		{
 			testCaseName: "Expected error check-success",
+			profileName:  "dp2",
 			capRange: &csi.CapacityRange{RequiredBytes: 1073741824 * 30,
 				LimitBytes: utils.MinimumVolumeSizeInBytes}, // MinimumVolumeSizeInBytes->10737418240
 			expectedValue: 0,
@@ -82,6 +102,7 @@ func TestGetRequestedCapacity(t *testing.T) {
 		},
 		{
 			testCaseName: "Expected error check against limit byte-success",
+			profileName:  "dp2",
 			capRange: &csi.CapacityRange{RequiredBytes: utils.MinimumVolumeSizeInBytes - 100,
 				LimitBytes: 10737418230}, // MinimumVolumeSizeInBytes->10737418240
 			expectedValue: 0,
@@ -91,7 +112,7 @@ func TestGetRequestedCapacity(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			sizeCap, err := getRequestedCapacity(testcase.capRange)
+			sizeCap, err := getRequestedCapacity(testcase.capRange, testcase.profileName)
 			if testcase.expectedError != nil {
 				assert.Equal(t, err, testcase.expectedError)
 			} else {
@@ -739,7 +760,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
-			expectedError:  fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property or set it to zero"),
+			expectedError:  fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property"),
 		},
 		{
 			testCaseName: "subnetID is missing if primaryIPAddress is provided",
