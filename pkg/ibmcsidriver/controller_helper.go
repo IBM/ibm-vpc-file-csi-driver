@@ -73,7 +73,7 @@ func getRequestedCapacity(capRange *csi.CapacityRange, profileName string) (int6
 		if profileName == RFSProfile { // RFS profile minimum size is 1GB
 			capBytes = MinimumRFSVolumeSizeInBytes
 		} else {
-			capBytes = utils.MinimumVolumeSizeInBytes // tierd and custom profile minimum size is 10 GB
+			capBytes = utils.MinimumVolumeSizeInBytes // dp2 minimum size is 10 GB
 		}
 		// returns in GiB
 		return capBytes, nil
@@ -346,7 +346,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
 	// validate bandwidth for dp2 profile
-	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth >= 0 {
+	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
 		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property")
 		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 		return volume, err
@@ -354,7 +354,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	// validation zone and iops for 'rfs' profile
 	if volume.VPCVolume.Profile.Name == RFSProfile {
-		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) >= 0 {
+		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
 			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
