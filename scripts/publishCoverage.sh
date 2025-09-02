@@ -39,8 +39,8 @@ YELLOW_THRESHOLD=50
 
 # clone and prepare gh-pages branch
 git clone -b gh-pages https://"$GHE_USER":"$GHE_TOKEN"@github.com/"$GITHUB_REPOSITORY".git .
-git config user.name "github-actions"
-git config user.email "github-actions@github.com"
+git config user.name "travis"
+git config user.email "travis"
 
 mkdir -p "$GITHUB_WORKSPACE/gh-pages/coverage/$GITHUB_REF_NAME"
 mkdir -p "$GITHUB_WORKSPACE/gh-pages/coverage/$GITHUB_SHA"
@@ -58,15 +58,12 @@ cp "$GITHUB_WORKSPACE/cover.html" "$GITHUB_WORKSPACE/gh-pages/coverage/${GITHUB_
 cp "$GITHUB_WORKSPACE/cover.html" "$GITHUB_WORKSPACE/gh-pages/coverage/$GITHUB_SHA"
 
 if [ -f "$GITHUB_WORKSPACE/Passing" ]; then
-    curl -s https://img.shields.io/badge/e2e-passing-yellow.svg \
-      > "$GITHUB_WORKSPACE/gh-pages/coverage/${GITHUB_REF_NAME}/e2e.svg"
+    curl -s https://img.shields.io/badge/e2e-passing-yellow.svg > "$GITHUB_WORKSPACE/gh-pages/coverage/${GITHUB_REF_NAME}/e2e.svg"
 elif [ -f "$GITHUB_WORKSPACE/Failed" ]; then
-    curl -s https://img.shields.io/badge/e2e-failed-red.svg \
-      > "$GITHUB_WORKSPACE/gh-pages/coverage/${GITHUB_REF_NAME}/e2e.svg"
+    curl -s https://img.shields.io/badge/e2e-failed-red.svg > "$GITHUB_WORKSPACE/gh-pages/coverage/${GITHUB_REF_NAME}/e2e.svg"
 fi
 
-NEW_COVERAGE=$(grep "%)" "$GITHUB_WORKSPACE/gh-pages/coverage/${GITHUB_REF_NAME}/cover.html" \
-  | sed 's/[][()><%]/ /g' | awk '{ print $4 }' \
+NEW_COVERAGE=$(grep "%)" "$GITHUB_WORKSPACE/gh-pages/coverage/${GITHUB_REF_NAME}/cover.html" | sed 's/[][()><%]/ /g' | awk '{ print $4 }' \
   | awk '{s+=$1}END{if(NR>0)print s/NR; else print 0}')
 
 # pick badge color
@@ -77,8 +74,7 @@ elif (( $(echo "$NEW_COVERAGE > $YELLOW_THRESHOLD" | bc -l) )); then
 fi
 
 # generate badge
-curl -s https://img.shields.io/badge/coverage-"$NEW_COVERAGE"-$BADGE_COLOR.svg \
-  > "$GITHUB_WORKSPACE/gh-pages/coverage/${GITHUB_REF_NAME}/badge.svg"
+curl -s https://img.shields.io/badge/coverage-"$NEW_COVERAGE"-$BADGE_COLOR.svg > "$GITHUB_WORKSPACE/gh-pages/coverage/${GITHUB_REF_NAME}/badge.svg"
 
 # generate result message
 if (( $(echo "$OLD_COVERAGE > $NEW_COVERAGE" | bc -l) )); then
@@ -97,8 +93,9 @@ if [ "$GITHUB_EVENT_NAME" == "push" ]; then
 	git commit -m "Coverage result for commit $GITHUB_SHA from run $GITHUB_RUN_NUMBER" || echo "No changes to commit"
 	git push origin gh-pages
 elif [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
-	# Extract PR number from event JSON
+	# extract PR number from JSON
 	PR_NUMBER=$(jq -r .pull_request.number "$GITHUB_EVENT_PATH")
+
 	curl -s -X POST \
 	  -H "Authorization: token $GHE_TOKEN" \
 	  -H "Content-Type: application/json" \
