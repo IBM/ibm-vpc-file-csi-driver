@@ -19,6 +19,7 @@ DRIVER_NAME=vpcFileDriver
 IMAGE = ${EXE_DRIVER_NAME}
 GOPACKAGES=$(shell go list ./... | grep -v /vendor/ | grep -v /cmd | grep -v /tests | grep -v /pkg/ibmcsidriver/ibmcsidriverfakes)
 VERSION := latest
+GOPATH := $(shell go env GOPATH)
 
 GIT_COMMIT_SHA="$(shell git rev-parse HEAD 2>/dev/null)"
 GIT_REMOTE_URL="$(shell git config --get remote.origin.url 2>/dev/null)"
@@ -42,14 +43,14 @@ all: deps fmt build test buildimage
 driver: deps buildimage
 
 .PHONY: deps
-LINT_BIN=$(shell go env GOPATH)/bin/golangci-lint
+LINT_BIN=$(GOPATH)/bin/golangci-lint
 deps:
 	echo "Installing dependencies ..."
 	go mod download
 	go get github.com/pierrre/gotestcover
 	go install github.com/pierrre/gotestcover
 	@if ! command -v $(LINT_BIN) >/dev/null || [[ "$$($(LINT_BIN) --version)" != *${LINT_VERSION}* ]]; then \
-		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v${LINT_VERSION}; \
+		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v${LINT_VERSION}; \
 	fi
 
 .PHONY: fmt
@@ -79,7 +80,7 @@ build:
 # 'go test -race' requires cgo, set CGO_ENABLED=1
 .PHONY: test
 test:
-	CGO_ENABLED=1 $(shell go env GOPATH)/bin/gotestcover -v -race -short -coverprofile=cover.out ${GOPACKAGES}
+	CGO_ENABLED=1 $(GOPATH)/bin/gotestcover -v -race -short -coverprofile=cover.out ${GOPACKAGES}
 	go tool cover -html=cover.out -o=cover.html  # Uncomment this line when UT in place.
 
 .PHONY: ut-coverage
@@ -114,4 +115,4 @@ test-sanity: deps fmt
 .PHONY: clean
 clean:
 	rm -rf ${EXE_DRIVER_NAME}
-	rm -rf $(shell go env GOPATH)/bin/${EXE_DRIVER_NAME}
+	rm -rf $(GOPATH)/bin/${EXE_DRIVER_NAME}
