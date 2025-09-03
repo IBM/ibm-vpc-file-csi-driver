@@ -38,15 +38,15 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc jq  # jq required by your script
+          sudo apt-get install -y bc jq
 
       - name: Install Go dependencies
         run: make deps
 
       - name: Set up Go workspace
         run: |
-          mkdir -p $(go env GOPATH)/src/github.com/repo
-          rsync -az . $(go env GOPATH)/src/github.com/repo
+          mkdir -p $(go env GOPATH)/src/github.com/IBM/ibm-vpc-file-csi-driver
+          rsync -az . $(go env GOPATH)/src/github.com/IBM/ibm-vpc-file-csi-driver
         env:
           GOPATH: ${{ runner.temp }}/go
 
