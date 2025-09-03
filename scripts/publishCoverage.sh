@@ -29,6 +29,8 @@ echo "Publishing the coverage results"
 WORKDIR="$GITHUB_WORKSPACE/gh-pages"
 COVERAGE_DIR="$WORKDIR/coverage/$GITHUB_REF_NAME"
 
+echo "$GITHUB_REF_NAME"
+
 mkdir -p "$WORKDIR"
 cd "$WORKDIR" || exit 1
 
@@ -45,9 +47,24 @@ git clone -b gh-pages "https://$GHE_USER:$GHE_TOKEN@github.com/$GITHUB_REPOSITOR
 git config user.name "travis"
 git config user.email "travis"
 
-echo "$WORKDIR"
+if [ ! -d "$WORKDIR/coverage" ]; then
+	mkdir "$WORKDIR/coverage"
+fi
 
-mkdir -p "$COVERAGE_DIR" "$WORKDIR/coverage/$GITHUB_SHA"
+if [ ! -d "$WORKDIR/coverage/$GITHUB_REF_NAME" ]; then
+	mkdir "$WORKDIR/coverage/$GITHUB_REF_NAME"
+fi
+
+if [ ! -d "$WORKDIR/coverage/$GITHUB_SHA" ]; then
+	mkdir "$WORKDIR/coverage/$GITHUB_SHA"
+fi
+
+# add e2e badge if test markers exist
+if [[ -f "$GITHUB_WORKSPACE/Passing" ]]; then
+    curl -s https://img.shields.io/badge/e2e-passing-green.svg > "$COVERAGE_DIR/e2e.svg"
+elif [[ -f "$GITHUB_WORKSPACE/Failed" ]]; then
+    curl -s https://img.shields.io/badge/e2e-failed-red.svg > "$COVERAGE_DIR/e2e.svg"
+fi
 
 # compute old coverage if present
 COVER_HTML="$COVERAGE_DIR/cover.html"
@@ -58,13 +75,6 @@ OLD_COVERAGE=$(grep "%)" "$COVER_HTML" 2>/dev/null \
 # copy new report
 cp "$GITHUB_WORKSPACE/cover.html" "$COVERAGE_DIR"
 cp "$GITHUB_WORKSPACE/cover.html" "$WORKDIR/coverage/$GITHUB_SHA"
-
-# add e2e badge if test markers exist
-if [[ -f "$GITHUB_WORKSPACE/Passing" ]]; then
-    curl -s https://img.shields.io/badge/e2e-passing-green.svg > "$COVERAGE_DIR/e2e.svg"
-elif [[ -f "$GITHUB_WORKSPACE/Failed" ]]; then
-    curl -s https://img.shields.io/badge/e2e-failed-red.svg > "$COVERAGE_DIR/e2e.svg"
-fi
 
 # compute new coverage
 NEW_COVERAGE=$(grep "%)" "$COVER_HTML" \
