@@ -46,6 +46,7 @@ git config user.name "travis"
 git config user.email "travis"
 
 echo "$WORKDIR"
+echo "$GITHUB_REF_NAME"
 
 mkdir -p "$COVERAGE_DIR" "$WORKDIR/coverage/$GITHUB_SHA"
 
