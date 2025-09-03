@@ -89,13 +89,13 @@ fi
 curl -s "https://img.shields.io/badge/coverage-${NEW_COVERAGE}%25-${BADGE_COLOR}.svg" \
   > "$COVERAGE_DIR/badge.svg"
 
-DIFF=$(echo "$NEW_COVERAGE - $OLD_COVERAGE" | bc -l)
-if (( $(echo "$DIFF > 0.1" | bc -l) )); then
-    RESULT_MESSAGE=":thumbsup: Coverage increased from **$OLD_COVERAGE%** → **$NEW_COVERAGE%**"
-elif (( $(echo "$DIFF < -0.1" | bc -l) )); then
-    RESULT_MESSAGE=":red_circle: Coverage decreased from **$OLD_COVERAGE%** → **$NEW_COVERAGE%**"
-else
+# coverage result message
+if (( $(echo "$OLD_COVERAGE > $NEW_COVERAGE" | bc -l) )); then
+	RESULT_MESSAGE=":red_circle: Coverage decreased from **$OLD_COVERAGE%** → **$NEW_COVERAGE%**"
+elif (( $(echo "$OLD_COVERAGE == $NEW_COVERAGE" | bc -l) )); then
     RESULT_MESSAGE=":thumbsup: Coverage remained the same at **$NEW_COVERAGE%**"
+else
+	RESULT_MESSAGE=":thumbsup: Coverage increased from **$OLD_COVERAGE%** → **$NEW_COVERAGE%**"
 fi
 
 # update gh-pages or PR
