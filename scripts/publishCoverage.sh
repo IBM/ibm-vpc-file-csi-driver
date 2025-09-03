@@ -45,6 +45,8 @@ git clone -b gh-pages "https://$GHE_USER:$GHE_TOKEN@github.com/$GITHUB_REPOSITOR
 git config user.name "travis"
 git config user.email "travis"
 
+echo "$WORKDIR"
+
 mkdir -p "$COVERAGE_DIR" "$WORKDIR/coverage/$GITHUB_SHA"
 
 # compute old coverage if present
