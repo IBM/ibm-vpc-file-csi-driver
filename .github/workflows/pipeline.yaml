@@ -34,16 +34,6 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -52,6 +42,13 @@ jobs:
       - name: Install Go dependencies
         run: |
           make deps
+
+      - name: Set up Go workspace
+        run: |
+          mkdir -p $(go env GOPATH)/src/github.com/IBM/ibm-vpc-file-csi-driver
+          rsync -az . $(go env GOPATH)/src/github.com/IBM/ibm-vpc-file-csi-driver
+        env:
+          GOPATH: ${{ runner.temp }}/go
 
       - name: Run formatting check
         run: make fmt
