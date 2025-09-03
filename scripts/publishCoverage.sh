@@ -42,8 +42,8 @@ YELLOW_THRESHOLD=50
 
 # clone gh-pages branch
 git clone -b gh-pages "https://$GHE_USER:$GHE_TOKEN@github.com/$GITHUB_REPOSITORY.git" .
-git config user.name "github-actions"
-git config user.email "github-actions@github.com"
+git config user.name "travis"
+git config user.email "travis"
 
 mkdir -p "$COVERAGE_DIR" "$WORKDIR/coverage/$GITHUB_SHA"
 
