@@ -33,15 +33,21 @@ OLD_COVERAGE=0
 NEW_COVERAGE=0
 RESULT_MESSAGE=""
 
-BADGE_COLOR=red
+BADGE_COLOR="red"
 GREEN_THRESHOLD=85
 YELLOW_THRESHOLD=50
 
-# compute new coverage from the source file.
-NEW_COVERAGE=$(grep "%)" "$NEW_COVERAGE_SOURCE" \
-  | sed 's/[][()><%]/ /g' \
-  | awk '{s+=$4}END{if(NR>0)print s/NR; else print 0}')
+# compute new coverage FIRST, from the source file created by your 'make coverage' step.
+if [ -f "$NEW_COVERAGE_SOURCE" ]; then
+    NEW_COVERAGE=$(grep "%)" "$NEW_COVERAGE_SOURCE" \
+      | sed 's/[][()><%]/ /g' \
+      | awk '{s+=$4}END{if(NR>0)print s/NR; else print 0}')
+else
+    echo "New coverage report not found at $NEW_COVERAGE_SOURCE"
+    exit 1
+fi
 
+# Prepare the gh-pages directory
 mkdir -p "$WORKDIR"
 cd "$WORKDIR" || exit 1
 
@@ -50,42 +56,34 @@ git clone -b gh-pages "https://$GHE_USER:$GHE_TOKEN@github.com/$GITHUB_REPOSITOR
 git config user.name "github actions"
 git config user.email "actions@github.com"
 
-# Define the path to the old coverage report *relative to the cloned repo*
+# define the path to the OLD coverage report that was just cloned.
 COVERAGE_DIR="coverage/$GITHUB_REF_NAME"
 OLD_COVER_HTML="$COVERAGE_DIR/cover.html"
 
-# compute old coverage from the file that was just cloned.
-# The 2>/dev/null ensures it doesn't fail if the file doesn't exist
+# compute old coverage from the cloned file.
+# The 2>/dev/null prevents errors if the file doesn't exist (e.g., first run on a branch).
 OLD_COVERAGE=$(grep "%)" "$OLD_COVER_HTML" 2>/dev/null \
   | sed 's/[][()><%]/ /g' \
   | awk '{s+=$4}END{if(NR>0)print s/NR; else print 0}')
 
+echo "Old Coverage: $OLD_COVERAGE%"
+echo "New Coverage: $NEW_COVERAGE%"
 
+# copy the new report over to update the gh-pages branch for the next run.
 mkdir -p "$COVERAGE_DIR"
 mkdir -p "coverage/$GITHUB_SHA"
+cp "$NEW_COVERAGE_SOURCE" "$COVERAGE_DIR/cover.html"
+cp "$NEW_COVERAGE_SOURCE" "coverage/$GITHUB_SHA/cover.html"
 
-# copy the new report over to update gh-pages for the next run.
-cp "$NEW_COVERAGE_SOURCE" "$COVERAGE_DIR"
-cp "$NEW_COVERAGE_SOURCE" "coverage/$GITHUB_SHA" # archive this specific commit's report
-
-# add e2e badge if test markers exist
-if [[ -f "$GITHUB_WORKSPACE/Passing" ]]; then
-    curl -s https://img.shields.io/badge/e2e-passing-green.svg > "$COVERAGE_DIR/e2e.svg"
-elif [[ -f "$GITHUB_WORKSPACE/Failed" ]]; then
-    curl -s https://img.shields.io/badge/e2e-failed-red.svg > "$COVERAGE_DIR/e2e.svg"
-fi
-
-# select badge color based on NEW_COVERAGE
 if (( $(echo "$NEW_COVERAGE > $GREEN_THRESHOLD" | bc -l) )); then
     BADGE_COLOR="green"
 elif (( $(echo "$NEW_COVERAGE > $YELLOW_THRESHOLD" | bc -l) )); then
     BADGE_COLOR="yellow"
 fi
 
-# generate coverage badge
 curl -s "https://img.shields.io/badge/coverage-${NEW_COVERAGE}%25-${BADGE_COLOR}.svg" > "$COVERAGE_DIR/badge.svg"
 
-# build result message using the now-correct OLD_COVERAGE and NEW_COVERAGE
+# Build result message
 if (( $(echo "$OLD_COVERAGE > $NEW_COVERAGE" | bc -l) )); then
     RESULT_MESSAGE=":red_circle: Coverage decreased from [$OLD_COVERAGE%] to [$NEW_COVERAGE%]"
 elif (( $(echo "$OLD_COVERAGE == $NEW_COVERAGE" | bc -l) )); then
@@ -94,12 +92,11 @@ else
     RESULT_MESSAGE=":thumbsup: Coverage increased from [$OLD_COVERAGE%] to [$NEW_COVERAGE%]"
 fi
 
-# update comment on PR or push to gh-pages
-echo "Updating gh-pages/PR comment"
+# Update gh-pages branch or PR
 if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
     git add .
     git commit -m "Coverage: commit $GITHUB_SHA (run $GITHUB_RUN_NUMBER)" || echo "No changes to commit"
-    git push origin gh-pages
+    git push "https://github-actions:${GHE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
 elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
     PR_NUMBER=$(jq -r .pull_request.number "$GITHUB_EVENT_PATH")
     curl -s -X POST \
@@ -108,3 +105,5 @@ elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
       -d "{\"body\": \"$RESULT_MESSAGE\"}" \
       "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments"
 fi
+
+echo "Coverage script finished."
