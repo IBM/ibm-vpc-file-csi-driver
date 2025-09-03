@@ -19,7 +19,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # needed to push to gh-pages
+      pull-requests: write # needed to comment on PRs
     strategy:
       matrix:
         go-version: ["1.24.1"]
@@ -37,24 +38,29 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc
+          sudo apt-get install -y bc jq  # jq required by your script
 
       - name: Install Go dependencies
-        run: |
-          make deps
+        run: make deps
 
       - name: Set up Go workspace
         run: |
-          mkdir -p $(go env GOPATH)/src/github.com/IBM/ibm-vpc-file-csi-driver
-          rsync -az . $(go env GOPATH)/src/github.com/IBM/ibm-vpc-file-csi-driver
+          mkdir -p $(go env GOPATH)/src/github.com/repo
+          rsync -az . $(go env GOPATH)/src/github.com/repo
         env:
           GOPATH: ${{ runner.temp }}/go
 
       - name: Run formatting check
         run: make fmt
 
+      - name: Run sanity tests
+        run: make test-sanity
+
       - name: Run tests
         run: timeout 300 make test
+
+      - name: Generate coverage
+        run: make coverage && touch "Passing" || touch "Failed"
 
       - name: Build driver
         run: make driver
@@ -63,6 +69,7 @@ jobs:
         if: success()
         env:
           GHE_TOKEN: ${{ secrets.GHE_TOKEN }}
+          GHE_USER: github-actions # required for git clone URL in script
         run: |
           ./scripts/calculateCoverage.sh
           ./scripts/publishCoverage.sh
