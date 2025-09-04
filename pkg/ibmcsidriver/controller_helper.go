@@ -321,7 +321,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	//If ENI/VNI enabled then check for scenarios where zone and subnetId is mandatory
 	if volume.VPCVolume.AccessControlMode == SecurityGroup {
 
-		//Zone and Region is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined for DP2 profile
+		//Zone or Region is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined for DP2 profile
 		if volume.VPCVolume.Profile.Name == DP2Profile && (len(strings.TrimSpace(volume.Az)) == 0 || len(strings.TrimSpace(volume.Region)) == 0) && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
 			err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided")
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
@@ -347,7 +347,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	// validate bandwidth for dp2 profile
 	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
-		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property")
+		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property from storage class")
 		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 		return volume, err
 	}
@@ -367,8 +367,8 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	// If the zone is not provided in storage class parameters then we pick from the Topology
-	// We need to skip picking up zone from topology for rfs profile
-	if len(strings.TrimSpace(volume.Az)) == 0 && volume.VPCVolume.Profile.Name != RFSProfile {
+	// We need to do this only for dp2 profile and skip for rfs profile
+	if len(strings.TrimSpace(volume.Az)) == 0 && volume.VPCVolume.Profile.Name == DP2Profile {
 		zones, err := pickTargetTopologyParams(req.GetAccessibilityRequirements())
 		if err != nil {
 			err = fmt.Errorf("unable to fetch zone information: '%v'", err)
@@ -530,9 +530,14 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case IOPS:
 			if len(value) != 0 {
-				logger.Info("override (IOPS)", zap.Any(IOPS, value))
-				iopsStr := value
-				volume.Iops = &iopsStr
+				_, err = strconv.Atoi(value)
+				if err != nil {
+					err = fmt.Errorf("%v:<%v> invalid value", key, value)
+				} else {
+					iopsStr := value
+					logger.Info("override", zap.Any(IOPS, value))
+					volume.Iops = &iopsStr
+				}
 			}
 		case Throughput:
 			// getting throughput value from storage class if it is provided

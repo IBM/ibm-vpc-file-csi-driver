@@ -306,7 +306,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 		},
 		{
-			testCaseName: "RFS - Zone Misuse",
+			testCaseName: "RFS - Zone not allowed",
 			request: &csi.CreateVolumeRequest{
 				Name: volumeName,
 				Parameters: map[string]string{
@@ -331,7 +331,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			expectedError:  fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class"),
 		},
 		{
-			testCaseName: "RFS - IOPS Misuse",
+			testCaseName: "RFS - IOPS not allowed",
 			request: &csi.CreateVolumeRequest{
 				Name: volumeName,
 				Parameters: map[string]string{
@@ -760,7 +760,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
-			expectedError:  fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property"),
+			expectedError:  fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property from storage class"),
 		},
 		{
 			testCaseName: "subnetID is missing if primaryIPAddress is provided",
