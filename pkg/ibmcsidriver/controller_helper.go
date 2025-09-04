@@ -321,8 +321,8 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	//If ENI/VNI enabled then check for scenarios where zone and subnetId is mandatory
 	if volume.VPCVolume.AccessControlMode == SecurityGroup {
 
-		//Zone and Region is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined
-		if (len(strings.TrimSpace(volume.Az)) == 0 || len(strings.TrimSpace(volume.Region)) == 0) && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
+		//Zone and Region is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined for DP2 profile
+		if volume.VPCVolume.Profile.Name == DP2Profile && (len(strings.TrimSpace(volume.Az)) == 0 || len(strings.TrimSpace(volume.Region)) == 0) && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
 			err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided")
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
