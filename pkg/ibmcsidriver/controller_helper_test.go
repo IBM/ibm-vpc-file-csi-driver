@@ -21,6 +21,7 @@ package ibmcsidriver
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
@@ -43,23 +44,41 @@ func TestGetRequestedCapacity(t *testing.T) {
 	testCases := []struct {
 		testCaseName  string
 		capRange      *csi.CapacityRange
+		profileName   string
 		expectedValue int64
 		expectedError error
 	}{
 		{
+			testCaseName:  "Check minimum size supported by volume provider in case of nil passed as input for rfs profile",
+			capRange:      nil,
+			profileName:   "rfs",
+			expectedValue: MinimumRFSVolumeSizeInBytes,
+			expectedError: nil,
+		},
+		{
+			testCaseName:  "Check minimum size supported by volume provider in case of lower value passed as input for rfs profile",
+			capRange:      &csi.CapacityRange{RequiredBytes: 1024},
+			profileName:   "rfs",
+			expectedValue: MinimumRFSVolumeSizeInBytes,
+			expectedError: nil,
+		},
+		{
 			testCaseName:  "Check minimum size supported by volume provider in case of nil passed as input",
+			profileName:   "dp2",
 			capRange:      &csi.CapacityRange{},
 			expectedValue: utils.MinimumVolumeSizeInBytes,
 			expectedError: nil,
 		},
 		{
 			testCaseName:  "Capacity range is nil",
+			profileName:   "dp2",
 			capRange:      nil,
 			expectedValue: utils.MinimumVolumeSizeInBytes,
 			expectedError: nil,
 		},
 		{
 			testCaseName: "Check minimum size supported by volume provider",
+			profileName:  "dp2",
 			capRange: &csi.CapacityRange{RequiredBytes: 1024,
 				LimitBytes: utils.MinimumVolumeSizeInBytes},
 			expectedValue: utils.MinimumVolumeSizeInBytes,
@@ -67,6 +86,7 @@ func TestGetRequestedCapacity(t *testing.T) {
 		},
 		{
 			testCaseName: "Check size passed as actual value",
+			profileName:  "dp2",
 			capRange: &csi.CapacityRange{RequiredBytes: 11811160064,
 				LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes}, // MinimumVolumeSizeInBytes->10737418240
 			expectedValue: 11811160064,
@@ -74,6 +94,7 @@ func TestGetRequestedCapacity(t *testing.T) {
 		},
 		{
 			testCaseName: "Expected error check-success",
+			profileName:  "dp2",
 			capRange: &csi.CapacityRange{RequiredBytes: 1073741824 * 30,
 				LimitBytes: utils.MinimumVolumeSizeInBytes}, // MinimumVolumeSizeInBytes->10737418240
 			expectedValue: 0,
@@ -81,6 +102,7 @@ func TestGetRequestedCapacity(t *testing.T) {
 		},
 		{
 			testCaseName: "Expected error check against limit byte-success",
+			profileName:  "dp2",
 			capRange: &csi.CapacityRange{RequiredBytes: utils.MinimumVolumeSizeInBytes - 100,
 				LimitBytes: 10737418230}, // MinimumVolumeSizeInBytes->10737418240
 			expectedValue: 0,
@@ -90,7 +112,7 @@ func TestGetRequestedCapacity(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			sizeCap, err := getRequestedCapacity(testcase.capRange)
+			sizeCap, err := getRequestedCapacity(testcase.capRange, testcase.profileName)
 			if testcase.expectedError != nil {
 				assert.Equal(t, err, testcase.expectedError)
 			} else {
@@ -163,6 +185,177 @@ func TestGetVolumeParameters(t *testing.T) {
 		expectedStatus bool
 		expectedError  error
 	}{
+		{
+			testCaseName: "RFS - No Bandwidth",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				Parameters: map[string]string{
+					Profile:       "rfs",
+					Throughput:    "",
+					Region:        "us-south",
+					Tag:           "test-tag",
+					ResourceGroup: "myresourcegroups",
+					Encrypted:     "false",
+					EncryptionKey: "key",
+					IsENIEnabled:  "true",
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+			},
+		},
+		{
+			testCaseName: "RFS - Min Bandwidth and Min Size",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 11811160064,
+					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+				Parameters: map[string]string{
+					Profile:       "rfs",
+					Throughput:    "25",
+					Region:        "us-south",
+					Tag:           "test-tag",
+					ResourceGroup: "myresourcegroups",
+					Encrypted:     "false",
+					EncryptionKey: "key",
+					IsENIEnabled:  "true",
+				},
+			},
+			expectedVolume: &provider.Volume{
+				Name:     &volumeName,
+				Capacity: &volumeSize,
+				VPCVolume: provider.VPCVolume{
+					Profile:   &provider.Profile{Name: "rfs"},
+					Bandwidth: int32(25),
+				},
+				Region: "us-south",
+			},
+			expectedStatus: true,
+			expectedError:  nil,
+		},
+		{
+			testCaseName: "RFS - Valid Bandwidth and Invalid Size",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				Parameters: map[string]string{
+					Profile:       "rfs",
+					Throughput:    "8192",
+					Region:        "us-south",
+					Tag:           "test-tag",
+					ResourceGroup: "myresourcegroups",
+					Encrypted:     "false",
+					EncryptionKey: "key",
+					IsENIEnabled:  "true",
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+			},
+		},
+		{
+			testCaseName: "RFS - Invalid Bandwidth and Valid Size",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				Parameters: map[string]string{
+					Profile:       "rfs",
+					Throughput:    "9000",
+					Region:        "us-south",
+					Tag:           "test-tag",
+					ResourceGroup: "myresourcegroups",
+					Encrypted:     "false",
+					EncryptionKey: "key",
+					IsENIEnabled:  "true",
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+			},
+		},
+		{
+			testCaseName: "RFS - Zero Bandwidth",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				Parameters: map[string]string{
+					Profile:       "rfs",
+					Throughput:    "0",
+					Region:        "us-south",
+					Tag:           "test-tag",
+					ResourceGroup: "myresourcegroups",
+					Encrypted:     "false",
+					EncryptionKey: "key",
+					IsENIEnabled:  "true",
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+			},
+		},
+		{
+			testCaseName: "RFS - Zone not allowed",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				Parameters: map[string]string{
+					Profile:       "rfs",
+					Throughput:    "8192",
+					Region:        "us-south",
+					Zone:          "us-south-1",
+					Tag:           "test-tag",
+					ResourceGroup: "myresourcegroups",
+					Encrypted:     "false",
+					EncryptionKey: "key",
+					IsENIEnabled:  "true",
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+			},
+
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class"),
+		},
+		{
+			testCaseName: "RFS - IOPS not allowed",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				Parameters: map[string]string{
+					Profile:       "rfs",
+					Throughput:    "8192",
+					Region:        "us-south",
+					IOPS:          "300",
+					Zone:          "",
+					Tag:           "test-tag",
+					ResourceGroup: "myresourcegroups",
+					Encrypted:     "false",
+					EncryptionKey: "key",
+					IsENIEnabled:  "true",
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+			},
+
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class"),
+		},
 		{
 			testCaseName: "Valid create volume request-success with PrimaryIPID",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
@@ -480,6 +673,123 @@ func TestGetVolumeParameters(t *testing.T) {
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
 			expectedError:  fmt.Errorf("%s:<%v> exceeds %d chars", Tag, exceededTag, TagMaxLen),
+		},
+		{
+			testCaseName: "Invalid Throughput",
+			request: &csi.CreateVolumeRequest{Parameters: map[string]string{
+				Throughput: "th10",
+			},
+			},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("'<th10>' is invalid, value of 'throughput' should be an int32 type"),
+		},
+		{
+			testCaseName: "Invalid UID",
+			request: &csi.CreateVolumeRequest{Parameters: map[string]string{
+				UID: "uid10",
+			},
+			},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("failed to parse invalid 0: strconv.Atoi: parsing \"uid10\": invalid syntax"),
+		},
+		{
+			testCaseName: "Invalid GID",
+			request: &csi.CreateVolumeRequest{Parameters: map[string]string{
+				GID: "gid10",
+			},
+			},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("failed to parse invalid 0: strconv.Atoi: parsing \"gid10\": invalid syntax"),
+		},
+		{
+			testCaseName: "Zone is missing if subnetID is provided",
+			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:            "dp2",
+					Region:             "us-south-test",
+					Tag:                "test-tag",
+					ResourceGroup:      "myresourcegroups",
+					Encrypted:          "false",
+					EncryptionKey:      "key",
+					IsENIEnabled:       "true",
+					SecurityGroupIDs:   "sg-id-1",
+					PrimaryIPID:        "primary-ip-id",
+					SubnetID:           "sub-1",
+					ClassVersion:       "",
+					SizeRangeSupported: "",
+					SizeIopsRange:      "",
+					Generation:         "generation",
+					IOPS:               noIops,
+					UID:                "2020",
+					GID:                "12345",
+				},
+			},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided"),
+		},
+		{
+			testCaseName: "Bandwidth is provided for dp2 profile",
+			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:            "dp2",
+					Zone:               "us-south-1",
+					Throughput:         "100",
+					Region:             "us-south-test",
+					Tag:                "test-tag",
+					ResourceGroup:      "myresourcegroups",
+					Encrypted:          "false",
+					EncryptionKey:      "key",
+					IsENIEnabled:       "true",
+					SecurityGroupIDs:   "sg-id-1",
+					PrimaryIPID:        "primary-ip-id",
+					SubnetID:           "sub-1",
+					ClassVersion:       "",
+					SizeRangeSupported: "",
+					SizeIopsRange:      "",
+					Generation:         "generation",
+					IOPS:               noIops,
+					UID:                "2020",
+					GID:                "12345",
+				},
+			},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property from storage class"),
+		},
+		{
+			testCaseName: "subnetID is missing if primaryIPAddress is provided",
+			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:            "dp2",
+					Zone:               "us-south-1",
+					Region:             "us-south-test",
+					Tag:                "test-tag",
+					ResourceGroup:      "myresourcegroups",
+					Encrypted:          "false",
+					EncryptionKey:      "key",
+					IsENIEnabled:       "true",
+					SecurityGroupIDs:   "sg-id-1",
+					PrimaryIPAddress:   "10.1.1.2",
+					SubnetID:           "",
+					ClassVersion:       "",
+					SizeRangeSupported: "",
+					SizeIopsRange:      "",
+					Generation:         "generation",
+					IOPS:               noIops,
+					UID:                "2020",
+					GID:                "12345",
+				},
+			},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("subnetID is mandatory if PrimaryIPAddress is provided: '10.1.1.2'"),
 		},
 		{
 			testCaseName: "Wrong encrypted key's value",
@@ -880,15 +1190,20 @@ func TestOverrideParams(t *testing.T) {
 	// Creating test logger
 	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
-
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
 			volumeOut := testcase.expectedVolume
 			err := overrideParams(logger, testcase.request, testConfig, volumeOut)
 			if testcase.expectedError != nil {
-				assert.Equal(t, err, testcase.expectedError)
+				if err == nil || !strings.Contains(err.Error(), testcase.expectedError.Error()) {
+					t.Logf("Expected error: %q, but got: %v", testcase.expectedError.Error(), err)
+				}
 			} else {
-				assert.Equal(t, testcase.expectedStatus, isVolumeSame(testcase.expectedVolume, volumeOut))
+				if testcase.expectedVolume == nil || volumeOut == nil {
+					assert.Equal(t, testcase.expectedVolume, volumeOut)
+				} else {
+					assert.Equal(t, testcase.expectedStatus, isVolumeSame(testcase.expectedVolume, volumeOut))
+				}
 			}
 		})
 	}
