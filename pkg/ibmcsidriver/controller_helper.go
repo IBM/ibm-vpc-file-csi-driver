@@ -65,12 +65,16 @@ var dp2CapacityIopsRanges = []classRange{
 }
 
 // normalize the requested capacity(in GiB) to what is supported by the driver
-func getRequestedCapacity(capRange *csi.CapacityRange) (int64, error) {
+func getRequestedCapacity(capRange *csi.CapacityRange, profileName string) (int64, error) {
 	// Input is in bytes from csi
 	var capBytes int64
 	// Default case where nothing is set
 	if capRange == nil {
-		capBytes = utils.MinimumVolumeSizeInBytes
+		if profileName == RFSProfile { // RFS profile minimum size is 1GB
+			capBytes = MinimumRFSVolumeSizeInBytes
+		} else {
+			capBytes = utils.MinimumVolumeSizeInBytes // dp2 minimum size is 10 GB
+		}
 		// returns in GiB
 		return capBytes, nil
 	}
@@ -97,7 +101,8 @@ func getRequestedCapacity(capRange *csi.CapacityRange) (int64, error) {
 
 	// Limit is more than Required, but larger than Minimum. So we just set capcity to Minimum
 	// Too small, default
-	if capBytes < utils.MinimumVolumeSizeInBytes {
+	// If profile is RFS profile then no need to check for minimum size as the RoundUpBytes will giving minimum value as 1 GiB
+	if capBytes < utils.MinimumVolumeSizeInBytes && profileName != RFSProfile {
 		capBytes = utils.MinimumVolumeSizeInBytes
 	}
 
@@ -227,6 +232,16 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				iops := value
 				volume.Iops = &iops
 			}
+		case Throughput:
+			// getting throughput value from storage class if it is provided
+			if len(value) != 0 {
+				bandwidth, errParse := strconv.ParseInt(value, 10, 32)
+				if errParse != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be an int32 type", value, key)
+				} else {
+					volume.VPCVolume.Bandwidth = int32(bandwidth)
+				}
+			}
 		case UID:
 			uid, err = strconv.Atoi(value)
 			if err != nil {
@@ -267,9 +282,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		}
 	}
 
+	if volume.VPCVolume.Profile == nil {
+		err = fmt.Errorf("Volume profile is empty. Supported profiles are: %v", SupportedProfile)
+		logger.Error("getVolumeParameters", zap.NamedError("InvalidRequest", err))
+		return volume, err
+	}
+
 	// Get the requested capacity from the request
 	capacityRange := req.GetCapacityRange()
-	capBytes, err := getRequestedCapacity(capacityRange)
+	capBytes, err := getRequestedCapacity(capacityRange, volume.VPCVolume.Profile.Name)
 	if err != nil {
 		err = fmt.Errorf("invalid PVC capacity size: '%v'", err)
 		logger.Error("getVolumeParameters", zap.NamedError("invalid parameter", err))
@@ -297,16 +318,11 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		return volume, err
 	}
 
-	if volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name != DP2Profile {
-		// Specify IOPS only for custom class or DP2 class
-		volume.Iops = nil
-	}
-
 	//If ENI/VNI enabled then check for scenarios where zone and subnetId is mandatory
 	if volume.VPCVolume.AccessControlMode == SecurityGroup {
 
-		//Zone and Region is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined
-		if (len(strings.TrimSpace(volume.Az)) == 0 || len(strings.TrimSpace(volume.Region)) == 0) && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
+		//Zone or Region is mandatory if subnetID or primaryIPID/primaryIPAddress is user defined for DP2 profile
+		if volume.VPCVolume.Profile.Name == DP2Profile && (len(strings.TrimSpace(volume.Az)) == 0 || len(strings.TrimSpace(volume.Region)) == 0) && (len(volume.VPCVolume.SubnetID) != 0 || (volume.VPCVolume.PrimaryIP != nil)) {
 			err = fmt.Errorf("zone and region is mandatory if subnetID or PrimaryIPID or PrimaryIPAddress is provided")
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
@@ -329,8 +345,30 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
-	//If the zone is not provided in storage class parameters then we pick from the Topology
-	if len(strings.TrimSpace(volume.Az)) == 0 {
+	// validate bandwidth for dp2 profile
+	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
+		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property from storage class")
+		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+		return volume, err
+	}
+
+	// validation zone and iops for 'rfs' profile
+	if volume.VPCVolume.Profile.Name == RFSProfile {
+		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
+			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
+		}
+		if len(strings.TrimSpace(volume.Az)) > 0 {
+			err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
+		}
+	}
+
+	// If the zone is not provided in storage class parameters then we pick from the Topology
+	// We need to do this only for dp2 profile and skip for rfs profile
+	if len(strings.TrimSpace(volume.Az)) == 0 && volume.VPCVolume.Profile.Name == DP2Profile {
 		zones, err := pickTargetTopologyParams(req.GetAccessibilityRequirements())
 		if err != nil {
 			err = fmt.Errorf("unable to fetch zone information: '%v'", err)
@@ -491,19 +529,24 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 				volume.Region = value
 			}
 		case IOPS:
-			// Override IOPS only for custom or dp2
-			if volume.Capacity != nil && volume.VPCVolume.Profile != nil && volume.VPCVolume.Profile.Name == DP2Profile {
-				var iops int
-				var check bool
-				iops, err = strconv.Atoi(value)
+			if len(value) != 0 {
+				_, err = strconv.Atoi(value)
 				if err != nil {
 					err = fmt.Errorf("%v:<%v> invalid value", key, value)
 				} else {
-					if check, err = isValidCapacityIOPS(*(volume.Capacity), iops, volume.VPCVolume.Profile.Name); check {
-						iopsStr := value
-						logger.Info("override", zap.Any(IOPS, value))
-						volume.Iops = &iopsStr
-					}
+					iopsStr := value
+					logger.Info("override", zap.Any(IOPS, value))
+					volume.Iops = &iopsStr
+				}
+			}
+		case Throughput:
+			// getting throughput value from storage class if it is provided
+			if len(value) != 0 {
+				bandwidth, errParse := strconv.ParseInt(value, 10, 32)
+				if errParse != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be an int32 type", value, key)
+				} else {
+					volume.Bandwidth = int32(bandwidth)
 				}
 			}
 		case SecurityGroupIDs:
@@ -587,15 +630,25 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 
 	// Update labels for PV objects
 	labels[VolumeIDLabel] = vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID
-	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
+
+	if vol.VPCVolume.Profile != nil && vol.VPCVolume.Profile.Name != "" {
+		labels[ProfileLabel] = vol.VPCVolume.Profile.Name
+	}
+
+	if vol.VPCVolume.Href != "" {
+		labels[VolumeHrefLabel] = vol.VPCVolume.Href
+	}
+
 	labels[VolumeCRNLabel] = vol.CRN
 	labels[ClusterIDLabel] = clusterID
 	labels[Tag] = strings.Join(vol.Tags, ",")
 	if vol.Iops != nil && len(*vol.Iops) > 0 {
 		labels[IOPSLabel] = *vol.Iops
 	}
-
+	if vol.VPCVolume.Bandwidth > 0 {
+		labels[ThroughputLabel] = strconv.Itoa(int(vol.VPCVolume.Bandwidth)) + " " + "mbps"
+	}
 	labels[FileShareIDLabel] = vol.VolumeID
 	labels[FileShareTargetIDLabel] = volAccessPointResponse.AccessPointID
 
