@@ -283,7 +283,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	if volume.VPCVolume.Profile == nil {
-		err = fmt.Errorf("volume profile is empty, you need to pass valid profile name")
+		err = fmt.Errorf("Volume profile is empty. Supported profiles are: %v", SupportedProfile)
 		logger.Error("getVolumeParameters", zap.NamedError("InvalidRequest", err))
 		return volume, err
 	}
