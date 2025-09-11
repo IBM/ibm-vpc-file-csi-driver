@@ -1,6 +1,5 @@
 # ibm-vpc-file-csi-driver
 
-[![Build Status](https://api.travis-ci.com/IBM/ibm-vpc-file-csi-driver.svg?branch=master)](https://travis-ci.com/IBM/ibm-vpc-file-csi-driver)
 [![Coverage](https://github.com/IBM/ibm-vpc-file-csi-driver/blob/gh-pages/coverage/master/badge.svg)](https://github.com/IBM/ibm-vpc-file-csi-driver/tree/gh-pages/coverage/master/cover.html)
 
 The `ibm-vpc-file-csi-driver` is a [CSI plugin](https://kubernetes-csi.github.io/docs/developing.html) for managing the life cycle of [IBM Cloud File Storage For VPC](https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-vpc-about).

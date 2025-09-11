@@ -19,6 +19,7 @@ DRIVER_NAME=vpcFileDriver
 IMAGE = ${EXE_DRIVER_NAME}
 GOPACKAGES=$(shell go list ./... | grep -v /vendor/ | grep -v /cmd | grep -v /tests | grep -v /pkg/ibmcsidriver/ibmcsidriverfakes)
 VERSION := latest
+GOPATH := $(shell go env GOPATH)
 
 GIT_COMMIT_SHA="$(shell git rev-parse HEAD 2>/dev/null)"
 GIT_REMOTE_URL="$(shell git config --get remote.origin.url 2>/dev/null)"
@@ -42,27 +43,28 @@ all: deps fmt build test buildimage
 driver: deps buildimage
 
 .PHONY: deps
+LINT_BIN=$(GOPATH)/bin/golangci-lint
 deps:
 	echo "Installing dependencies ..."
 	go mod download
 	go get github.com/pierrre/gotestcover
 	go install github.com/pierrre/gotestcover
-	@if ! which golangci-lint >/dev/null || [[ "$$(golangci-lint --version)" != *${LINT_VERSION}* ]]; then \
-		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v${LINT_VERSION}; \
+	@if ! command -v $(LINT_BIN) >/dev/null || [[ "$$($(LINT_BIN) --version)" != *${LINT_VERSION}* ]]; then \
+		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v${LINT_VERSION}; \
 	fi
 
 .PHONY: fmt
 fmt: lint
-	$(GOPATH)/bin/golangci-lint run --disable-all --enable=gofmt --timeout 600s
-	@if [ -n "$$($(GOPATH)/bin/golangci-lint run)" ]; then echo 'Please run ${COLOR_YELLOW}make dofmt${COLOR_RESET} on your code.' && exit 1; fi
+	$(LINT_BIN) run --disable-all --enable=gofmt --timeout 600s
+	@if [ -n "$$($(LINT_BIN) run)" ]; then echo 'Please run ${COLOR_YELLOW}make dofmt${COLOR_RESET} on your code.' && exit 1; fi
 
 .PHONY: dofmt
 dofmt:
-	$(GOPATH)/bin/golangci-lint run --disable-all --enable=gofmt --fix --timeout 600s
+	$(LINT_BIN) run --disable-all --enable=gofmt --fix --timeout 600s
 
 .PHONY: lint
 lint:
-	$(GOPATH)/bin/golangci-lint run --timeout 600s
+	$(LINT_BIN) run --disable-all --enable=gofmt --timeout 600s
 
 # Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
