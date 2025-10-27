@@ -123,6 +123,25 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
+	volumeSource := req.GetVolumeContentSource()
+	if volumeSource != nil {
+		if _, ok := volumeSource.GetType().(*csi.VolumeContentSource_Snapshot); !ok {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.UnsupportedVolumeContentSource, requestID, nil)
+		}
+		sourceSnapshot := volumeSource.GetSnapshot()
+		if sourceSnapshot == nil {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeInvalidArguments, requestID, nil)
+		}
+		snapshotIdentifier := sourceSnapshot.GetSnapshotId()
+		// Remove all whitespaces and search crn: string at 0th position
+		// to finalise that user provided crn or not
+		if strings.Index(strings.ReplaceAll(snapshotIdentifier, " ", ""), "crn:") == 0 {
+			requestedVolume.SnapshotCRN = snapshotIdentifier
+		} else {
+			requestedVolume.SnapshotID = snapshotIdentifier
+		}
+	}
+
 	var isVolumeExist bool = false
 
 	volumeObj, err := checkIfVolumeExists(session, *requestedVolume, ctxLogger)
@@ -566,30 +585,158 @@ func (csiCS *CSIControllerServer) GetCapacity(ctx context.Context, req *csi.GetC
 func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
+	ctx = context.WithValue(ctx, provider.RequestID, requestID)
+	ctxLogger.Info("CSIControllerServer-CreateSnapshot... ", zap.Reflect("Request", req))
+	defer metrics.UpdateDurationFromStart(ctxLogger, "CreateSnapshot", time.Now())
 
-	ctxLogger.Info("CSIControllerServer-CreateSnapshot", zap.Reflect("Request", req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "CreateSnapshot")
+	snapshotName := req.GetName()
+	if len(snapshotName) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.MissingSnapshotName, requestID, nil)
+	}
+
+	sourceVolumeID := req.GetSourceVolumeId()
+	if len(sourceVolumeID) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.MissingSourceVolumeID, requestID, nil)
+	}
+
+	// Validate if volume Already Exists
+	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	}
+
+	snapshot, err := session.GetSnapshotByName(snapshotName, sourceVolumeID)
+	if snapshot != nil {
+		ctxLogger.Info("Snapshot with name already exist for volume", zap.Reflect("SnapshotName", snapshotName), zap.Reflect("VolumeID", sourceVolumeID))
+		return createCSISnapshotResponse(*snapshot), nil
+	}
+	snapshotParameters := provider.SnapshotParameters{}
+	snapshotParameters.Name = snapshotName
+	snapshotTags := map[string]string{
+		"name": snapshotName,
+	}
+	snapshotParameters.SnapshotTags = snapshotTags
+
+	snapshot, err = session.CreateSnapshot(sourceVolumeID, snapshotParameters)
+
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "creation")
+	}
+	return createCSISnapshotResponse(*snapshot), nil
 }
 
 // DeleteSnapshot ...
 func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
+	ctx = context.WithValue(ctx, provider.RequestID, requestID)
+	defer metrics.UpdateDurationFromStart(ctxLogger, "DeleteSnapshot", time.Now())
+	ctxLogger.Info("CSIControllerServer-DeleteSnapshot... ", zap.Reflect("Request", req))
 
-	ctxLogger.Info("CSIControllerServer-DeleteSnapshot", zap.Reflect("Request", req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "DeleteSnapshot")
+	// Validate arguments
+	snapshotID := req.GetSnapshotId()
+	if len(snapshotID) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptySnapshotID, requestID, nil)
+	}
+
+	// get the session
+	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	}
+
+	//snapshotID ID is in format volumeID#snapshotID or volumeID#snapshotCRN
+	volumeID, crn := getSourceVolumeIDAndSnapshotCRN(snapshotID)
+	if volumeID == "" {
+		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in format volumeID#snapshotID or volumeID#snapshotCRN", tokens))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+	}
+
+	snapshot := &provider.Snapshot{}
+	snapshot.SnapshotID, _ = getSnapshotAndAccountIDsFromCRN(crn)
+	snapshot.VolumeID = volumeID
+
+	err = session.DeleteSnapshot(snapshot)
+	if err != nil {
+		if providerError.RetrivalFailed == providerError.GetErrorType(err) {
+			ctxLogger.Info("Snapshot not found. Returning success without deletion...")
+			return &csi.DeleteSnapshotResponse{}, nil
+		}
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+	}
+	return &csi.DeleteSnapshotResponse{}, nil
 }
 
 // ListSnapshots ...
 func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
+	ctx = context.WithValue(ctx, provider.RequestID, requestID)
+	ctxLogger.Info("CSIControllerServer-ListSnapshots...", zap.Reflect("Request", req))
+	defer metrics.UpdateDurationFromStart(ctxLogger, metrics.FunctionLabel("ListSnapshots"), time.Now())
 
-	ctxLogger.Info("CSIControllerServer-ListSnapshots", zap.Reflect("Request", req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ListSnapshots")
+	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	}
+
+	entries := []*csi.ListSnapshotsResponse_Entry{}
+	snapshotID := req.GetSnapshotId()
+
+	//snapshotID ID is in format volumeID#snapshotID or volumeID#snapshotCRN
+	volumeID, crn := getSourceVolumeIDAndSnapshotCRN(snapshotID)
+	if volumeID == "" {
+		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in format volumeID#snapshotID or volumeID#snapshotCRN", tokens))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+	}
+
+	snapID, _ := getSnapshotAndAccountIDsFromCRN(crn)
+
+	if len(snapID) != 0 {
+		snapshot, err := session.GetSnapshot(snapID, volumeID)
+		if snapshot == nil {
+			return &csi.ListSnapshotsResponse{}, nil
+		}
+		if providerError.RetrivalFailed == providerError.GetErrorType(err) {
+			ctxLogger.Info("Snapshot not found. Returning success ...")
+			return &csi.ListSnapshotsResponse{}, nil
+		}
+		return &csi.ListSnapshotsResponse{
+			Entries: append(entries, &csi.ListSnapshotsResponse_Entry{
+				Snapshot: createCSISnapshotResponse(*snapshot).Snapshot,
+			}),
+			NextToken: "",
+		}, nil
+	}
+
+	maxEntries := int(req.GetMaxEntries())
+	tags := map[string]string{}
+	sourceVolumeID := req.GetSourceVolumeId()
+	if len(sourceVolumeID) != 0 {
+		tags["source_volume.id"] = sourceVolumeID
+	}
+	snapshotList, err := session.ListSnapshots(maxEntries, req.StartingToken, tags)
+	if err != nil {
+		errCode := err.(providerError.Message).Code
+		if strings.Contains(errCode, "InvalidListSnapshotLimit") {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
+		} else if strings.Contains(errCode, "StartSnapshotIDNotFound") {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.StartSnapshotIDNotFound, requestID, err, req.StartingToken)
+		}
+		return nil, commonError.GetCSIError(ctxLogger, commonError.ListSnapshotsFailed, requestID, err)
+	}
+
+	for _, snap := range snapshotList.Snapshots {
+		snapObj := createCSISnapshotResponse(*snap)
+		entries = append(entries, &csi.ListSnapshotsResponse_Entry{
+			Snapshot: snapObj.Snapshot,
+		})
+	}
+
+	return &csi.ListSnapshotsResponse{
+		Entries:   entries,
+		NextToken: snapshotList.Next,
+	}, nil
 }
 
 // ControllerGetVolume ...
