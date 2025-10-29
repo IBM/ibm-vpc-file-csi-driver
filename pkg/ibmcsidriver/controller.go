@@ -599,13 +599,20 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 		return nil, commonError.GetCSIError(ctxLogger, commonError.MissingSourceVolumeID, requestID, nil)
 	}
 
+	//Volume ID is in format volumeID#accesspointID
+	volumeID := getTokens(sourceVolumeID)
+	if len(volumeID) != 2 {
+		ctxLogger.Info("CSIControllerServer-CreateSnapshot...", zap.Reflect("Volume ID is not in format volumeID#accesspointID", volumeID))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+	}
+
 	// Validate if volume Already Exists
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
-	snapshot, err := session.GetSnapshotByName(snapshotName, sourceVolumeID)
+	snapshot, _ := session.GetSnapshotByName(snapshotName, volumeID[0])
 	if snapshot != nil {
 		ctxLogger.Info("Snapshot with name already exist for volume", zap.Reflect("SnapshotName", snapshotName), zap.Reflect("VolumeID", sourceVolumeID))
 		return createCSISnapshotResponse(*snapshot), nil
@@ -617,7 +624,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	}
 	snapshotParameters.SnapshotTags = snapshotTags
 
-	snapshot, err = session.CreateSnapshot(sourceVolumeID, snapshotParameters)
+	snapshot, err = session.CreateSnapshot(volumeID[0], snapshotParameters)
 
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "creation")
@@ -645,10 +652,10 @@ func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.D
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
-	//snapshotID ID is in format volumeID#snapshotID or volumeID#snapshotCRN
+	//snapshotID ID is in format volumeID#volumeAccessPointID@snapshotID or volumeID#volumeAccessPointID@snapshotCRN
 	volumeID, crn := getSourceVolumeIDAndSnapshotCRN(snapshotID)
 	if volumeID == "" {
-		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in format volumeID#snapshotID or volumeID#snapshotCRN", snapshotID))
+		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in format volumeID@snapshotID or volumeID@snapshotCRN", snapshotID))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
 	}
 
