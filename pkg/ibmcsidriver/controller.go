@@ -652,15 +652,15 @@ func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.D
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
-	//snapshotID ID is in format volumeID#volumeAccessPointID@snapshotID or volumeID#volumeAccessPointID@snapshotCRN
-	volumeID, crn := getSourceVolumeIDAndSnapshotCRN(snapshotID)
+	//snapshotID should always be in crn format --> crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610
+	volumeID, snapshotID, _ := getVolumeSnapshotAndAccountIDsFromCRN(snapshotID)
 	if volumeID == "" {
-		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in format volumeID@snapshotID or volumeID@snapshotCRN", snapshotID))
+		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in crn format, sourceVolumeID is mandatory", snapshotID))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
 	}
 
 	snapshot := &provider.Snapshot{}
-	snapshot.SnapshotID, _ = getSnapshotAndAccountIDsFromCRN(crn)
+	snapshot.SnapshotID = snapshotID
 	snapshot.VolumeID = volumeID
 
 	err = session.DeleteSnapshot(snapshot)
@@ -692,14 +692,13 @@ func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.Li
 
 	//If ListSnapshots is invoked with snapshotID
 	if len(snapshotID) != 0 {
-		//snapshotID ID is in format volumeID#snapshotID or volumeID#snapshotCRN
-		volumeID, crn := getSourceVolumeIDAndSnapshotCRN(snapshotID)
+
+		//snapshotID should always be in crn format --> crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610
+		volumeID, snapID, _ := getVolumeSnapshotAndAccountIDsFromCRN(snapshotID)
 		if volumeID == "" {
-			ctxLogger.Info("CSIControllerServer-ListSnapshots...", zap.Reflect("Snapshot ID is not in format volumeID#snapshotID or volumeID#snapshotCRN", snapshotID))
+			ctxLogger.Info("CSIControllerServer-ListSnapshots...", zap.Reflect("Snapshot ID is not in crn format, sourceVolumeID is mandatory", snapshotID))
 			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
 		}
-
-		snapID, _ := getSnapshotAndAccountIDsFromCRN(crn)
 
 		if len(snapID) != 0 {
 			snapshot, err := session.GetSnapshot(snapID, volumeID)
