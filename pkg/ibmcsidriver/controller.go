@@ -648,7 +648,7 @@ func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.D
 	//snapshotID ID is in format volumeID#snapshotID or volumeID#snapshotCRN
 	volumeID, crn := getSourceVolumeIDAndSnapshotCRN(snapshotID)
 	if volumeID == "" {
-		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in format volumeID#snapshotID or volumeID#snapshotCRN", tokens))
+		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in format volumeID#snapshotID or volumeID#snapshotCRN", snapshotID))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
 	}
 
@@ -683,30 +683,33 @@ func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.Li
 	entries := []*csi.ListSnapshotsResponse_Entry{}
 	snapshotID := req.GetSnapshotId()
 
-	//snapshotID ID is in format volumeID#snapshotID or volumeID#snapshotCRN
-	volumeID, crn := getSourceVolumeIDAndSnapshotCRN(snapshotID)
-	if volumeID == "" {
-		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in format volumeID#snapshotID or volumeID#snapshotCRN", tokens))
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
-	}
-
-	snapID, _ := getSnapshotAndAccountIDsFromCRN(crn)
-
-	if len(snapID) != 0 {
-		snapshot, err := session.GetSnapshot(snapID, volumeID)
-		if snapshot == nil {
-			return &csi.ListSnapshotsResponse{}, nil
+	//If ListSnapshots is invoked with snapshotID
+	if len(snapshotID) != 0 {
+		//snapshotID ID is in format volumeID#snapshotID or volumeID#snapshotCRN
+		volumeID, crn := getSourceVolumeIDAndSnapshotCRN(snapshotID)
+		if volumeID == "" {
+			ctxLogger.Info("CSIControllerServer-ListSnapshots...", zap.Reflect("Snapshot ID is not in format volumeID#snapshotID or volumeID#snapshotCRN", snapshotID))
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
 		}
-		if providerError.RetrivalFailed == providerError.GetErrorType(err) {
-			ctxLogger.Info("Snapshot not found. Returning success ...")
-			return &csi.ListSnapshotsResponse{}, nil
+
+		snapID, _ := getSnapshotAndAccountIDsFromCRN(crn)
+
+		if len(snapID) != 0 {
+			snapshot, err := session.GetSnapshot(snapID, volumeID)
+			if snapshot == nil {
+				return &csi.ListSnapshotsResponse{}, nil
+			}
+			if providerError.RetrivalFailed == providerError.GetErrorType(err) {
+				ctxLogger.Info("Snapshot not found. Returning success ...")
+				return &csi.ListSnapshotsResponse{}, nil
+			}
+			return &csi.ListSnapshotsResponse{
+				Entries: append(entries, &csi.ListSnapshotsResponse_Entry{
+					Snapshot: createCSISnapshotResponse(*snapshot).Snapshot,
+				}),
+				NextToken: "",
+			}, nil
 		}
-		return &csi.ListSnapshotsResponse{
-			Entries: append(entries, &csi.ListSnapshotsResponse_Entry{
-				Snapshot: createCSISnapshotResponse(*snapshot).Snapshot,
-			}),
-			NextToken: "",
-		}, nil
 	}
 
 	maxEntries := int(req.GetMaxEntries())
