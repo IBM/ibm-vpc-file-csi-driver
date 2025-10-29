@@ -772,7 +772,7 @@ func getSourceVolumeIDAndSnapshotCRN(snapshotID string) (string, string) {
 	if len(volumeIDTokens) > 1 {
 		return volumeIDTokens[0], volumeIDTokens[1]
 	}
-	return "", crn // assuming that snapshotID has no sourceVolumeID
+	return "", snapshotID // assuming that snapshotID has no sourceVolumeID
 }
 
 func pickTargetTopologyParams(top *csi.TopologyRequirement) (map[string]string, error) {
