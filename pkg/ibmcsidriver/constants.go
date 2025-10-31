@@ -196,7 +196,6 @@ const (
 	// MinimumRFSVolumeSizeInBytes ... This is minimum size require for rfs profile
 	MinimumRFSVolumeSizeInBytes int64 = 1 * utils.GiB
 
-	// 
 	DefaultSnapshotCreateDelay = 300 
 
 	// MaxSnapshotCreateDelay is the max timeout value for csi-snapshotter
