@@ -696,11 +696,11 @@ func getMaxDelaySnapshotCreate(ctxLogger *zap.Logger) int {
 
 	customSnapshotCreateDelay, err := strconv.Atoi(userDelayEnv)
 	if err != nil {
-		ctxLogger.Warn("Error while processing CUSTOM_SNAPSHOT_CREATE_DELAY value.Expecting integer value in seconds", zap.Any("CUSTOM_SNAPSHOT_CREATE_DELAY", customSnapshotCreateDelay), zap.Any("Considered value", DEFAULT_SNAPSHOT_CREATE_DELAY), zap.Error(err))
+		ctxLogger.Warn("Error while processing CUSTOM_SNAPSHOT_CREATE_DELAY value.Expecting integer value in seconds", zap.Any("CUSTOM_SNAPSHOT_CREATE_DELAY", customSnapshotCreateDelay), zap.Any("Considered value", DefaultSnapshotCreateDelay), zap.Error(err))
 		return DefaultSnapshotCreateDelay // min 300 seconds default
 	}
 	if customSnapshotCreateDelay > MaxSnapshotCreateDelay {
-		ctxLogger.Warn("CUSTOM_SNAPSHOT_CREATE_DELAY value cannot exceed the limits", zap.Any("CUSTOM_SNAPSHOT_CREATE_DELAY", customSnapshotCreateDelay), zap.Any("Limit value", MAX_SNAPSHOT_CREATE_DELAY))
+		ctxLogger.Warn("CUSTOM_SNAPSHOT_CREATE_DELAY value cannot exceed the limits", zap.Any("CUSTOM_SNAPSHOT_CREATE_DELAY", customSnapshotCreateDelay), zap.Any("Limit value", MaxSnapshotCreateDelay))
 		return MaxSnapshotCreateDelay // max 900 seconds
 	}
 
