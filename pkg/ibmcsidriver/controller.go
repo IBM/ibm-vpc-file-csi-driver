@@ -665,10 +665,6 @@ func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.D
 
 	err = session.DeleteSnapshot(snapshot)
 	if err != nil {
-		if providerError.RetrivalFailed == providerError.GetErrorType(err) {
-			ctxLogger.Info("Snapshot not found. Returning success without deletion...")
-			return &csi.DeleteSnapshotResponse{}, nil
-		}
 		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 	return &csi.DeleteSnapshotResponse{}, nil
