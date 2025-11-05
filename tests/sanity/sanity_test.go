@@ -460,7 +460,7 @@ func (c *fakeProviderSession) DeleteSnapshot(*provider.Snapshot) error {
 }
 
 // Get the snapshot
-func (c *fakeProviderSession) GetSnapshot(snapshotID string) (*provider.Snapshot, error) {
+func (c *fakeProviderSession) GetSnapshot(snapshotID string, sourceVolumeID ...string) (*provider.Snapshot, error) {
 	return nil, nil
 }
 
