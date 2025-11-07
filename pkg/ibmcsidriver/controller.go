@@ -730,13 +730,7 @@ func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.Li
 	}
 	snapshotList, err := session.ListSnapshots(maxEntries, req.StartingToken, tags)
 	if err != nil {
-		errCode := err.(providerError.Message).Code
-		if strings.Contains(errCode, "InvalidListSnapshotLimit") {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
-		} else if strings.Contains(errCode, "StartSnapshotIDNotFound") {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.StartSnapshotIDNotFound, requestID, err, req.StartingToken)
-		}
-		return nil, commonError.GetCSIError(ctxLogger, commonError.ListSnapshotsFailed, requestID, err)
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 
 	for _, snap := range snapshotList.Snapshots {
