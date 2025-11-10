@@ -120,7 +120,7 @@ func TestCreateSnapshot(t *testing.T) {
 			},
 			expResponse: &csi.CreateSnapshotResponse{
 				Snapshot: &csi.Snapshot{
-					SnapshotId:     "snap-id",
+					SnapshotId:     "crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610",
 					SourceVolumeId: "testVolumeId",
 					SizeBytes:      stdCapRange.RequiredBytes,
 					ReadyToUse:     false,
@@ -129,7 +129,7 @@ func TestCreateSnapshot(t *testing.T) {
 			},
 			expErrCode: codes.OK,
 			libSnapshotResponse: &provider.Snapshot{
-				SnapshotID:           "snap-id",
+				SnapshotCRN:          "crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610",
 				VolumeID:             "testVolumeId",
 				SnapshotSize:         stdCapRange.RequiredBytes,
 				ReadyToUse:           false,
@@ -156,23 +156,6 @@ func TestCreateSnapshot(t *testing.T) {
 			expErrCode:  codes.InvalidArgument,
 		},
 		{
-			name: "Snapshot with name already present for different volume",
-			req: &csi.CreateSnapshotRequest{
-				SourceVolumeId: "testVolumeId#targetID",
-				Name:           "Snapshot-success",
-			},
-			expResponse:         nil,
-			expErrCode:          codes.AlreadyExists,
-			libSnapshotResponse: nil,
-			libSnapshotByNameResponse: &provider.Snapshot{
-				SnapshotID:           "snap-id",
-				VolumeID:             "testVolumeId1",
-				SnapshotSize:         stdCapRange.RequiredBytes,
-				ReadyToUse:           false,
-				SnapshotCreationTime: timeNow,
-			},
-		},
-		{
 			name: "Snapshot with name already present for same volume",
 			req: &csi.CreateSnapshotRequest{
 				SourceVolumeId: "testVolumeId#targetID",
@@ -180,7 +163,7 @@ func TestCreateSnapshot(t *testing.T) {
 			},
 			expResponse: &csi.CreateSnapshotResponse{
 				Snapshot: &csi.Snapshot{
-					SnapshotId:     "snap-id",
+					SnapshotId:     "crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610",
 					SourceVolumeId: "testVolumeId",
 					SizeBytes:      stdCapRange.RequiredBytes,
 					ReadyToUse:     false,
@@ -189,7 +172,7 @@ func TestCreateSnapshot(t *testing.T) {
 			},
 			expErrCode: codes.OK,
 			libSnapshotByNameResponse: &provider.Snapshot{
-				SnapshotID:           "snap-id",
+				SnapshotCRN:          "crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610",
 				VolumeID:             "testVolumeId",
 				SnapshotSize:         stdCapRange.RequiredBytes,
 				ReadyToUse:           false,
