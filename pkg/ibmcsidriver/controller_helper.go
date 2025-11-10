@@ -64,6 +64,56 @@ var dp2CapacityIopsRanges = []classRange{
 	{16000, 32000, 2000, 96000},
 }
 
+// getAccountID ...
+func getAccountID(input string) string {
+	tokens := strings.Split(input, "/")
+
+	if len(tokens) > 1 {
+		return tokens[1]
+	} else {
+		return ""
+	}
+}
+
+// getSnapshotAndAccountIDsFromCRN ...
+func getSnapshotAndAccountIDsFromCRN(crn string) (string, string) {
+	// This method will be able to handle either crn is actual crn or caller passed snapshot ID also
+	// expected CRN -> crn:v1:service:public:is:us-south:a/c468d8642937fecd8a0860fe0f379bf9::snapshot:r006-1234fe0c-3d9b-4c95-a6d1-8e0d4bcb6ecb
+	// or crn passed as sanpshotID like r006-1234fe0c-3d9b-4c95-a6d1-8e0d4bcb6ecb
+	crnTokens := strings.Split(crn, ":")
+
+	if len(crnTokens) > 9 {
+		return crnTokens[len(crnTokens)-1], getAccountID(crnTokens[len(crnTokens)-4])
+	}
+	return crn, "" // assuming that crn will contain only snapshotID
+}
+
+// // extractShareIDFromSnapshotCRN ...
+func extractShareIDFromSnapshotCRN(crn string) string {
+	// split by ":"
+	// Loops through the : tokens.
+	// Finds the "share" token, returns the next token as ShareID.
+	// Returns "" if not found (e.g., if only snapshot ID was passed).
+	crnTokens := strings.Split(crn, ":")
+	for i, token := range crnTokens {
+		if token == "share" && i+1 < len(crnTokens) {
+			return crnTokens[i+1]
+		}
+	}
+	return ""
+}
+
+// deleteCSISnapshotResponse ...
+func DeleteSnapshotResponse(snapshot provider.Snapshot) *csi.DeleteSnapshotResponse {
+	// This is a CSI-compliant empty response
+	// But we log or track shareID (snapshot.VolumeID) for internal context
+	zap.L().Info("deleteCSISnapshotResponse",
+		zap.String("SnapshotID", snapshot.SnapshotID),
+		zap.String("ShareID", snapshot.VolumeID),
+	)
+	return &csi.DeleteSnapshotResponse{}
+}
+
 // normalize the requested capacity(in GiB) to what is supported by the driver
 func getRequestedCapacity(capRange *csi.CapacityRange, profileName string) (int64, error) {
 	// Input is in bytes from csi

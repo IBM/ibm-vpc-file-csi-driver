@@ -573,13 +573,61 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 }
 
 // DeleteSnapshot ...
+// func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
+// 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
+// 	// populate requestID in the context
+// 	_ = context.WithValue(ctx, provider.RequestID, requestID)
+
+// 	ctxLogger.Info("CSIControllerServer-DeleteSnapshot", zap.Reflect("Request", req))
+// 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "DeleteSnapshot")
+// }
+
+// DeleteSnapshot ...
 func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
+	ctx = context.WithValue(ctx, provider.RequestID, requestID)
+	defer metrics.UpdateDurationFromStart(ctxLogger, "DeleteSnapshot", time.Now())
+	ctxLogger.Info("CSIControllerServer-DeleteSnapshot... ", zap.Reflect("Request", req))
 
-	ctxLogger.Info("CSIControllerServer-DeleteSnapshot", zap.Reflect("Request", req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "DeleteSnapshot")
+	// Validate arguments
+	snapshotID := req.GetSnapshotId()
+	if len(snapshotID) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptySnapshotID, requestID, nil)
+	}
+
+	// get the session
+	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+	// if err != nil {
+	// 	if userError.GetUserErrorCode(err) == string(utilReasonCode.EndpointNotReachable) {
+	// 		return nil, commonError.GetCSIError(ctxLogger, commonError.EndpointNotReachable, requestID, err)
+	// 	}
+	// 	if userError.GetUserErrorCode(err) == string(utilReasonCode.Timeout) {
+	// 		return nil, commonError.GetCSIError(ctxLogger, commonError.Timeout, requestID, err)
+	// 	}
+	// 	return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	// }
+
+	// Extract snapshot and share IDs
+	snapshot := &provider.Snapshot{}
+	snapshot.SnapshotID, _ = getSnapshotAndAccountIDsFromCRN(snapshotID)
+	snapshot.VolumeID = extractShareIDFromSnapshotCRN(snapshotID)
+
+	if snapshot.VolumeID == "" {
+		ctxLogger.Warn("Failed to extract share ID from snapshot CRN", zap.String("snapshotID", snapshotID))
+		//return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidSnapshotID, requestID, nil)
+		return nil, nil
+	}
+
+	err = session.DeleteSnapshot(snapshot)
+	if err != nil {
+		if providerError.RetrivalFailed == providerError.GetErrorType(err) {
+			ctxLogger.Info("Snapshot not found. Returning success without deletion...")
+			return &csi.DeleteSnapshotResponse{}, nil
+		}
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+	}
+	return &csi.DeleteSnapshotResponse{}, nil
 }
 
 // ListSnapshots ...
