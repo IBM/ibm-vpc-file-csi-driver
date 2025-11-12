@@ -716,6 +716,148 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeAccessPointError: nil,
 			libVolumeError:            errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InvalidArgument , Description: Volume creation failed, RC: 400 Bad Request"),
 		},
+		{
+			name: "Invalid sourcesnapshot request",
+			req: &csi.CreateVolumeRequest{
+				Name:               volName,
+				CapacityRange:      stdCapRange,
+				VolumeCapabilities: stdVolCap,
+				Parameters:         stdParams,
+				VolumeContentSource: &csi.VolumeContentSource{
+					Type: &csi.VolumeContentSource_Volume{},
+				},
+			},
+			expErrCode: codes.InvalidArgument,
+		},
+		{
+			name: "Source snapshot nil",
+			req: &csi.CreateVolumeRequest{
+				Name:               volName,
+				CapacityRange:      stdCapRange,
+				VolumeCapabilities: stdVolCap,
+				Parameters:         stdParams,
+				VolumeContentSource: &csi.VolumeContentSource{
+					Type: &csi.VolumeContentSource_Snapshot{
+						Snapshot: nil,
+					},
+				},
+			},
+			expErrCode: codes.InvalidArgument,
+		},
+		{
+			name: "snapshot id given in request",
+			req: &csi.CreateVolumeRequest{
+				Name:               volName,
+				CapacityRange:      stdCapRange,
+				VolumeCapabilities: stdVolCap,
+				Parameters:         stdENIParams,
+				VolumeContentSource: &csi.VolumeContentSource{
+					Type: &csi.VolumeContentSource_Snapshot{
+						Snapshot: &csi.VolumeContentSource_SnapshotSource{
+							SnapshotId: "snap-id",
+						},
+					},
+				},
+			},
+
+			expVol: &csi.Volume{
+				CapacityBytes:      20 * 1024 * 1024 * 1024, // In byte
+				VolumeId:           "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId",
+				VolumeContext:      map[string]string{utils.NodeRegionLabel: "testregion", VolumeIDLabel: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId", FileShareIDLabel: "testVolumeId", FileShareTargetIDLabel: "testVolumeAccessPointId", IsENIEnabled: "true", ENISecurityGroupIDs: "kube-fake-cluster-id", ENISubnetID: "sub-1", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
+				AccessibleTopology: stdENITopology,
+			},
+
+			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
+				VolumeID:      "testVolumeId",
+				AccessPointID: "testVolumeAccessPointId",
+				Status:        "Stable",
+				MountPath:     "abc:/xyz/pqr",
+				CreatedAt:     &time.Time{},
+			},
+
+			libVolumeResponse: &provider.Volume{
+				Capacity: &cap,
+				Name:     &volName,
+				VolumeID: "testVolumeId",
+				Iops:     &iopsStr,
+				Az:       "myzone",
+				Region:   "myregion",
+				VPCVolume: provider.VPCVolume{
+					VPCFileVolume: provider.VPCFileVolume{
+						VolumeAccessPoints: &[]provider.VolumeAccessPoint{
+							{
+								ID: "testVolumeAccessPointId",
+							},
+						},
+					},
+				},
+			},
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
+			expErrCode:                    codes.OK,
+			libVolumeError:                nil,
+			libVolumeAccessPointError:     nil,
+			libVolumeAccessPointWaitError: nil,
+		},
+		{
+			name: "snapshot crn given in request",
+			req: &csi.CreateVolumeRequest{
+				Name:               volName,
+				CapacityRange:      stdCapRange,
+				VolumeCapabilities: stdVolCap,
+				Parameters:         stdENIParams,
+				VolumeContentSource: &csi.VolumeContentSource{
+					Type: &csi.VolumeContentSource_Snapshot{
+						Snapshot: &csi.VolumeContentSource_SnapshotSource{
+							SnapshotId: "crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:testVolumeId/r134-2c65c897-4af9-4671-89ba-5a5939c35610",
+						},
+					},
+				},
+			},
+
+			expVol: &csi.Volume{
+				CapacityBytes:      20 * 1024 * 1024 * 1024, // In byte
+				VolumeId:           "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId",
+				VolumeContext:      map[string]string{utils.NodeRegionLabel: "testregion", VolumeIDLabel: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId", FileShareIDLabel: "testVolumeId", FileShareTargetIDLabel: "testVolumeAccessPointId", IsENIEnabled: "true", ENISecurityGroupIDs: "kube-fake-cluster-id", ENISubnetID: "sub-1", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
+				AccessibleTopology: stdENITopology,
+			},
+
+			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
+				VolumeID:      "testVolumeId",
+				AccessPointID: "testVolumeAccessPointId",
+				Status:        "Stable",
+				MountPath:     "abc:/xyz/pqr",
+				CreatedAt:     &time.Time{},
+			},
+
+			libVolumeResponse: &provider.Volume{
+				Capacity: &cap,
+				Name:     &volName,
+				VolumeID: "testVolumeId",
+				Iops:     &iopsStr,
+				Az:       "myzone",
+				Region:   "myregion",
+				VPCVolume: provider.VPCVolume{
+					VPCFileVolume: provider.VPCFileVolume{
+						VolumeAccessPoints: &[]provider.VolumeAccessPoint{
+							{
+								ID: "testVolumeAccessPointId",
+							},
+						},
+					},
+				},
+			},
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			subnetError:                   nil,
+			securityGroupError:            nil,
+			expErrCode:                    codes.OK,
+			libVolumeError:                nil,
+			libVolumeAccessPointError:     nil,
+			libVolumeAccessPointWaitError: nil,
+		},
 	}
 
 	// Creating test logger
