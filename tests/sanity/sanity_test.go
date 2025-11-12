@@ -22,6 +22,7 @@ package sanity
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"strings"
@@ -228,22 +229,31 @@ type fakeVolumeAccessPointResponse struct {
 	*provider.VolumeAccessPointResponse
 }
 
+type fakeSnapshot struct {
+	*provider.Snapshot
+	tags map[string]string
+}
+
 type fakeProviderSession struct {
 	provider.DefaultVolumeProvider
 	volumes            map[string]*fakeVolume
 	volumeAccessPoints map[string]*fakeVolumeAccessPointResponse
+	snapshots          map[string]*fakeSnapshot
 	pub                map[string]string
 	providerName       provider.VolumeProvider
 	providerType       provider.VolumeType
+	tokens             map[string]int
 }
 
 func newFakeProviderSession() *fakeProviderSession {
 	return &fakeProviderSession{
 		volumes:            make(map[string]*fakeVolume),
 		volumeAccessPoints: make(map[string]*fakeVolumeAccessPointResponse),
+		snapshots:          make(map[string]*fakeSnapshot),
 		pub:                make(map[string]string),
 		providerName:       csiConfig.CSIProviderName,
 		providerType:       csiConfig.CSIProviderVolumeType,
+		tokens:             make(map[string]int),
 	}
 }
 
@@ -279,6 +289,16 @@ func (c *fakeProviderSession) GetProviderDisplayName() provider.VolumeProvider {
 // Volume operations
 // Create the volume with authorization by passing required information in the volume object
 func (c *fakeProviderSession) CreateVolume(volumeRequest provider.Volume) (*provider.Volume, error) {
+	if len(volumeRequest.SnapshotID) > 0 {
+		if _, ok := c.snapshots[volumeRequest.SnapshotID]; !ok {
+			errorMsg := providerError.Message{
+				Code:        "SnapshotIDNotFound",
+				Description: "Snapshot ID not found",
+				Type:        providerError.RetrivalFailed,
+			}
+			return nil, errorMsg
+		}
+	}
 	if volumeRequest.Name == nil || len(*volumeRequest.Name) == 0 {
 		return nil, errors.New("no Volume name passed")
 	}
@@ -288,6 +308,7 @@ func (c *fakeProviderSession) CreateVolume(volumeRequest provider.Volume) (*prov
 			Name:     volumeRequest.Name,
 			Region:   volumeRequest.Region,
 			Capacity: volumeRequest.Capacity,
+			Snapshot: provider.Snapshot{SnapshotID: volumeRequest.SnapshotID},
 			VPCVolume: provider.VPCVolume{
 				VPCFileVolume: provider.VPCFileVolume{
 					VolumeAccessPoints: &[]provider.VolumeAccessPoint{
@@ -451,17 +472,57 @@ func (c *fakeProviderSession) OrderSnapshot(VolumeRequest provider.Volume) error
 // Snapshot operations
 // Create the snapshot on the volume
 func (c *fakeProviderSession) CreateSnapshot(sourceVolumeID string, snapshotParameters provider.SnapshotParameters) (*provider.Snapshot, error) {
-	return nil, nil
+	fmt.Println("CreateSnapshot", c.snapshots)
+	fmt.Println("sourceVolumeID", sourceVolumeID)
+	fmt.Println("snapshotParameters", snapshotParameters)
+	snapshotID := fmt.Sprintf("crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:vol-uuid-test-vol-%s/vol-uuid-test-vol-%s", uuid.New().String()[:10], uuid.New().String()[:10])
+	for _, existingSnapshot := range c.snapshots {
+		if existingSnapshot.SnapshotCRN == snapshotID && existingSnapshot.VolumeID == sourceVolumeID {
+			return nil, errors.New("snapshot already present for same volume")
+		}
+		if existingSnapshot.tags["name"] == snapshotParameters.Name {
+			return nil, errors.New("snapshot name duplicate")
+		}
+	}
+	fakeSnapshot := &fakeSnapshot{
+		Snapshot: &provider.Snapshot{
+			VolumeID:             sourceVolumeID,
+			SnapshotCRN:          snapshotID,
+			ReadyToUse:           false,
+			SnapshotSize:         1,
+			SnapshotCreationTime: time.Now(),
+		},
+		tags: snapshotParameters.SnapshotTags,
+	}
+
+	c.snapshots[snapshotID] = fakeSnapshot
+	return fakeSnapshot.Snapshot, nil
 }
 
 // Delete the snapshot
-func (c *fakeProviderSession) DeleteSnapshot(*provider.Snapshot) error {
+func (c *fakeProviderSession) DeleteSnapshot(snap *provider.Snapshot) error {
+	fmt.Println("DeleteSnapshot", c.snapshots)
+	fmt.Println("snapshotID", snap.SnapshotID)
+	for k := range c.snapshots {
+		if strings.Contains(k, snap.SnapshotID) {
+			fmt.Println("Found matching key:", k)
+			delete(c.snapshots, k)
+		}
+	}
 	return nil
 }
 
 // Get the snapshot
 func (c *fakeProviderSession) GetSnapshot(snapshotID string, sourceVolumeID ...string) (*provider.Snapshot, error) {
-	return nil, nil
+	fmt.Println("GetSnapshot", c.snapshots)
+	fmt.Println("snapshotID", snapshotID)
+	for k, v := range c.snapshots {
+		if strings.Contains(k, snapshotID) {
+			fmt.Println("Found matching key:", k)
+			return v.Snapshot, nil
+		}
+	}
+	return nil, errors.New("error")
 }
 
 // Get the snapshot with volume ID
@@ -470,8 +531,28 @@ func (c *fakeProviderSession) GetSnapshotWithVolumeID(volumeID string, snapshotI
 }
 
 // Snapshot list by using tags
-func (c *fakeProviderSession) ListSnapshots(limit int, start string, tags map[string]string) (*provider.SnapshotList, error) {
-	return nil, nil
+func (c *fakeProviderSession) ListSnapshots(maxResults int, nextToken string, tags map[string]string) (*provider.SnapshotList, error) {
+	var snapshots []*provider.Snapshot
+	var retToken string
+	for _, fakeSnapshot := range c.snapshots {
+		if fakeSnapshot.VolumeID == tags["source_volume.id"] || len(tags["source_volume.id"]) == 0 {
+			snapshots = append(snapshots, fakeSnapshot.Snapshot)
+		}
+	}
+	if maxResults > 0 {
+		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
+		retToken = fmt.Sprintf("token-%d", r1.Uint64())
+		c.tokens[retToken] = maxResults
+		snapshots = snapshots[0:maxResults]
+		fmt.Printf("%v\n", snapshots)
+	}
+	if len(nextToken) != 0 {
+		snapshots = snapshots[c.tokens[nextToken]:]
+	}
+	return &provider.SnapshotList{
+		Snapshots: snapshots,
+		Next:      retToken,
+	}, nil
 }
 
 // List all the  snapshots for a given volume

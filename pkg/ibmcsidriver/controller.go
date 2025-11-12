@@ -267,6 +267,9 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 		volumeObj, err = session.CreateVolume(*requestedVolume)
 		if err != nil {
+			if providerError.RetrivalFailed == providerError.GetErrorType(err) {
+				return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, "creation")
+			}
 			return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 		}
 
@@ -663,8 +666,9 @@ func (csiCS *CSIControllerServer) DeleteSnapshot(ctx context.Context, req *csi.D
 	//snapshotID should always be in crn format --> crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610
 	volumeID, snapshotID, _ := getVolumeSnapshotAndAccountIDsFromCRN(snapshotID)
 	if volumeID == "" {
-		ctxLogger.Info("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in crn format, sourceVolumeID is mandatory", snapshotID))
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+		// According to CSI Driver Sanity Tester, should succeed when an invalid snapshot id is used
+		ctxLogger.Warn("CSIControllerServer-DeleteSnapshot...", zap.Reflect("Snapshot ID is not in crn format, sourceVolumeID is mandatory", snapshotID))
+		return &csi.DeleteSnapshotResponse{}, nil
 	}
 
 	snapshot := &provider.Snapshot{}
@@ -700,8 +704,9 @@ func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.Li
 		//snapshotID should always be in crn format --> crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610
 		volumeID, snapID, _ := getVolumeSnapshotAndAccountIDsFromCRN(snapshotID)
 		if volumeID == "" {
-			ctxLogger.Info("CSIControllerServer-ListSnapshots...", zap.Reflect("Snapshot ID is not in crn format, sourceVolumeID is mandatory", snapshotID))
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+			// According to CSI Driver Sanity Tester, should succeed when an invalid snapshot id is used
+			ctxLogger.Warn("CSIControllerServer-ListSnapshots...", zap.Reflect("Snapshot ID is not in crn format, sourceVolumeID is mandatory", snapshotID))
+			return &csi.ListSnapshotsResponse{}, nil
 		}
 
 		if len(snapID) != 0 {
