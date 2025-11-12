@@ -472,16 +472,10 @@ func (c *fakeProviderSession) OrderSnapshot(VolumeRequest provider.Volume) error
 // Snapshot operations
 // Create the snapshot on the volume
 func (c *fakeProviderSession) CreateSnapshot(sourceVolumeID string, snapshotParameters provider.SnapshotParameters) (*provider.Snapshot, error) {
-	fmt.Println("CreateSnapshot", c.snapshots)
-	fmt.Println("sourceVolumeID", sourceVolumeID)
-	fmt.Println("snapshotParameters", snapshotParameters)
 	snapshotID := fmt.Sprintf("crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:vol-uuid-test-vol-%s/vol-uuid-test-vol-%s", uuid.New().String()[:10], uuid.New().String()[:10])
 	for _, existingSnapshot := range c.snapshots {
 		if existingSnapshot.SnapshotCRN == snapshotID && existingSnapshot.VolumeID == sourceVolumeID {
 			return nil, errors.New("snapshot already present for same volume")
-		}
-		if existingSnapshot.tags["name"] == snapshotParameters.Name {
-			return nil, errors.New("snapshot name duplicate")
 		}
 	}
 	fakeSnapshot := &fakeSnapshot{
@@ -523,6 +517,34 @@ func (c *fakeProviderSession) GetSnapshot(snapshotID string, sourceVolumeID ...s
 		}
 	}
 	return nil, errors.New("error")
+}
+
+// Get the snapshot By name
+func (c *fakeProviderSession) GetSnapshotByName(snapshotName string, sourceVolumeID ...string) (*provider.Snapshot, error) {
+	if len(snapshotName) == 0 {
+		return nil, errors.New("no name passed")
+	}
+	var snapshots []*fakeSnapshot
+	for _, s := range c.snapshots {
+		name, exists := s.tags["name"]
+		if !exists {
+			continue
+		}
+		if name == snapshotName {
+			fmt.Println("name is same")
+			snapshots = append(snapshots, s)
+		}
+	}
+	if len(snapshots) == 0 {
+		errorMsg := providerError.Message{
+			Code:        "StorageFindFailedWithSnapshotName",
+			Description: "Snapshot not found by name",
+			Type:        providerError.RetrivalFailed,
+		}
+		return nil, errorMsg
+	}
+
+	return snapshots[0].Snapshot, nil
 }
 
 // Get the snapshot with volume ID

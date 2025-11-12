@@ -624,6 +624,10 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 
 	snapshot, _ := session.GetSnapshotByName(snapshotName, volumeID[0])
 	if snapshot != nil {
+		if snapshot.VolumeID != volumeID[0] {
+			// According to CSI Driver Sanity Tester, should fail when we use same snapshotName accross volumeIDs
+			return nil, commonError.GetCSIError(ctxLogger, commonError.SnapshotAlreadyExists, requestID, err, snapshotName, volumeID[0])
+		}
 		ctxLogger.Info("Snapshot with name already exist for volume", zap.Reflect("SnapshotName", snapshotName), zap.Reflect("VolumeID", sourceVolumeID))
 		return createCSISnapshotResponse(*snapshot), nil
 	}
@@ -637,8 +641,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	snapshot, err = session.CreateSnapshot(volumeID[0], snapshotParameters)
 
 	if err != nil {
-		time.Sleep(time.Duration(getMaxDelaySnapshotCreate(ctxLogger)) * time.Second) //To avoid multiple retries from kubernetes to CSI Driver
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "creation")
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
 	return createCSISnapshotResponse(*snapshot), nil
 }
