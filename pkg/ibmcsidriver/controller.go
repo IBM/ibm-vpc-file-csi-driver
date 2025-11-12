@@ -267,8 +267,11 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 
 		volumeObj, err = session.CreateVolume(*requestedVolume)
 		if err != nil {
+			// According to CSI Driver Sanity Tester, should fail with ObjectNotFound error code if the snapshot is not found.The below error handling is just for CSI Driver Sanity to pass.
+			// As per error flow we categorize the backend errors from library either as rpc Internal error or rpc InvalidParameters.
+			// Exact return code will be part of backend error that user will get in pvc describe.
 			if providerError.RetrivalFailed == providerError.GetErrorType(err) {
-				return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, "creation")
+				return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err)
 			}
 			return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 		}
