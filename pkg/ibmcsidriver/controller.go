@@ -594,6 +594,8 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 		return nil, commonError.GetCSIError(ctxLogger, commonError.MissingSourceVolumeID, requestID, nil)
 	}
 
+	ctxLogger.Info("sourceVolumeID", zap.String("sourceVolumeID", sourceVolumeID))
+
 	// Validate if volume Already Exists
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
 	if err != nil {
@@ -606,7 +608,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
-	snapshot, err := session.GetSnapshotByName(snapshotName)
+	snapshot, err := session.GetSnapshotByName(snapshotName, sourceVolumeID)
 	if snapshot != nil {
 		if snapshot.VolumeID != sourceVolumeID {
 			return nil, commonError.GetCSIError(ctxLogger, commonError.SnapshotAlreadyExists, requestID, err, snapshotName, sourceVolumeID)
@@ -621,6 +623,8 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 		"name": snapshotName,
 	}
 	snapshotParameters.SnapshotTags = snapshotTags
+
+	ctxLogger.Info("SnapshotTags", zap.Any("SnapshotTags", snapshotTags))
 
 	// TODO: ibmcloud-vol-file-vpc CreateSnapshot method call
 	snapshot, err = session.CreateSnapshot(sourceVolumeID, snapshotParameters)

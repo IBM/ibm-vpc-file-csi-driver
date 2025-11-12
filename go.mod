@@ -4,8 +4,8 @@ go 1.23.10
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.23
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.16-0.20251031072801-625734ea6125
-	github.com/IBM/ibmcloud-volume-interface v1.2.17-0.20251029090931-cd6d6cb752e6
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.16-0.20251110072627-855f29cbf8ce
+	github.com/IBM/ibmcloud-volume-interface v1.2.17
 	github.com/IBM/ibmcloud-volume-vpc v1.1.20
 	github.com/IBM/secret-utils-lib v1.1.15
 	github.com/container-storage-interface/spec v1.11.0
