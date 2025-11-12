@@ -21,6 +21,7 @@ package ibmcsidriver
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,7 +31,10 @@ import (
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
+	utilReasonCode "github.com/IBM/ibmcloud-volume-interface/lib/utils/reasoncode"
+	userError "github.com/IBM/ibmcloud-volume-vpc/common/messages"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -566,10 +570,79 @@ func (csiCS *CSIControllerServer) GetCapacity(ctx context.Context, req *csi.GetC
 func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	// populate requestID in the context
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
+	ctx = context.WithValue(ctx, provider.RequestID, requestID)
 
-	ctxLogger.Info("CSIControllerServer-CreateSnapshot", zap.Reflect("Request", req))
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "CreateSnapshot")
+	ctxLogger.Info("CSIControllerServer-CreateSnapshot... ", zap.Reflect("Request", req))
+	defer metrics.UpdateDurationFromStart(ctxLogger, "CreateShareSnapshot", time.Now())
+
+	//Feature flag to enable/disable CreateSnapshot feature.
+	if strings.ToLower(os.Getenv("IS_SNAPSHOT_ENABLED")) == "false" {
+		ctxLogger.Warn("CreateShareSnapshot functionality is disabled.")
+		time.Sleep(10 * time.Minute) //To avoid multiple retries from kubernetes to CSI Driver
+
+		// TODO: change error method
+		return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "CreateShareSnapshot functionality is disabled.")
+	}
+
+	snapshotName := req.GetName()
+	if len(snapshotName) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.MissingSnapshotName, requestID, nil)
+	}
+
+	sourceVolumeID := req.GetSourceVolumeId()
+	if len(sourceVolumeID) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.MissingSourceVolumeID, requestID, nil)
+	}
+
+	ctxLogger.Info("sourceVolumeID", zap.String("sourceVolumeID", sourceVolumeID))
+
+	volumeTokens := getTokens(sourceVolumeID)
+	if len(volumeTokens) != 2 {
+		ctxLogger.Info("CSIControllerServer-CreateSnapshot...", zap.Reflect("VolumeID is not in format volumeID#asnapshotID", volumeTokens))
+
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+	}
+
+	volumeID := volumeTokens[0]
+
+	// Validate if volume Already Exists
+	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+	if err != nil {
+		if userError.GetUserErrorCode(err) == string(utilReasonCode.EndpointNotReachable) {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.EndpointNotReachable, requestID, err)
+		}
+		if userError.GetUserErrorCode(err) == string(utilReasonCode.Timeout) {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.Timeout, requestID, err)
+		}
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	}
+
+	snapshot, err := session.GetSnapshotByName(snapshotName, volumeID)
+	if snapshot != nil {
+		if snapshot.VolumeID != volumeID {
+			return nil, commonError.GetCSIError(ctxLogger, commonError.SnapshotAlreadyExists, requestID, err, snapshotName, sourceVolumeID)
+		}
+
+		ctxLogger.Info("Snapshot with name already exist for volume", zap.Reflect("SnapshotName", snapshotName), zap.Reflect("VolumeID", sourceVolumeID))
+		return createCSISnapshotResponse(*snapshot), nil
+	}
+	snapshotParameters := provider.SnapshotParameters{}
+	snapshotParameters.Name = snapshotName
+	snapshotTags := map[string]string{
+		"name": snapshotName,
+	}
+	snapshotParameters.SnapshotTags = snapshotTags
+
+	ctxLogger.Info("SnapshotTags", zap.Any("SnapshotTags", snapshotTags))
+
+	// TODO: ibmcloud-vol-file-vpc CreateSnapshot method call
+	snapshot, err = session.CreateSnapshot(volumeID, snapshotParameters)
+
+	if err != nil {
+		time.Sleep(time.Duration(getMaxDelaySnapshotCreate(ctxLogger)) * time.Second) //To avoid multiple retries from kubernetes to CSI Driver
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err, "creation")
+	}
+	return createCSISnapshotResponse(*snapshot), nil
 }
 
 // DeleteSnapshot ...
@@ -604,4 +677,45 @@ func (csiCS *CSIControllerServer) ControllerGetVolume(ctx context.Context, req *
 func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
 	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ControllerModifyVolume")
+}
+
+// --------------------------------- Helper functions --------------------------------
+
+// createCSISnapshotResponse ...
+func createCSISnapshotResponse(snapshot provider.Snapshot) *csi.CreateSnapshotResponse {
+	ts := timestamppb.New(snapshot.SnapshotCreationTime)
+
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			SnapshotId:     snapshot.SnapshotCRN,
+			SourceVolumeId: snapshot.VolumeID,
+			SizeBytes:      snapshot.SnapshotSize,
+			CreationTime:   ts,
+			ReadyToUse:     snapshot.ReadyToUse,
+		},
+	}
+}
+
+/*
+1.) IF user does not given the value DEFAULT_SNAPSHOT_CREATE_DELAY mins
+2.) IF user has given more than MAX_SNAPSHOT_CREATE_DELAY default is MAX_SNAPSHOT_CREATE_DELAY
+3.) In case of any invalid value DEFAULT_SNAPSHOT_CREATE_DELAY mins
+*/
+func getMaxDelaySnapshotCreate(ctxLogger *zap.Logger) int {
+	userDelayEnv := os.Getenv("CUSTOM_SNAPSHOT_CREATE_DELAY")
+	if userDelayEnv == "" {
+		return DefaultSnapshotCreateDelay
+	}
+
+	customSnapshotCreateDelay, err := strconv.Atoi(userDelayEnv)
+	if err != nil {
+		ctxLogger.Warn("Error while processing CUSTOM_SNAPSHOT_CREATE_DELAY value.Expecting integer value in seconds", zap.Any("CUSTOM_SNAPSHOT_CREATE_DELAY", customSnapshotCreateDelay), zap.Any("Considered value", DefaultSnapshotCreateDelay), zap.Error(err))
+		return DefaultSnapshotCreateDelay // min 300 seconds default
+	}
+	if customSnapshotCreateDelay > MaxSnapshotCreateDelay {
+		ctxLogger.Warn("CUSTOM_SNAPSHOT_CREATE_DELAY value cannot exceed the limits", zap.Any("CUSTOM_SNAPSHOT_CREATE_DELAY", customSnapshotCreateDelay), zap.Any("Limit value", MaxSnapshotCreateDelay))
+		return MaxSnapshotCreateDelay // max 900 seconds
+	}
+
+	return customSnapshotCreateDelay
 }

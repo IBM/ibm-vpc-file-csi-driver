@@ -90,7 +90,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		//csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
 		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
 		// csi.ControllerServiceCapability_RPC_GET_CAPACITY,
-		// csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
+		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 		// csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
 		// csi.ControllerServiceCapability_RPC_PUBLISH_READONLY,
 		csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
@@ -98,9 +98,9 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	_ = icDriver.AddControllerServiceCapabilities(csc) // #nosec G104: Attempt to AddControllerServiceCapabilities only on best-effort basis. Error cannot be usefully handled.
 
 	ns := []csi.NodeServiceCapability_RPC_Type{
-		//csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
+		// csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
 		csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
-		//csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
+		// csi.NodeServiceCapability_RPC_EXPAND_VOLUME,
 	}
 	_ = icDriver.AddNodeServiceCapabilities(ns) // #nosec G104: Attempt to AddNodeServiceCapabilities only on best-effort basis. Error cannot be usefully handled.
 
