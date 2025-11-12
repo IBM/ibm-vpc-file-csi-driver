@@ -619,7 +619,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 
 	snapshot, err := session.GetSnapshotByName(snapshotName, volumeID)
 	if snapshot != nil {
-		if snapshot.VolumeID != sourceVolumeID {
+		if snapshot.VolumeID != volumeID {
 			return nil, commonError.GetCSIError(ctxLogger, commonError.SnapshotAlreadyExists, requestID, err, snapshotName, sourceVolumeID)
 		}
 
@@ -636,7 +636,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	ctxLogger.Info("SnapshotTags", zap.Any("SnapshotTags", snapshotTags))
 
 	// TODO: ibmcloud-vol-file-vpc CreateSnapshot method call
-	snapshot, err = session.CreateSnapshot(sourceVolumeID, snapshotParameters)
+	snapshot, err = session.CreateSnapshot(volumeID, snapshotParameters)
 
 	if err != nil {
 		time.Sleep(time.Duration(getMaxDelaySnapshotCreate(ctxLogger)) * time.Second) //To avoid multiple retries from kubernetes to CSI Driver
