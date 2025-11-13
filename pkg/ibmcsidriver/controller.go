@@ -619,7 +619,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, nil)
 	}
 
-	// Validate if volume Already Exists
+	// Validate if Snapshot Already Exists
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)

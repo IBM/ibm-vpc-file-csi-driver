@@ -102,11 +102,10 @@ func TestCreateSnapshot(t *testing.T) {
 	creationTime := timestamppb.New(timeNow)
 	// test cases
 	testCases := []struct {
-		name        string
-		req         *csi.CreateSnapshotRequest
-		expResponse *csi.CreateSnapshotResponse
-		expErrCode  codes.Code
-		//		libSnapshotResponse    *http.Response
+		name                         string
+		req                          *csi.CreateSnapshotRequest
+		expResponse                  *csi.CreateSnapshotResponse
+		expErrCode                   codes.Code
 		libSnapshotResponse          *provider.Snapshot
 		libSnapshotresponseErr       error
 		libSnapshotByNameResponse    *provider.Snapshot
@@ -197,7 +196,7 @@ func TestCreateSnapshot(t *testing.T) {
 			},
 			expErrCode:             codes.Internal,
 			libSnapshotResponse:    nil,
-			libSnapshotresponseErr: providerError.Message{Code: "SnapshotSpaceOrderFailed", Description: "Snapshot creation failed", Type: providerError.ProvisioningFailed},
+			libSnapshotresponseErr: errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InternalError , Description: Create Snapshot Failed, RC: 500 Internal Error"),
 		},
 	}
 
@@ -222,6 +221,13 @@ func TestCreateSnapshot(t *testing.T) {
 		response, err := icDriver.cs.CreateSnapshot(context.Background(), tc.req)
 		if tc.expErrCode != codes.OK {
 			assert.NotNil(t, err)
+			serverError, ok := status.FromError(err)
+			if !ok {
+				t.Fatalf("Could not get error status code from err: %v", serverError)
+			}
+			if serverError.Code() != tc.expErrCode {
+				t.Fatalf("Expected error code-> %v, Actual error code: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
 		}
 		assert.Equal(t, tc.expResponse, response)
 	}
@@ -280,7 +286,7 @@ func TestDeleteSnapshot(t *testing.T) {
 			req: &csi.DeleteSnapshotRequest{
 				SnapshotId: "crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610",
 			},
-			expErrCode:                     codes.Internal,
+			expErrCode:                     codes.InvalidArgument,
 			libGetSnapshotResponseErr:      nil,
 			libDeleteSnapshotResponseError: providerError.Message{Code: "FailedToDeleteSnapshot", Description: "Snapshot deletion failed", Type: providerError.DeletionFailed},
 		},
@@ -307,6 +313,13 @@ func TestDeleteSnapshot(t *testing.T) {
 		response, err := icDriver.cs.DeleteSnapshot(context.Background(), tc.req)
 		if tc.expErrCode != codes.OK {
 			assert.NotNil(t, err)
+			serverError, ok := status.FromError(err)
+			if !ok {
+				t.Fatalf("Could not get error status code from err: %v", serverError)
+			}
+			if serverError.Code() != tc.expErrCode {
+				t.Fatalf("Expected error code-> %v, Actual error code: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
 		}
 		assert.Equal(t, tc.expResponse, response)
 	}
@@ -378,14 +391,14 @@ func TestListSnapshots(t *testing.T) {
 			name:             "Invalid start Snapshot ID",
 			maxEntries:       10,
 			expectedErr:      true,
-			expErrCode:       codes.Aborted,
+			expErrCode:       codes.InvalidArgument,
 			libSnapshotError: providerError.Message{Code: "StartSnapshotIDNotFound", Description: "The snapshot ID specified in the start parameter of the list snapshots call could not be found.", Type: providerError.InvalidRequest},
 		},
 		{
 			name:        "GetSnapshot fails with Retrieval failed error",
 			maxEntries:  10,
 			expectedErr: true,
-			expErrCode:  codes.Aborted,
+			expErrCode:  codes.InvalidArgument,
 			libSnapshotError: providerError.Message{
 				Code:        "SnapshotIDNotFound",
 				Description: "Snapshot ID not found",
@@ -397,7 +410,7 @@ func TestListSnapshots(t *testing.T) {
 			maxEntries:       10,
 			expectedErr:      true,
 			expErrCode:       codes.Internal,
-			libSnapshotError: providerError.Message{Code: "ListSnapshotsFailed", Description: "Unable to fetch list of snapshots.", Type: providerError.RetrivalFailed},
+			libSnapshotError: errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InternalError , Description: List Snapshots Failed, RC: 500 Internal Error"),
 		},
 		{
 			name:              "List snapshot with snapshotID",
@@ -478,6 +491,13 @@ func TestListSnapshots(t *testing.T) {
 		resp, err := icDriver.cs.ListSnapshots(context.TODO(), lsr)
 		if tc.expErrCode != codes.OK {
 			assert.NotNil(t, err)
+			serverError, ok := status.FromError(err)
+			if !ok {
+				t.Fatalf("Could not get error status code from err: %v", serverError)
+			}
+			if serverError.Code() != tc.expErrCode {
+				t.Fatalf("Expected error code-> %v, Actual error code: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
 		}
 		if tc.expectedErr && err == nil {
 			t.Fatalf("Got no error when expecting an error")
@@ -1615,6 +1635,13 @@ func TestControllerModifyVolume(t *testing.T) {
 		if tc.expErrCode != codes.OK {
 			t.Logf("Error code")
 			assert.NotNil(t, err)
+			serverError, ok := status.FromError(err)
+			if !ok {
+				t.Fatalf("Could not get error status code from err: %v", serverError)
+			}
+			if serverError.Code() != tc.expErrCode {
+				t.Fatalf("Expected error code-> %v, Actual error code: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
 		}
 	}
 }
