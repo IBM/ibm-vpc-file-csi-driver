@@ -616,7 +616,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	volumeID := getTokens(sourceVolumeID)
 	if len(volumeID) != 2 {
 		ctxLogger.Info("CSIControllerServer-CreateSnapshot...", zap.Reflect("Volume ID is not in format volumeID#accesspointID", volumeID))
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, nil)
 	}
 
 	// Validate if volume Already Exists
@@ -716,11 +716,8 @@ func (csiCS *CSIControllerServer) ListSnapshots(ctx context.Context, req *csi.Li
 		}
 
 		if len(snapID) != 0 {
-			snapshot, err := session.GetSnapshot(snapID, volumeID)
+			snapshot, _ := session.GetSnapshot(snapID, volumeID)
 			if snapshot == nil {
-				return &csi.ListSnapshotsResponse{}, nil
-			}
-			if providerError.RetrivalFailed == providerError.GetErrorType(err) {
 				ctxLogger.Info("Snapshot not found. Returning success ...")
 				return &csi.ListSnapshotsResponse{}, nil
 			}

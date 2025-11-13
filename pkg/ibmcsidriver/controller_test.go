@@ -156,6 +156,15 @@ func TestCreateSnapshot(t *testing.T) {
 			expErrCode:  codes.InvalidArgument,
 		},
 		{
+			name: "Snapshot soure volume ID is invalid format",
+			req: &csi.CreateSnapshotRequest{
+				SourceVolumeId: "testVolumeId",
+				Name:           "snap-test",
+			},
+			expResponse: nil,
+			expErrCode:  codes.InvalidArgument,
+		},
+		{
 			name: "Snapshot with name already present for same volume",
 			req: &csi.CreateSnapshotRequest{
 				SourceVolumeId: "testVolumeId#targetID",
@@ -233,6 +242,16 @@ func TestDeleteSnapshot(t *testing.T) {
 			name: "Success delete snapshot",
 			req: &csi.DeleteSnapshotRequest{
 				SnapshotId: "crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610",
+			},
+			expResponse:                    &csi.DeleteSnapshotResponse{},
+			libGetSnapshotResponseErr:      nil,
+			expErrCode:                     codes.OK,
+			libDeleteSnapshotResponseError: nil,
+		},
+		{
+			name: "Success delete snapshot if invalid snapshotID format",
+			req: &csi.DeleteSnapshotRequest{
+				SnapshotId: "snap-id-invalid-format",
 			},
 			expResponse:                    &csi.DeleteSnapshotResponse{},
 			libGetSnapshotResponseErr:      nil,
@@ -363,6 +382,17 @@ func TestListSnapshots(t *testing.T) {
 			libSnapshotError: providerError.Message{Code: "StartSnapshotIDNotFound", Description: "The snapshot ID specified in the start parameter of the list snapshots call could not be found.", Type: providerError.InvalidRequest},
 		},
 		{
+			name:        "GetSnapshot fails with Retrieval failed error",
+			maxEntries:  10,
+			expectedErr: true,
+			expErrCode:  codes.Aborted,
+			libSnapshotError: providerError.Message{
+				Code:        "SnapshotIDNotFound",
+				Description: "Snapshot ID not found",
+				Type:        providerError.RetrivalFailed,
+			},
+		},
+		{
 			name:             "internal error",
 			maxEntries:       10,
 			expectedErr:      true,
@@ -378,7 +408,15 @@ func TestListSnapshots(t *testing.T) {
 			libSnapshotError:  nil,
 		},
 		{
-			name:              "List snapshot with snapshotID failed as snapshotID not found",
+			name:              "List snapshot with snapshotID return zero entries as snapshotID is not valid",
+			snapshotID:        "invalid-snapshot-id-format",
+			expectedEntries:   0,
+			libGetSnapshotErr: false,
+			expErrCode:        codes.OK,
+			libSnapshotError:  nil,
+		},
+		{
+			name:              "List snapshot with snapshotID return zero entries as snapshotID not found",
 			snapshotID:        "crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610",
 			expectedEntries:   0,
 			libGetSnapshotErr: true,
@@ -411,7 +449,8 @@ func TestListSnapshots(t *testing.T) {
 
 		snapList := &provider.SnapshotList{}
 		lsr := &csi.ListSnapshotsRequest{
-			MaxEntries: tc.maxEntries,
+			MaxEntries:     tc.maxEntries,
+			SourceVolumeId: "test-vol",
 		}
 
 		if tc.snapshotID != "" {
@@ -1539,6 +1578,40 @@ func TestControllerGetVolume(t *testing.T) {
 
 		// Call CSI CreateVolume
 		_, err := icDriver.cs.ControllerGetVolume(context.Background(), tc.req)
+		if tc.expErrCode != codes.OK {
+			t.Logf("Error code")
+			assert.NotNil(t, err)
+		}
+	}
+}
+
+func TestControllerModifyVolume(t *testing.T) {
+	// test cases
+	testCases := []struct {
+		name        string
+		req         *csi.ControllerModifyVolumeRequest
+		expResponse *csi.ControllerModifyVolumeResponse
+		expErrCode  codes.Code
+	}{
+		{
+			name:        "Unsupported operation modify volume",
+			req:         &csi.ControllerModifyVolumeRequest{},
+			expResponse: nil,
+			expErrCode:  codes.OK,
+		},
+	}
+
+	// Creating test logger
+	_, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Logf("test case: %s", tc.name)
+		// Setup new driver each time so no interference
+		icDriver := initIBMCSIDriver(t)
+
+		_, err := icDriver.cs.ControllerModifyVolume(context.Background(), tc.req)
 		if tc.expErrCode != codes.OK {
 			t.Logf("Error code")
 			assert.NotNil(t, err)
