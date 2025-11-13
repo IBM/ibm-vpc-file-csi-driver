@@ -1,0 +1,8 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: ibmc-vpcfile-snapshot-retain
+  labels:
+    app.kubernetes.io/name: ibm-vpc-file-csi-driver
+driver: vpc.file.csi.ibm.io
+deletionPolicy: Retain
