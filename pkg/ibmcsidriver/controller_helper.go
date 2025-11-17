@@ -717,13 +717,16 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 
 // getAccountID ...
 func getAccountID(input string) string {
-	tokens := strings.Split(input, "/")
+	if strings.Contains(input, "a/") {
+		tokens := strings.Split(input, "/")
 
-	if len(tokens) > 1 {
-		return tokens[1]
-	} else {
-		return ""
+		if len(tokens) > 1 {
+			return tokens[1]
+		} else {
+			return ""
+		}
 	}
+	return ""
 }
 
 // getSourceVolumeID ...
