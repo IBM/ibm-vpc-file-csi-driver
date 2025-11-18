@@ -30,6 +30,7 @@ import (
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Capacity vs IOPS range for Custom Class
@@ -626,6 +627,16 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 
 // createCSIVolumeResponse ...
 func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provider.VolumeAccessPointResponse, capBytes int64, zones []string, clusterID string, region string) *csi.CreateVolumeResponse {
+	var src *csi.VolumeContentSource
+	if vol.SnapshotID != "" {
+		src = &csi.VolumeContentSource{
+			Type: &csi.VolumeContentSource_Snapshot{
+				Snapshot: &csi.VolumeContentSource_SnapshotSource{
+					SnapshotId: vol.SnapshotID,
+				},
+			},
+		}
+	}
 	labels := map[string]string{}
 
 	// Update labels for PV objects
@@ -697,10 +708,63 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 			VolumeId:           vol.VolumeID + VolumeIDSeperator + volAccessPointResponse.AccessPointID,
 			VolumeContext:      labels,
 			AccessibleTopology: []*csi.Topology{topology},
+			ContentSource:      src,
 		},
 	}
 
 	return volResp
+}
+
+// getAccountID ...
+func getAccountID(input string) string {
+	if strings.Contains(input, "a/") {
+		tokens := strings.Split(input, "/")
+
+		if len(tokens) > 1 {
+			return tokens[1]
+		} else {
+			return ""
+		}
+	}
+	return ""
+}
+
+// getSourceVolumeID ...
+func getSourceVolumeAndSnapshotID(input string) (string, string) {
+	tokens := strings.Split(input, "/")
+
+	if len(tokens) > 1 {
+		return tokens[0], tokens[1]
+	} else {
+		return "", ""
+	}
+}
+
+// getSnapshotAndAccountIDsFromCRN ...
+func getVolumeSnapshotAndAccountIDsFromCRN(crn string) (string, string, string) {
+	// This method will be able to handle crn
+	// expected CRN -> crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:r134-2ea54e55-4f34-4cad-aacc-88d712a19330/r134-2c65c897-4af9-4671-89ba-5a5939c35610
+	crnTokens := strings.Split(crn, ":")
+
+	if len(crnTokens) > 9 {
+		sourceVolumeID, snapshotID := getSourceVolumeAndSnapshotID(crnTokens[len(crnTokens)-1])
+		return sourceVolumeID, snapshotID, getAccountID(crnTokens[len(crnTokens)-4])
+	}
+	return "", crn, "" // assuming that crn is not of expected format
+}
+
+// createCSISnapshotResponse ...
+func createCSISnapshotResponse(snapshot provider.Snapshot) *csi.CreateSnapshotResponse {
+	ts := timestamppb.New(snapshot.SnapshotCreationTime)
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			SnapshotId:     snapshot.SnapshotCRN,
+			SourceVolumeId: snapshot.VolumeID,
+			SizeBytes:      snapshot.SnapshotSize,
+			CreationTime:   ts,
+			ReadyToUse:     snapshot.ReadyToUse,
+		},
+	}
 }
 
 func getTokens(volumeID string) []string {

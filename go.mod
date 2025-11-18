@@ -4,8 +4,8 @@ go 1.25.3
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.23
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.15
-	github.com/IBM/ibmcloud-volume-interface v1.2.16
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.16
+	github.com/IBM/ibmcloud-volume-interface v1.2.17
 	github.com/IBM/secret-utils-lib v1.1.15
 	github.com/container-storage-interface/spec v1.11.0
 	github.com/golang/glog v1.2.4
