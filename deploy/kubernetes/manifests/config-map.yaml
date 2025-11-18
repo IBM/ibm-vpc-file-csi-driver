@@ -18,3 +18,4 @@ data:
   VPC_API_VERSION: "2021-04-20"
   VPC_API_GENERATION: "1"
   IKS_ENABLED: "False" # must be set to false for Red Hat OpenShift
+  IS_SNAPSHOT_ENABLED: "True" # must set to false if snapshot feature is not required
