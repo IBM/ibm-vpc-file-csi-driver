@@ -625,7 +625,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
-	snapshot, _ := session.GetSnapshotByName(snapshotName, volumeID[0]) //nosec G104: Errors are intentionally not handled as we are checking for the presence of the expected output only.
+	snapshot, _ := session.GetSnapshotByName(snapshotName, volumeID[0]) // #nosec G104: Errors are intentionally not handled as we are checking for the presence of the expected output only.
 	if snapshot != nil {
 		if snapshot.VolumeID != volumeID[0] {
 			// According to CSI Driver Sanity Tester, should fail when we use same snapshotName accross volumeIDs
