@@ -31,7 +31,7 @@ BUILD_NUMBER?=unknown
 GO111MODULE_FLAG?=on
 export GO111MODULE=$(GO111MODULE_FLAG)
 
-export LINT_VERSION="2.4.0"
+export LINT_VERSION="1.61.0"
 
 COLOR_YELLOW=\033[0;33m
 COLOR_RESET=\033[0m
@@ -54,17 +54,13 @@ deps:
 	fi
 
 .PHONY: fmt
-fmt: lint
-	$(LINT_BIN) run --disable-all --enable=gofmt --timeout 600s
-	@if [ -n "$$($(LINT_BIN) run)" ]; then echo 'Please run ${COLOR_YELLOW}make dofmt${COLOR_RESET} on your code.' && exit 1; fi
+fmt:
+	@$(LINT_BIN) run --enable=gofmt --timeout 5m
+	@if [ -n "$$($(LINT_BIN) run)" ]; then echo "Code not formatted. Run 'make dofmt'"; exit 1; fi
 
 .PHONY: dofmt
 dofmt:
-	$(LINT_BIN) run --disable-all --enable=gofmt --fix --timeout 600s
-
-.PHONY: lint
-lint:
-	$(LINT_BIN) run --disable-all --enable=gofmt --timeout 600s
+	@$(LINT_BIN) run --disable-all --enable=gofmt --fix --timeout 5m
 
 # Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
