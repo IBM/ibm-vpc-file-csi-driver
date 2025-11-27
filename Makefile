@@ -55,12 +55,12 @@ deps:
 
 .PHONY: fmt
 fmt:
-	@$(LINT_BIN) run --enable=gofmt --timeout 5m
+	@$(LINT_BIN) run --disable-all --enable=gofumpt --timeout 5m
 	@if [ -n "$$($(LINT_BIN) run)" ]; then echo "Code not formatted. Run 'make dofmt'"; exit 1; fi
 
 .PHONY: dofmt
 dofmt:
-	@$(LINT_BIN) run --disable-all --enable=gofmt --fix --timeout 5m
+	@$(LINT_BIN)run --disable-all --enable=gofumpt --fix --timeout 5m
 
 # Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
