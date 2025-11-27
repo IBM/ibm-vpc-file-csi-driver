@@ -19,6 +19,8 @@
 // Package ibmcsidriver ...
 package ibmcsidriver
 
+import "github.com/IBM/ibm-csi-common/pkg/utils"
+
 const (
 	// Profile ...
 	Profile = "profile"
@@ -31,6 +33,9 @@ const (
 
 	// IOPS per PVC
 	IOPS = "iops"
+
+	// Throughput ...
+	Throughput = "throughput"
 
 	// SizeRangeSupported ...
 	SizeRangeSupported = "sizeRange"
@@ -58,6 +63,9 @@ const (
 
 	// DP2Profile ...
 	DP2Profile = "dp2"
+
+	// RFSProfile ...
+	RFSProfile = "rfs"
 
 	// ClassVersion ...
 	ClassVersion = "classVersion"
@@ -104,6 +112,9 @@ const (
 	//ENISubnetID ...
 	ENISubnetID = "ENISubnetId"
 
+	//ProfileLabel
+	ProfileLabel = "profile"
+
 	//ENISecurityGroupIds ...
 	ENISecurityGroupIDs = "ENISecurityGroupIds"
 
@@ -116,6 +127,9 @@ const (
 	// VolumeCRNLabel ...
 	VolumeCRNLabel = "volumeCRN"
 
+	//VolumeHrefLabel ...
+	VolumeHrefLabel = "volumeHref"
+
 	// ClusterIDLabel ...
 	ClusterIDLabel = "clusterID"
 
@@ -127,6 +141,9 @@ const (
 
 	// IOPSLabel ...
 	IOPSLabel = "iops"
+
+	// ThroughputLabel ...
+	ThroughputLabel = "throughput"
 
 	// ZoneLabel ...
 	ZoneLabel = "zone"
@@ -175,10 +192,13 @@ const (
 
 	// ConfigmapDataKey
 	ConfigmapDataKey = "vpc_subnet_ids"
+
+	// MinimumRFSVolumeSizeInBytes ... This is minimum size require for rfs profile
+	MinimumRFSVolumeSizeInBytes int64 = 1 * utils.GiB
 )
 
 // SupportedFS the supported FS types
 var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
-var SupportedProfile = []string{"dp2"}
+var SupportedProfile = []string{"dp2", "rfs"}

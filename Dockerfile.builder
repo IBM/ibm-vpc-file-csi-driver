@@ -1,4 +1,4 @@
-FROM golang:1.23.10
+FROM golang:1.25.3
 
 WORKDIR /go/src/github.com/IBM/ibm-vpc-file-csi-driver
 ADD . /go/src/github.com/IBM/ibm-vpc-file-csi-driver
