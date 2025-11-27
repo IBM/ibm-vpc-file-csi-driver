@@ -63,8 +63,6 @@ lint:
 	@command -v revive >/dev/null || go install github.com/mgechev/revive@latest
 	@revive -formatter friendly ./...
 
-	@echo "✔ Linting completed (Go 1.25 safe mode)"
-
 # Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
 build:
