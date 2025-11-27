@@ -23,7 +23,7 @@ jobs:
       pull-requests: write # needed to comment on PRs
     strategy:
       matrix:
-        go-version: ["1.23.10", "stable"]
+        go-version: ["1.25.3", "stable"]
       fail-fast: false
 
     steps:
