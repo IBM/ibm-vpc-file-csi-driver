@@ -1231,9 +1231,6 @@ func isCSIResponseSame(expectedVolume *csi.CreateVolumeResponse, actualCSIVolume
 		expectedVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeZoneLabel] == actualCSIVolume.Volume.GetAccessibleTopology()[0].GetSegments()[utils.NodeZoneLabel]
 }
 
-func TestCheckIfVolumeExists(t *testing.T) {
-}
-
 func TestCreateCSIVolumeResponse(t *testing.T) {
 	volumeID := "volID"
 	volumeAPID := "volAPID"

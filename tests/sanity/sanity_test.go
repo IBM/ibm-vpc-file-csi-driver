@@ -80,7 +80,7 @@ func TestSanity(t *testing.T) {
 		t.Skip("Skipping sanity testing...")
 	}
 
-	os.Setenv("VPC_SUBNET_IDS", "subnet-id")
+	_ = os.Setenv("VPC_SUBNET_IDS", "subnet-id")
 
 	// Create a fake CSI driver
 	csiSanityDriver := initCSIDriverForSanity(t)
@@ -180,7 +180,7 @@ type MockStatSanity struct {
 }
 
 // FSInfo ...
-func (su *MockStatSanity) FSInfo(path string) (int64, int64, int64, int64, int64, int64, error) {
+func (su *MockStatSanity) FSInfo(_ string) (int64, int64, int64, int64, int64, int64, error) {
 	return 1, 1, 1, 1, 1, 1, nil
 }
 
@@ -200,14 +200,14 @@ type FakeSanityCloudProvider struct {
 var _ cloudProvider.CloudProviderInterface = &FakeSanityCloudProvider{}
 
 // NewFakeSanityCloudProvider ...
-func NewFakeSanityCloudProvider(configPath string, logger *zap.Logger) (*FakeSanityCloudProvider, error) {
+func NewFakeSanityCloudProvider(_ string, _ *zap.Logger) (*FakeSanityCloudProvider, error) {
 	return &FakeSanityCloudProvider{ProviderName: "FakeSanityCloudProvider",
 		ProviderConfig: &config.Config{VPC: &config.VPCProviderConfig{VPCBlockProviderName: "VPCFakeProvider"}},
 		ClusterID:      "", fakeSession: newFakeProviderSession()}, nil
 }
 
 // GetProviderSession ...
-func (ficp *FakeSanityCloudProvider) GetProviderSession(ctx context.Context, logger *zap.Logger) (provider.Session, error) {
+func (ficp *FakeSanityCloudProvider) GetProviderSession(_ context.Context, _ *zap.Logger) (provider.Session, error) {
 	return ficp.fakeSession, nil
 }
 
@@ -263,7 +263,7 @@ func newFakeProviderSession() *fakeProviderSession {
 // to validate and modify accordingly
 //##############################################################################
 
-func (c *fakeProviderSession) GetSubnetForVolumeAccessPoint(subnetRequest provider.SubnetRequest) (string, error) {
+func (c *fakeProviderSession) GetSubnetForVolumeAccessPoint(_ provider.SubnetRequest) (string, error) {
 	return "subnet-id", nil
 }
 
@@ -360,12 +360,12 @@ func (c *fakeProviderSession) WaitForCreateVolumeAccessPoint(volumeAccesspointRe
 	}, nil
 }
 
-func (c *fakeProviderSession) UpdateVolume(volumeRequest provider.Volume) error {
+func (c *fakeProviderSession) UpdateVolume(_ provider.Volume) error {
 	return nil
 }
 
 // Create the volume from snapshot with snapshot tags
-func (c *fakeProviderSession) CreateVolumeFromSnapshot(snapshot provider.Snapshot, tags map[string]string) (*provider.Volume, error) {
+func (c *fakeProviderSession) CreateVolumeFromSnapshot(_ provider.Snapshot, _ map[string]string) (*provider.Volume, error) {
 	return nil, nil
 }
 
@@ -417,7 +417,7 @@ func (c *fakeProviderSession) GetVolumeByName(name string) (*provider.Volume, er
 }
 
 // Get volume lists
-func (c *fakeProviderSession) ListVolumes(limit int, start string, tags map[string]string) (*provider.VolumeList, error) {
+func (c *fakeProviderSession) ListVolumes(limit int, start string, _ map[string]string) (*provider.VolumeList, error) {
 	maxLimit := 100
 	var respVolumesList = &provider.VolumeList{}
 	errorMsg := providerError.Message{
@@ -451,21 +451,21 @@ func (c *fakeProviderSession) ListVolumes(limit int, start string, tags map[stri
 // GetVolumeByRequestID fetch the volume by request ID.
 // Request Id is the one that is returned when volume is provsioning request is
 // placed with Iaas provider.
-func (c *fakeProviderSession) GetVolumeByRequestID(requestID string) (*provider.Volume, error) {
+func (c *fakeProviderSession) GetVolumeByRequestID(_ string) (*provider.Volume, error) {
 	return nil, nil
 }
 
 // AuthorizeVolume allows aceess to volume  based on given authorization
-func (c *fakeProviderSession) AuthorizeVolume(volumeAuthorization provider.VolumeAuthorization) error {
+func (c *fakeProviderSession) AuthorizeVolume(_ provider.VolumeAuthorization) error {
 	return nil
 }
 
 // GetAttachAttachment retirves the current status of given volume attach request
-func (c *fakeProviderSession) GetVolumeAttachment(attachRequest provider.VolumeAttachmentRequest) (*provider.VolumeAttachmentResponse, error) {
+func (c *fakeProviderSession) GetVolumeAttachment(_ provider.VolumeAttachmentRequest) (*provider.VolumeAttachmentResponse, error) {
 	return nil, nil
 }
 
-func (c *fakeProviderSession) OrderSnapshot(VolumeRequest provider.Volume) error {
+func (c *fakeProviderSession) OrderSnapshot(_ provider.Volume) error {
 	return nil
 }
 
@@ -503,7 +503,7 @@ func (c *fakeProviderSession) DeleteSnapshot(snap *provider.Snapshot) error {
 }
 
 // Get the snapshot
-func (c *fakeProviderSession) GetSnapshot(snapshotID string, sourceVolumeID ...string) (*provider.Snapshot, error) {
+func (c *fakeProviderSession) GetSnapshot(snapshotID string, _ ...string) (*provider.Snapshot, error) {
 	fmt.Println("GetSnapshot", c.snapshots)
 	fmt.Println("snapshotID", snapshotID)
 	for k, v := range c.snapshots {
@@ -516,7 +516,7 @@ func (c *fakeProviderSession) GetSnapshot(snapshotID string, sourceVolumeID ...s
 }
 
 // Get the snapshot By name
-func (c *fakeProviderSession) GetSnapshotByName(snapshotName string, sourceVolumeID ...string) (*provider.Snapshot, error) {
+func (c *fakeProviderSession) GetSnapshotByName(snapshotName string, _ ...string) (*provider.Snapshot, error) {
 	if len(snapshotName) == 0 {
 		return nil, errors.New("no name passed")
 	}
@@ -544,12 +544,12 @@ func (c *fakeProviderSession) GetSnapshotByName(snapshotName string, sourceVolum
 }
 
 // Get the snapshot with volume ID
-func (c *fakeProviderSession) GetSnapshotWithVolumeID(volumeID string, snapshotID string) (*provider.Snapshot, error) {
+func (c *fakeProviderSession) GetSnapshotWithVolumeID(_ string, _ string) (*provider.Snapshot, error) {
 	return nil, nil
 }
 
 // Snapshot list by using tags
-func (c *fakeProviderSession) ListSnapshots(maxResults int, nextToken string, tags map[string]string) (*provider.SnapshotList, error) {
+func (c *fakeProviderSession) ListSnapshots(maxResults int, nextToken string, _ map[string]string) (*provider.SnapshotList, error) {
 	var snapshots []*provider.Snapshot
 	var retToken string
 
@@ -570,7 +570,7 @@ func (c *fakeProviderSession) ListSnapshots(maxResults int, nextToken string, ta
 }
 
 // List all the  snapshots for a given volume
-func (c *fakeProviderSession) ListAllSnapshots(volumeID string) ([]*provider.Snapshot, error) {
+func (c *fakeProviderSession) ListAllSnapshots(_ string) ([]*provider.Snapshot, error) {
 	return nil, nil
 }
 
