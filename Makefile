@@ -31,8 +31,6 @@ BUILD_NUMBER?=unknown
 GO111MODULE_FLAG?=on
 export GO111MODULE=$(GO111MODULE_FLAG)
 
-export LINT_VERSION="1.61.0"
-
 COLOR_YELLOW=\033[0;33m
 COLOR_RESET=\033[0m
 
@@ -48,10 +46,6 @@ deps:
 	echo "Installing dependencies ..."
 	go mod download
 	command -v gotestcover >/dev/null || go install github.com/pierrre/gotestcover@latest
-	@if ! command -v $(LINT_BIN) >/dev/null || [[ "$$($(LINT_BIN) --version)" != *${LINT_VERSION}* ]]; then \
-		echo "Building golangci-lint from source using Go $(shell go version)..."; \
-        GOFLAGS="" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$(LINT_VERSION); \
-	fi
 
 .PHONY: vet
 vet:
