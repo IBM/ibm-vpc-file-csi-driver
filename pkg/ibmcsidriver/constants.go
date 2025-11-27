@@ -112,10 +112,10 @@ const (
 	//ENISubnetID ...
 	ENISubnetID = "ENISubnetId"
 
-	//ProfileLabel
+	//ProfileLabel ...
 	ProfileLabel = "profile"
 
-	//ENISecurityGroupIds ...
+	// ENISecurityGroupIDs  ...
 	ENISecurityGroupIDs = "ENISecurityGroupIds"
 
 	//VolumeIDSeperator ...
@@ -157,40 +157,40 @@ const (
 	// GID ...
 	GID = "gid"
 
-	// SecurityGroup
+	// SecurityGroup ...
 	SecurityGroup = "security_group"
 
-	// EncryptionTransitMode
+	// EncryptionTransitMode ...
 	EncryptionTransitMode = "user_managed"
 
-	// VPC
+	// VPC ...
 	VPC = "vpc"
 
-	// IsENIEnabled
+	// IsENIEnabled ...
 	IsENIEnabled = "isENIEnabled"
 
-	// IsEITEnabled
+	// IsEITEnabled ...
 	IsEITEnabled = "isEITEnabled"
 
-	// SecurityGroupIDs
+	// SecurityGroupIDs ...
 	SecurityGroupIDs = "securityGroupIDs"
 
-	// PrimaryIPId
+	// PrimaryIPId ...
 	PrimaryIPID = "primaryIPID"
 
-	// PrimaryIPAddress
+	// PrimaryIPAddress ...
 	PrimaryIPAddress = "primaryIPAddress"
 
-	// SubnetID
+	// SubnetID ...
 	SubnetID = "subnetID"
 
-	// ConfigmapName
+	// ConfigmapName ...
 	ConfigmapName = "ibm-cloud-provider-data"
 
-	// ConfigmapNamespace
+	// ConfigmapNamespace ...
 	ConfigmapNamespace = "kube-system"
 
-	// ConfigmapDataKey
+	// ConfigmapDataKey ...
 	ConfigmapDataKey = "vpc_subnet_ids"
 
 	// MinimumRFSVolumeSizeInBytes ... This is minimum size require for rfs profile

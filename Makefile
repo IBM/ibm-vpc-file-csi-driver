@@ -61,8 +61,15 @@ vet:
 
 .PHONY: lint
 lint:
-	@echo "Running golangci-lint..."
-	@$(LINT_BIN) run
+	@echo "Running standalone linters for Go 1.25 ..."
+
+	@command -v errcheck >/dev/null || go install github.com/kisielk/errcheck@latest
+	@errcheck ./...
+
+	@command -v revive >/dev/null || go install github.com/mgechev/revive@latest
+	@revive -formatter friendly ./...
+
+	@echo "✔ Linting completed (Go 1.25 safe mode)"
 
 # Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
