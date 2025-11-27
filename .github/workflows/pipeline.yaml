@@ -46,8 +46,11 @@ jobs:
         env:
           GOPATH: ${{ runner.temp }}/go
 
-      - name: Run formatting check
-        run: make fmt
+      - name: Run golangci-lint
+        run: make lint
+
+      - name: Run go vet
+        run: make vet
 
       - name: Run sanity tests
         run: make test-sanity

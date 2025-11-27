@@ -31,13 +31,13 @@ BUILD_NUMBER?=unknown
 GO111MODULE_FLAG?=on
 export GO111MODULE=$(GO111MODULE_FLAG)
 
-export LINT_VERSION="2.4.0"
+export LINT_VERSION="1.61.0"
 
 COLOR_YELLOW=\033[0;33m
 COLOR_RESET=\033[0m
 
 .PHONY: all
-all: deps fmt build test buildimage
+all: deps lint vet build test buildimage
 
 .PHONY: driver
 driver: deps buildimage
@@ -47,20 +47,21 @@ LINT_BIN=$(GOPATH)/bin/golangci-lint
 deps:
 	echo "Installing dependencies ..."
 	go mod download
-	go get github.com/pierrre/gotestcover
-	go install github.com/pierrre/gotestcover
+	go install github.com/pierrre/gotestcover@latest
 	@if ! command -v $(LINT_BIN) >/dev/null || [[ "$$($(LINT_BIN) --version)" != *${LINT_VERSION}* ]]; then \
 		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v${LINT_VERSION}; \
 	fi
 
-.PHONY: fmt
-fmt:
-	@$(LINT_BIN) run --disable-all --enable=gofumpt --timeout 5m
-	@if [ -n "$$($(LINT_BIN) run)" ]; then echo "Code not formatted. Run 'make dofmt'"; exit 1; fi
+.PHONY: vet
+vet:
+	@echo "Running go vet..."
+	@go vet ./...
 
-.PHONY: dofmt
-dofmt:
-	@$(LINT_BIN)run --disable-all --enable=gofumpt --fix --timeout 5m
+
+.PHONY: lint
+lint:
+	@echo "Running golangci-lint..."
+	@$(LINT_BIN) run
 
 # Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
@@ -80,7 +81,7 @@ test:
 	go tool cover -html=cover.out -o=cover.html  # Uncomment this line when UT in place.
 
 .PHONY: ut-coverage
-ut-coverage: deps fmt test
+ut-coverage: deps test
 
 .PHONY: coverage
 coverage:
@@ -105,7 +106,7 @@ build-systemutil:
 	docker cp `docker ps -q -n=1`:/go/bin/${EXE_DRIVER_NAME} ./${EXE_DRIVER_NAME}
 
 .PHONY: test-sanity
-test-sanity: deps fmt
+test-sanity: deps
 	SANITY_PARAMS_FILE=./csi_sanity_params.yaml go test -timeout 60s ./tests/sanity -run ^TestSanity$$ -v
 
 .PHONY: clean
