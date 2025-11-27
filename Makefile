@@ -47,9 +47,10 @@ LINT_BIN=$(GOPATH)/bin/golangci-lint
 deps:
 	echo "Installing dependencies ..."
 	go mod download
-	go install github.com/pierrre/gotestcover@latest
+	command -v gotestcover >/dev/null || go install github.com/pierrre/gotestcover@latest
 	@if ! command -v $(LINT_BIN) >/dev/null || [[ "$$($(LINT_BIN) --version)" != *${LINT_VERSION}* ]]; then \
-		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v${LINT_VERSION}; \
+		echo "Building golangci-lint from source using Go $(shell go version)..."; \
+        GOFLAGS="" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$(LINT_VERSION); \
 	fi
 
 .PHONY: vet
