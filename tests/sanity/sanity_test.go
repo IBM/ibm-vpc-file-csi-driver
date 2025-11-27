@@ -473,11 +473,7 @@ func (c *fakeProviderSession) OrderSnapshot(VolumeRequest provider.Volume) error
 // Create the snapshot on the volume
 func (c *fakeProviderSession) CreateSnapshot(sourceVolumeID string, snapshotParameters provider.SnapshotParameters) (*provider.Snapshot, error) {
 	snapshotID := fmt.Sprintf("crn:v1:staging:public:is:us-south-1:a/77f2bceddaeb577dcaddb4073fe82c1c::share-snapshot:vol-uuid-test-vol-%s/vol-uuid-test-vol-%s", uuid.New().String()[:10], uuid.New().String()[:10])
-	for _, existingSnapshot := range c.snapshots {
-		if existingSnapshot.SnapshotCRN == snapshotID && existingSnapshot.VolumeID == sourceVolumeID {
-			return nil, errors.New("snapshot already present for same volume")
-		}
-	}
+
 	fakeSnapshot := &fakeSnapshot{
 		Snapshot: &provider.Snapshot{
 			VolumeID:             sourceVolumeID,
@@ -556,11 +552,7 @@ func (c *fakeProviderSession) GetSnapshotWithVolumeID(volumeID string, snapshotI
 func (c *fakeProviderSession) ListSnapshots(maxResults int, nextToken string, tags map[string]string) (*provider.SnapshotList, error) {
 	var snapshots []*provider.Snapshot
 	var retToken string
-	for _, fakeSnapshot := range c.snapshots {
-		if fakeSnapshot.VolumeID == tags["source_volume.id"] || len(tags["source_volume.id"]) == 0 {
-			snapshots = append(snapshots, fakeSnapshot.Snapshot)
-		}
-	}
+
 	if maxResults > 0 {
 		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
 		retToken = fmt.Sprintf("token-%d", r1.Uint64())
