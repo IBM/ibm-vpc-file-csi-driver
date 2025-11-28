@@ -91,7 +91,8 @@ func TestSetup(t *testing.T) {
 
 	{
 		t.Logf("setup CSI sidecar with chown failure")
-		os.Setenv("IS_NODE_SERVER", "true")
+		_ = os.Setenv("IS_NODE_SERVER", "true")
+		defer func() { _ = os.Unsetenv("IS_NODE_SERVER") }()
 		ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
 		assert.NotNil(t, err)
 		assert.Nil(t, ls)
