@@ -38,7 +38,7 @@ import (
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
-	sanity "github.com/kubernetes-csi/csi-test/v4/pkg/sanity"
+	"github.com/kubernetes-csi/csi-test/v4/pkg/sanity"
 
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
@@ -549,9 +549,17 @@ func (c *fakeProviderSession) GetSnapshotWithVolumeID(_ string, _ string) (*prov
 }
 
 // Snapshot list by using tags
-func (c *fakeProviderSession) ListSnapshots(maxResults int, nextToken string, _ map[string]string) (*provider.SnapshotList, error) {
-	var snapshots []*provider.Snapshot
-	var retToken string
+func (c *fakeProviderSession) ListSnapshots(maxResults int, nextToken string, tags map[string]string) (*provider.SnapshotList, error) {
+	var (
+		snapshots []*provider.Snapshot
+		retToken  string
+	)
+
+	for _, fSnapshot := range c.snapshots {
+		if fSnapshot.VolumeID == tags["source_volume.id"] || len(tags["source_volume.id"]) == 0 {
+			snapshots = append(snapshots, fSnapshot.Snapshot)
+		}
+	}
 
 	if maxResults > 0 {
 		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
