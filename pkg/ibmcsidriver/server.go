@@ -28,10 +28,11 @@ import (
 	"sync"
 	"syscall"
 
+	"context"
+
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 
