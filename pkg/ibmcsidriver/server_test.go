@@ -25,9 +25,10 @@ import (
 	"os"
 	"testing"
 
+	"context"
+
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 

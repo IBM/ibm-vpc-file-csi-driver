@@ -29,9 +29,10 @@ import (
 	"testing"
 	"time"
 
+	"context"
+
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	nodeInfo "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata/fake"
