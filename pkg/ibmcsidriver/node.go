@@ -25,6 +25,8 @@ import (
 
 	"time"
 
+	"context"
+
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/mountmanager"
@@ -32,7 +34,6 @@ import (
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 	"k8s.io/kubernetes/pkg/volume/util/fs"
 	mount "k8s.io/mount-utils"

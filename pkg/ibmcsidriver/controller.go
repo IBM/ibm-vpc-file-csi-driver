@@ -32,8 +32,9 @@ import (
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 
+	"context"
+
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 )
 
 // CSIControllerServer ...
