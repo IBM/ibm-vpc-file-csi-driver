@@ -15,6 +15,8 @@
  # limitations under the License.
 # *****************************************************************************/
 set -euo pipefail
+set +x
+
 echo "===== Publishing the coverage results ====="
 
 # GitHub Actions env vars:
