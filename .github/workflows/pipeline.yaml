@@ -66,7 +66,7 @@ jobs:
         run: make driver
 
       - name: Publish coverage
-        if: success() && matrix.go-version == 'stable'
+        if: success() && matrix.go-version == '1.25.3'
         env:
           GHE_TOKEN: ${{ secrets.GHE_TOKEN }}
           GHE_USER: github-actions # required for git clone URL in script
