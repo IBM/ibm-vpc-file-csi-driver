@@ -518,10 +518,11 @@ func TestListSnapshots(t *testing.T) {
 	}
 }
 func TestCreateVolumeArguments(t *testing.T) {
-	cap := 20
+	capacity := 20
 	volName := "test-name"
 	iopsStr := ""
-	os.Setenv("VPC_SUBNET_IDS", "sub-1,sub-2,sub-2")
+	_ = os.Setenv("VPC_SUBNET_IDS", "sub-1,sub-2,sub-2")
+	defer func() { _ = os.Unsetenv("VPC_SUBNET_IDS") }()
 	// test cases
 	testCases := []struct {
 		name                          string
@@ -562,7 +563,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 
 			libVolumeResponse: &provider.Volume{
-				Capacity: &cap,
+				Capacity: &capacity,
 				Name:     &volName,
 				VolumeID: "testVolumeId",
 				Iops:     &iopsStr,
@@ -611,7 +612,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 
 			libVolumeResponse: &provider.Volume{
-				Capacity: &cap,
+				Capacity: &capacity,
 				Name:     &volName,
 				VolumeID: "testVolumeId",
 				Iops:     &iopsStr,
@@ -653,7 +654,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 				MountPath:     "abc:/xyz/pqr",
 				CreatedAt:     &time.Time{},
 			},
-			libVolumeResponse:             &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			libVolumeResponse:             &provider.Volume{Capacity: &capacity, Name: &volName, VolumeID: "testVolumeId", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
 			expErrCode:                    codes.Internal,
 			subnetID:                      "sub-1",
 			securityGroupID:               "kube-fake-cluster-id",
@@ -836,7 +837,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 
 			libVolumeResponse: &provider.Volume{
-				Capacity: &cap,
+				Capacity: &capacity,
 				Name:     &volName,
 				VolumeID: "testVolumeId",
 				Iops:     &iopsStr,
@@ -893,7 +894,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 			},
 
 			libVolumeResponse: &provider.Volume{
-				Capacity: &cap,
+				Capacity: &capacity,
 				Name:     &volName,
 				VolumeID: "testVolumeId",
 				Iops:     &iopsStr,
@@ -1482,7 +1483,7 @@ func TestControllerGetCapabilities(t *testing.T) {
 }
 func TestControllerExpandVolume(t *testing.T) {
 	// test cases
-	cap := 20
+	capacity := 20
 	volName := "test-name"
 	iopsStr := ""
 	//test cases
@@ -1502,7 +1503,7 @@ func TestControllerExpandVolume(t *testing.T) {
 			expResponse:          &csi.ControllerExpandVolumeResponse{CapacityBytes: stdCapRange.RequiredBytes, NodeExpansionRequired: false},
 			expErrCode:           codes.OK,
 			libExpandResponse:    &http.Response{StatusCode: http.StatusOK},
-			libVolumeResponse:    &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "volumeid", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			libVolumeResponse:    &provider.Volume{Capacity: &capacity, Name: &volName, VolumeID: "volumeid", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
 			libExpandResponseErr: nil,
 			libVolumeError:       nil,
 		},
@@ -1532,7 +1533,7 @@ func TestControllerExpandVolume(t *testing.T) {
 			expResponse:       nil,
 			expErrCode:        codes.Internal,
 			libExpandResponse: nil,
-			libVolumeResponse: &provider.Volume{Capacity: &cap, Name: &volName, VolumeID: "volumeid", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
+			libVolumeResponse: &provider.Volume{Capacity: &capacity, Name: &volName, VolumeID: "volumeid", Iops: &iopsStr, Az: "myzone", Region: "myregion"},
 			libExpandResponseErr: providerError.Message{
 				Code: "FailedToPlaceOrder",
 			},
@@ -1649,14 +1650,14 @@ func TestControllerModifyVolume(t *testing.T) {
 
 func createVolume(maxEntries int) *provider.VolumeList {
 	volList := &provider.VolumeList{}
-	cap := 10
+	capacity := 10
 	for i := 0; i <= maxEntries; i++ {
 		volName := "unit-test-volume" + strconv.Itoa(i)
 		vol := &provider.Volume{
 			VolumeID: fmt.Sprintf("vol-uuid-test-vol-%s", uuid.New().String()[:10]),
 			Name:     &volName,
 			Region:   "my-region",
-			Capacity: &cap,
+			Capacity: &capacity,
 		}
 		if i == maxEntries {
 			volList.Next = vol.VolumeID

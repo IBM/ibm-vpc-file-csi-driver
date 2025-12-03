@@ -19,6 +19,7 @@ DRIVER_NAME=vpcFileDriver
 IMAGE = ${EXE_DRIVER_NAME}
 GOPACKAGES=$(shell go list ./... | grep -v /vendor/ | grep -v /cmd | grep -v /tests | grep -v /pkg/ibmcsidriver/ibmcsidriverfakes)
 VERSION := latest
+GOPATH := $(shell go env GOPATH)
 
 GIT_COMMIT_SHA="$(shell git rev-parse HEAD 2>/dev/null)"
 GIT_REMOTE_URL="$(shell git config --get remote.origin.url 2>/dev/null)"
@@ -30,39 +31,37 @@ BUILD_NUMBER?=unknown
 GO111MODULE_FLAG?=on
 export GO111MODULE=$(GO111MODULE_FLAG)
 
-export LINT_VERSION="1.64.8"
-
 COLOR_YELLOW=\033[0;33m
 COLOR_RESET=\033[0m
 
 .PHONY: all
-all: deps fmt build test buildimage
+all: deps lint vet build test buildimage
 
 .PHONY: driver
 driver: deps buildimage
 
 .PHONY: deps
+LINT_BIN=$(GOPATH)/bin/golangci-lint
 deps:
 	echo "Installing dependencies ..."
 	go mod download
-	go get github.com/pierrre/gotestcover
-	go install github.com/pierrre/gotestcover
-	@if ! which golangci-lint >/dev/null || [[ "$$(golangci-lint --version)" != *${LINT_VERSION}* ]]; then \
-		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v${LINT_VERSION}; \
-	fi
+	command -v gotestcover >/dev/null || go install github.com/pierrre/gotestcover@latest
 
-.PHONY: fmt
-fmt: lint
-	$(GOPATH)/bin/golangci-lint run --disable-all --enable=gofmt --timeout 600s
-	@if [ -n "$$($(GOPATH)/bin/golangci-lint run)" ]; then echo 'Please run ${COLOR_YELLOW}make dofmt${COLOR_RESET} on your code.' && exit 1; fi
+.PHONY: vet
+vet:
+	@echo "Running go vet..."
+	@go vet ./...
 
-.PHONY: dofmt
-dofmt:
-	$(GOPATH)/bin/golangci-lint run --disable-all --enable=gofmt --fix --timeout 600s
 
 .PHONY: lint
 lint:
-	$(GOPATH)/bin/golangci-lint run --timeout 600s
+	@echo "Running standalone linters for Go 1.25 ..."
+
+	@command -v errcheck >/dev/null || go install github.com/kisielk/errcheck@latest
+	@errcheck ./...
+
+	@command -v revive >/dev/null || go install github.com/mgechev/revive@latest
+	@revive -formatter friendly ./...
 
 # Repository does not contain vendor/modules.txt file so re-build with go mod vendor
 .PHONY: build
@@ -82,7 +81,7 @@ test:
 	go tool cover -html=cover.out -o=cover.html  # Uncomment this line when UT in place.
 
 .PHONY: ut-coverage
-ut-coverage: deps fmt test
+ut-coverage: deps test
 
 .PHONY: coverage
 coverage:
@@ -107,7 +106,7 @@ build-systemutil:
 	docker cp `docker ps -q -n=1`:/go/bin/${EXE_DRIVER_NAME} ./${EXE_DRIVER_NAME}
 
 .PHONY: test-sanity
-test-sanity: deps fmt
+test-sanity: deps
 	SANITY_PARAMS_FILE=./csi_sanity_params.yaml go test -timeout 60s ./tests/sanity -run ^TestSanity$$ -v
 
 .PHONY: clean

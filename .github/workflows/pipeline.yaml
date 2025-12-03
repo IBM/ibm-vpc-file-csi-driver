@@ -1,0 +1,74 @@
+name: IBM VPC File CSI Driver
+
+on:
+  push:
+    branches:
+      - master   # commit pushed directly to the master
+    tags:
+      - "v[1-9]+.[0-9]+.[0-9]+*"   # tag creation
+  pull_request:
+    branches:
+      - master   # trigger workflow when opened a PR into master.
+
+# Cancel older runs on the same pull request
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to push to gh-pages
+      pull-requests: write # needed to comment on PRs
+    strategy:
+      matrix:
+        go-version: ["1.25.3", "stable"]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          check-latest: true
+
+      - name: Install Go dependencies
+        run: make deps
+
+      - name: Set up Go workspace
+        run: |
+          mkdir -p $(go env GOPATH)/src/github.com/IBM/ibm-vpc-file-csi-driver
+          rsync -az . $(go env GOPATH)/src/github.com/IBM/ibm-vpc-file-csi-driver
+        env:
+          GOPATH: ${{ runner.temp }}/go
+
+      - name: Run golangci-lint
+        run: make lint
+
+      - name: Run go vet
+        run: make vet
+
+      - name: Run sanity tests
+        run: make test-sanity
+
+      - name: Run tests
+        run: make test
+        timeout-minutes: 5
+
+      - name: Generate coverage
+        run: make coverage && touch "Passing" || touch "Failed"
+
+      - name: Build driver
+        run: make driver
+
+      - name: Publish coverage
+        if: success() && matrix.go-version == '1.25.3'
+        env:
+          GHE_TOKEN: ${{ secrets.GHE_TOKEN }}
+          GHE_USER: github-actions # required for git clone URL in script
+        run: |
+          ./scripts/publishCoverage.sh
