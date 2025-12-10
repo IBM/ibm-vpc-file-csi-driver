@@ -115,8 +115,16 @@ func TestUpdateSubnetList(t *testing.T) {
 
 	for _, testcase := range testcases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			os.Setenv("VPC_SUBNET_IDS", testcase.currentSubnetID)
-			defer os.Unsetenv("VPC_SUBNET_IDS")
+			err := os.Setenv("VPC_SUBNET_IDS", testcase.currentSubnetID)
+			if err != nil {
+				return
+			}
+			defer func() {
+				err = os.Unsetenv("VPC_SUBNET_IDS")
+				if err != nil {
+					return
+				}
+			}()
 			cw.updateSubnetList(testcase.oldConfigMap, testcase.newConfigMap)
 			assert.Equal(t, testcase.expectedSubnetID, os.Getenv("VPC_SUBNET_IDS"))
 		})

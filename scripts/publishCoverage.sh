@@ -14,83 +14,104 @@
  # See the License for the specific language governing permissions and
  # limitations under the License.
 # *****************************************************************************/
-set -x
-echo "Publishing the coverage results"
-if [ "$TRAVIS_GO_VERSION" == "tip" ]; then
-	echo "Coverage information is not required for tip version."
-	exit 0
-fi
+set -euo pipefail
+set +x
 
-mkdir -p $TRAVIS_BUILD_DIR/gh-pages
-cd $TRAVIS_BUILD_DIR/gh-pages
+echo "===== Publishing the coverage results ====="
 
-OLD_COVERAGE=0
-NEW_COVERAGE=0
-RESULT_MESSAGE=""
+# GitHub Actions env vars:
+# $GITHUB_WORKSPACE  -> repo root on runner
+# $GITHUB_REPOSITORY -> owner/repo
+# $GITHUB_REF_NAME   -> branch or tag name
+# $GITHUB_BASE_REF   -> base branch for PRs (e.g. master)
+# $GITHUB_SHA        -> commit SHA
+# $GITHUB_RUN_NUMBER -> workflow run number
+# $GITHUB_EVENT_NAME -> event type (push, pull_request, etc)
+# $GITHUB_EVENT_PATH -> webhook event JSON
 
-BADGE_COLOR=red
+WORKDIR="$GITHUB_WORKSPACE/gh-pages"
+NEW_COVERAGE_SOURCE="$GITHUB_WORKSPACE/cover.html"
+BADGE_COLOR="red"
 GREEN_THRESHOLD=85
 YELLOW_THRESHOLD=50
 
-# clone and prepare gh-pages branch
-git clone -b gh-pages https://$GHE_USER:$GHE_TOKEN@github.com/$TRAVIS_REPO_SLUG.git .
-git config user.name "travis"
-git config user.email "travis"
+# helper function for coverage extraction
+get_coverage() {
+    local file="$1"
+    if [[ -f "$file" ]]; then
+        grep "%)" "$file" \
+          | sed 's/[][()><%]/ /g' \
+          | awk '{s+=$4}END{if(NR>0)print s/NR; else print 0}'
+    else
+        echo "0"
+    fi
+}
 
-if [ ! -d "$TRAVIS_BUILD_DIR/gh-pages/coverage" ]; then
-	mkdir "$TRAVIS_BUILD_DIR/gh-pages/coverage"
+# branch to compare against
+if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+    BASE_BRANCH="$GITHUB_BASE_REF"
+else
+    BASE_BRANCH="$GITHUB_REF_NAME"
 fi
 
-if [ ! -d "$TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_BRANCH" ]; then
-	mkdir "$TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_BRANCH"
-fi
+# calculate new coverage
+NEW_COVERAGE=$(get_coverage "$NEW_COVERAGE_SOURCE")
 
-if [ ! -d "$TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_COMMIT" ]; then
-	mkdir "$TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_COMMIT"
-fi
+# clone gh-pages repo, where coverage is stored
+mkdir -p "$WORKDIR"
+cd "$WORKDIR"
+git clone -b gh-pages "https://$GHE_USER:$GHE_TOKEN@github.com/$GITHUB_REPOSITORY.git" .
+git config user.name "github actions"
+git config user.email "actions@github.com"
 
-if [ -f "$GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver/Passing" ]; then
-	curl https://img.shields.io/badge/e2e-passing-Yellow.svg > $TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_BRANCH/e2e.svg
-elif [ -f "$GOPATH/src/github.com/IBM/ibm-vpc-file-csi-driver/Failed" ]; then
-	curl https://img.shields.io/badge/e2e-failed-Yellow.svg > $TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_BRANCH/e2e.svg
-fi
+# calculate old coverage from gh-pages branch
+COVERAGE_DIR="coverage/$BASE_BRANCH"
+OLD_COVER_HTML="$COVERAGE_DIR/cover.html"
+OLD_COVERAGE=$(get_coverage "$OLD_COVER_HTML")
 
-# Compute overall coverage percentage
-echo "Computing the coverages"
-OLD_COVERAGE=$(cat $TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_BRANCH/cover.html  | grep "%)"  | sed 's/[][()><%]/ /g' | awk '{ print $4 }' | awk '{s+=$1}END{print s/NR}')
-cp $TRAVIS_BUILD_DIR/cover.html $TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_BRANCH
-cp $TRAVIS_BUILD_DIR/cover.html $TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_COMMIT
-NEW_COVERAGE=$(cat $TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_BRANCH/cover.html  | grep "%)"  | sed 's/[][()><%]/ /g' | awk '{ print $4 }' | awk '{s+=$1}END{print s/NR}')
+OLD_COVERAGE=$(printf "%.2f" "$OLD_COVERAGE")
+NEW_COVERAGE=$(printf "%.2f" "$NEW_COVERAGE")
+
+echo "===== Coverage comparison ====="
+echo "Old Coverage: $OLD_COVERAGE%"
+echo "New Coverage: $NEW_COVERAGE%"
+
+# update coverage reports
+mkdir -p "$COVERAGE_DIR"
+mkdir -p "coverage/$GITHUB_SHA"
+cp "$NEW_COVERAGE_SOURCE" "$COVERAGE_DIR/cover.html"
+cp "$NEW_COVERAGE_SOURCE" "coverage/$GITHUB_SHA/cover.html"
 
 if (( $(echo "$NEW_COVERAGE > $GREEN_THRESHOLD" | bc -l) )); then
-	BADGE_COLOR="green"
+    BADGE_COLOR="green"
 elif (( $(echo "$NEW_COVERAGE > $YELLOW_THRESHOLD" | bc -l) )); then
-	BADGE_COLOR="yellow"
+    BADGE_COLOR="yellow"
 fi
 
-# Generate badge for coverage
-curl https://img.shields.io/badge/coverage-$NEW_COVERAGE-$BADGE_COLOR.svg > $TRAVIS_BUILD_DIR/gh-pages/coverage/$TRAVIS_BRANCH/badge.svg
+curl -s "https://img.shields.io/badge/coverage-${NEW_COVERAGE}%25-${BADGE_COLOR}.svg" \
+  > "$COVERAGE_DIR/badge.svg"
 
-COMMIT_RANGE=(${TRAVIS_COMMIT_RANGE//.../ })
-
-# Generate result message for log and PR
+# coverage result message
 if (( $(echo "$OLD_COVERAGE > $NEW_COVERAGE" | bc -l) )); then
-	RESULT_MESSAGE=":red_circle: Coverage decreased from [$OLD_COVERAGE%] to [$NEW_COVERAGE%]"
+	RESULT_MESSAGE=":red_circle: Coverage decreased from **$OLD_COVERAGE%** → **$NEW_COVERAGE%**"
 elif (( $(echo "$OLD_COVERAGE == $NEW_COVERAGE" | bc -l) )); then
-	RESULT_MESSAGE=":thumbsup: Coverage remained same at [$NEW_COVERAGE%]"
+    RESULT_MESSAGE=":thumbsup: Coverage remained the same at **$NEW_COVERAGE%**"
 else
-	RESULT_MESSAGE=":thumbsup: Coverage increased from [$OLD_COVERAGE%] to [$NEW_COVERAGE%]"
+	RESULT_MESSAGE=":thumbsup: Coverage increased from **$OLD_COVERAGE%** → **$NEW_COVERAGE%**"
 fi
 
-# Update gh-pages branch or PR
-echo "Updating gh-pages"
-if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
-	git status
-	git add .
-	git commit -m "Coverage result for commit $TRAVIS_COMMIT from build $TRAVIS_BUILD_NUMBER"
-	git push origin
-else
-        # Updates PR with coverage
-   		curl -X POST -H "Authorization: Token $GHE_TOKEN" "https://api.github.com/repos/$TRAVIS_REPO_SLUG/issues/$TRAVIS_PULL_REQUEST/comments" -H 'Content-Type: application/json' --data '{"body": "'"$RESULT_MESSAGE"'"}'
-
+# update gh-pages or PR
+if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+    git add .
+    git commit -m "Coverage: commit $GITHUB_SHA (run $GITHUB_RUN_NUMBER)" || echo "No changes to commit"
+    git push "https://github-actions:${GHE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+    PR_NUMBER=$(jq -r .pull_request.number "$GITHUB_EVENT_PATH")
+    curl -s -X POST \
+      -H "Authorization: token $GHE_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"body\": \"$RESULT_MESSAGE\"}" \
+      "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments"
 fi
+
+echo "===== Coverage publishing finished ====="
