@@ -4,8 +4,8 @@ go 1.25.3
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.23
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.16
-	github.com/IBM/ibmcloud-volume-interface v1.2.17
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.17
+	github.com/IBM/ibmcloud-volume-interface v1.2.18
 	github.com/IBM/secret-utils-lib v1.1.15
 	github.com/container-storage-interface/spec v1.11.0
 	github.com/golang/glog v1.2.4
@@ -14,15 +14,14 @@ require (
 	github.com/prometheus/client_golang v1.21.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/net v0.47.0
 	golang.org/x/sys v0.38.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.36.1
-	k8s.io/api v0.32.8
-	k8s.io/apimachinery v0.32.8
-	k8s.io/client-go v0.32.8
-	k8s.io/kubernetes v1.32.8
-	k8s.io/mount-utils v0.32.8
+	k8s.io/api v0.32.10
+	k8s.io/apimachinery v0.32.10
+	k8s.io/client-go v0.32.10
+	k8s.io/kubernetes v1.32.10
+	k8s.io/mount-utils v0.32.10
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 )
 
@@ -89,6 +88,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.28.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.45.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
@@ -99,10 +99,10 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.32.8 // indirect
-	k8s.io/apiserver v0.32.8 // indirect
-	k8s.io/component-base v0.32.8 // indirect
-	k8s.io/controller-manager v0.32.8 // indirect
+	k8s.io/apiextensions-apiserver v0.32.10 // indirect
+	k8s.io/apiserver v0.32.10 // indirect
+	k8s.io/component-base v0.32.10 // indirect
+	k8s.io/controller-manager v0.32.10 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
