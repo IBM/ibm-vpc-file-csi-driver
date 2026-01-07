@@ -46,7 +46,7 @@ func init() {
 	_ = flag.Set("logtostderr", "true") // #nosec G104: Attempt to set flags for logging to stderr only on best-effort basis. Error cannot be usefully handled.
 	logger = setUpLogger()
 	defer func() {
-		_ = logger.Sync() // #nosec G104 -- zap logger sync error is non-actionable (best-effort cleanup)
+		_ = logger.Sync() // #nosec G104: -- zap logger sync error is non-actionable (best-effort cleanup)
 	}() //nolint: errcheck
 }
 
