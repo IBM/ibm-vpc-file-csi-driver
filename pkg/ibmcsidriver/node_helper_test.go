@@ -35,10 +35,10 @@ func TestProcessMount(t *testing.T) {
 
 	icDriver := initIBMCSIDriver(t)
 	ops := []string{"a", "b"}
-	response, err := icDriver.ns.processMount(logger, "processMount", "/staging", "/targetpath", "ext4", ops)
+	response, err := icDriver.ns.processMount(logger, "processMount", "/staging", "/targetpath", "ext4", "", ops)
 	t.Logf("Response %v, error %v", response, err)
 
-	response, err = icDriver.ns.processMount(logger, "processMount", "/staging", "/targetpath", "ibmshare", ops)
+	response, err = icDriver.ns.processMount(logger, "processMount", "/staging", "/targetpath", "ibmshare", "ipsec", ops)
 	t.Logf("Response %v, error %v", response, err)
 }
 
