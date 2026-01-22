@@ -11,6 +11,8 @@ github.com/IBM/ibm-csi-common v1.1.25-0.20260119060653-891a77370e16 h1:WLwBjhbwd
 github.com/IBM/ibm-csi-common v1.1.25-0.20260119060653-891a77370e16/go.mod h1:kSKXmpDUlNDYOXuJNNMoD2d9zl9rqKJ8b+rJt1E6AL4=
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.18-0.20260121131036-52342933a15a h1:t39s0jv9tpSj7wZdZBC5UmRS0CaIwZ8V4qvcZZUU3o4=
 github.com/IBM/ibmcloud-volume-file-vpc v1.2.18-0.20260121131036-52342933a15a/go.mod h1:ERlFOQLOwI3M7N00W9laai3gB571Ez61z/p+Bc/YRMY=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.18-0.20260122063641-e90b1e851071 h1:Rp8yH2vtiUfYrsVsLFIKZJZ1YtVvmWl4qxZv+B9gGF8=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.18-0.20260122063641-e90b1e851071/go.mod h1:ERlFOQLOwI3M7N00W9laai3gB571Ez61z/p+Bc/YRMY=
 github.com/IBM/ibmcloud-volume-interface v1.2.18 h1:JwoZe4mP7GsNoAywagf48h/65FXHi2NKn9SLD6ZYiIo=
 github.com/IBM/ibmcloud-volume-interface v1.2.18/go.mod h1:2gOMNp05rLXkfWtL9wvPHuQph2kFFwbczPpFFThAy38=
 github.com/IBM/secret-common-lib v1.1.14 h1:EdEFOdhYrDRc2+2u9SLQznUnbnDDq4f9RHx0eAuFd+E=
