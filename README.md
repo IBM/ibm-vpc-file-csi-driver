@@ -19,7 +19,7 @@ The driver consists mainly of,
 | Static Provisioning   | Associate an externally-created IBM FileShare volume with a [PersistentVolume](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) (PV) and use it with your application.| ✅ |
 | Dynamic Provisioning  | Automatically create IBM FileShare volumes and associated [PersistentVolumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) (PV) from [PersistentVolumeClaims](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#dynamic) (PVC). Parameters can be passed via a [StorageClass](https://kubernetes.io/docs/concepts/storage/storage-classes/#the-storageclass-resource) for fine-grained control over volume creation. | ✅ |
 | Volume Resizing       | Expand the volume by specifying a new size in the [PersistentVolumeClaim](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#expanding-persistent-volumes-claims) (PVC).| ✅ |
-| Volume Snapshots      | Create and restore volume snapshots.| ❌ |
+| Volume Snapshots      | Create and restore volume snapshots.| ✅ |
 | Volume Cloning        | Create a new volume from an existing volume.| ❌ |
 
 ## Supported platforms
