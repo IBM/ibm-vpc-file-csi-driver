@@ -130,7 +130,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	}
 	mnt := volumeCapability.GetMount()
 	options := mnt.MountFlags
-	transitEncryption := "ipsec"
+	transitEncryption := IPSEC
 	profileName := req.GetVolumeContext()[ProfileLabel]
 
 	// find  FS type
@@ -140,7 +140,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	if isEITEnabled == TrueStr {
 		fsType = eitFsType
 		if profileName == RFSProfile {
-			transitEncryption = "stunnel"
+			transitEncryption = STUNNEL
 		}
 	}
 
