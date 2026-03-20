@@ -702,7 +702,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
 
 	// Update label in case EIT is enabled
-	if vol.TransitEncryption == EncryptionTransitMode {
+	if vol.TransitEncryption == IPSEC || volume.TransitEncryption = STUNNEL {
 		labels[IsEITEnabled] = TrueStr
 	}
 
