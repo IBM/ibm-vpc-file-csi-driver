@@ -22,8 +22,8 @@ const (
 	DefaultPortRange = 10000
 	// DefaultConfigDir is the directory for stunnel configurations
 	DefaultConfigDir = "/etc/stunnel"
-	// DefaultCAFile is the system CA bundle path
-	DefaultCAFile = " /host-certs/ca-bundle.crt"
+	// DefaultCAFile is the system CA bundle path (mounted from host)
+	DefaultCAFile = "/host-certs/ca-bundle.crt"
 	// DefaultNFSPort is the NFS port for RFS shares
 	DefaultNFSPort = 20049
 	// DefaultHealthCheckInterval is how often to check tunnel health
