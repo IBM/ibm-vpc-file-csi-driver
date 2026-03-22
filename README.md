@@ -21,6 +21,7 @@ The driver consists mainly of,
 | Volume Resizing       | Expand the volume by specifying a new size in the [PersistentVolumeClaim](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#expanding-persistent-volumes-claims) (PVC).| ✅ |
 | Volume Snapshots      | Create and restore volume snapshots.| ❌ |
 | Volume Cloning        | Create a new volume from an existing volume.| ❌ |
+| RFS Profile with Stunnel | Dynamic per-volume Stunnel tunnels for RFS (Remote File Storage) profile with Encryption in Transit (EIT). | ✅ |
 
 ## Supported platforms
 
@@ -28,6 +29,66 @@ This CSI Driver can be used on all supported versions of **IBM Cloud Managed ser
 
 - [Kubernetes Version Information](https://cloud.ibm.com/docs/containers?topic=containers-cs_versions#cs_versions_available)
 - [RedHat Openshift on IBM Cloud Version Information](https://cloud.ibm.com/docs/openshift?topic=openshift-openshift_versions#os-openshift-with-coreos)
+
+## RFS Profile with Stunnel Encryption
+
+The driver supports **RFS (Remote File Storage)** profile volumes with **Encryption in Transit (EIT)** using dynamic per-volume Stunnel tunnels. This provides:
+
+- **Automatic TLS encryption** for NFS traffic
+- **Per-volume isolation** with dedicated Stunnel processes
+- **Production-grade reliability** with health monitoring and automatic recovery
+- **Certificate verification** using system CA bundle
+
+### Quick Start
+
+1. Use the RFS storage class with EIT enabled:
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ibmc-vpc-file-rfs-stunnel
+provisioner: vpc.file.csi.ibm.io
+parameters:
+  profile: "rfs"
+  isEITEnabled: "true"
+  throughput: "1000"  # 25-8192 MB/s
+```
+
+2. Create a PVC:
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-rfs-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: ibmc-vpc-file-rfs-stunnel
+```
+
+3. The driver automatically:
+   - Creates a Stunnel tunnel for the volume
+   - Establishes TLS connection to the NFS server
+   - Mounts the volume through the encrypted tunnel
+   - Monitors tunnel health and recovers from failures
+   - Cleans up the tunnel when the volume is unmounted
+
+### Documentation
+
+For detailed information about the RFS+Stunnel implementation, see:
+- [RFS Stunnel Architecture](docs/rfs-stunnel-architecture.md) - Complete architecture and implementation details
+- [Storage Class Example](deploy/kubernetes/storageclass/ibmc-vpc-file-rfs-stunnel.yaml) - Full storage class configuration
+
+### Configuration
+
+Customize Stunnel behavior via environment variables in the node server DaemonSet:
+- `STUNNEL_BASE_PORT`: Starting port (default: 20000)
+- `STUNNEL_PORT_RANGE`: Port range size (default: 10000)
+- `STUNNEL_ENVIRONMENT`: staging or production (default: production)
+- See [architecture doc](docs/rfs-stunnel-architecture.md#configuration) for all options
 
 ## Utilities Needed
 

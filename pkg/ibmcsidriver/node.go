@@ -31,6 +31,7 @@ import (
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/tunnel"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
@@ -41,10 +42,11 @@ import (
 
 // CSINodeServer ...
 type CSINodeServer struct {
-	Driver   *IBMCSIDriver
-	Mounter  mountmanager.Mounter
-	Metadata nodeMetadata.NodeMetadata
-	Stats    StatsUtils
+	Driver        *IBMCSIDriver
+	Mounter       mountmanager.Mounter
+	Metadata      nodeMetadata.NodeMetadata
+	Stats         StatsUtils
+	TunnelManager *tunnel.Manager
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
 	mutex utils.LockStore
 	csi.UnimplementedNodeServer
@@ -75,6 +77,35 @@ const (
 	// file system in case transit encryption is enabled
 	eitFsType = "ibmshare"
 )
+
+// splitNFSSource splits an NFS source string into server and export path
+// Input format: <nfs_server>:/<export_path>
+// Returns: [nfs_server, /<export_path>]
+func splitNFSSource(source string) []string {
+	// Find the first colon which separates server from path
+	colonIndex := -1
+	for i, c := range source {
+		if c == ':' {
+			colonIndex = i
+			break
+		}
+	}
+
+	if colonIndex == -1 {
+		// No colon found, return source as server with empty path
+		return []string{source, "/"}
+	}
+
+	server := source[:colonIndex]
+	exportPath := source[colonIndex+1:]
+
+	// Ensure export path starts with /
+	if len(exportPath) == 0 || exportPath[0] != '/' {
+		exportPath = "/" + exportPath
+	}
+
+	return []string{server, exportPath}
+}
 
 var _ csi.NodeServer = &CSINodeServer{}
 
@@ -152,7 +183,57 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	csiNS.mutex.Lock(target)
 	defer csiNS.mutex.Unlock(target)
 
-	nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, source, target, fsType, transitEncryption, options)
+	// Handle RFS profile with Stunnel encryption
+	mountSource := source
+	var exportPath string
+	if profileName == RFSProfile && isEITEnabled == TrueStr && transitEncryption == STUNNEL {
+		ctxLogger.Info("Setting up Stunnel for RFS volume",
+			zap.String("volumeID", volumeID),
+			zap.String("nfsServer", source))
+
+		// Initialize tunnel manager if not already done
+		if csiNS.TunnelManager == nil {
+			tunnelCfg := tunnel.GetConfigFromEnv(ctxLogger)
+			var err error
+			csiNS.TunnelManager, err = tunnel.NewManager(tunnelCfg)
+			if err != nil {
+				ctxLogger.Error("Failed to initialize tunnel manager", zap.Error(err))
+				return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+			}
+		}
+
+		// Parse the NFS server and export path from source
+		// Source format: <nfs_server>:/<export_path>
+		parts := splitNFSSource(source)
+		nfsServer := parts[0]
+		exportPath = parts[1]
+
+		// Ensure tunnel exists for this volume
+		tun, err := csiNS.TunnelManager.EnsureTunnel(volumeID, nfsServer)
+		if err != nil {
+			ctxLogger.Error("Failed to ensure tunnel for volume",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		}
+
+		// Update mount source to use local tunnel endpoint with export path
+		// Format: 127.0.0.1:/<export_path>
+		mountSource = fmt.Sprintf("127.0.0.1:%s", exportPath)
+		ctxLogger.Info("Tunnel established, using local endpoint",
+			zap.String("volumeID", volumeID),
+			zap.String("localEndpoint", mountSource),
+			zap.String("remoteServer", nfsServer),
+			zap.String("exportPath", exportPath),
+			zap.Int("tunnelPort", tun.LocalPort))
+
+		// For NFS4 mount through tunnel, use nfs4 fsType and add required options
+		fsType = "nfs4"
+		// Add NFS4 specific options: vers=4.1, proto=tcp, port=<tunnel_port>
+		options = append(options, fmt.Sprintf("vers=4.1,proto=tcp,port=%d", tun.LocalPort))
+	}
+
+	nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, mountSource, target, fsType, transitEncryption, options)
 
 	ctxLogger.Info("CSINodeServer-NodePublishVolume response...", zap.Reflect("Response", nodePublishResponse), zap.Error(mountErr))
 	return nodePublishResponse, mountErr
@@ -179,15 +260,30 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 	csiNS.mutex.Lock(targetPath)
 	defer csiNS.mutex.Unlock(targetPath)
 
-	ctxLogger.Info("Unmounting  target path", zap.String("targetPath", targetPath))
+	ctxLogger.Info("Unmounting target path", zap.String("targetPath", targetPath))
 	err := mount.CleanupMountPoint(targetPath, csiNS.Mounter, false /* bind mount */)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
 	}
 
+	// Clean up tunnel if it exists for this volume
+	if csiNS.TunnelManager != nil {
+		if _, exists := csiNS.TunnelManager.GetTunnel(volID); exists {
+			ctxLogger.Info("Removing tunnel for volume", zap.String("volumeID", volID))
+			if err := csiNS.TunnelManager.RemoveTunnel(volID); err != nil {
+				ctxLogger.Warn("Failed to remove tunnel, continuing with unmount",
+					zap.String("volumeID", volID),
+					zap.Error(err))
+				// Don't fail the unmount operation if tunnel cleanup fails
+			} else {
+				ctxLogger.Info("Tunnel removed successfully", zap.String("volumeID", volID))
+			}
+		}
+	}
+
 	nodeUnpublishVolumeResponse := &csi.NodeUnpublishVolumeResponse{}
-	ctxLogger.Info("Successfully unmounted target path", zap.String("targetPath", targetPath), zap.Error(err))
-	return nodeUnpublishVolumeResponse, err
+	ctxLogger.Info("Successfully unmounted target path", zap.String("targetPath", targetPath))
+	return nodeUnpublishVolumeResponse, nil
 }
 
 // NodeStageVolume ...
