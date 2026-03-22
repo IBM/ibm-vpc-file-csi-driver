@@ -209,7 +209,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		exportPath = parts[1]
 
 		// Ensure tunnel exists for this volume
-		tun, err := csiNS.TunnelManager.EnsureTunnel(volumeID, nfsServer)
+		tun, err := csiNS.TunnelManager.EnsureTunnel("ibmshare", nfsServer)
 		if err != nil {
 			ctxLogger.Error("Failed to ensure tunnel for volume",
 				zap.String("volumeID", volumeID),
