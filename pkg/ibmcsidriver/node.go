@@ -169,9 +169,9 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	// In case EIT is enabled, use eitFsType
 	isEITEnabled := req.GetVolumeContext()[IsEITEnabled]
 	if isEITEnabled == TrueStr {
-		fsType = eitFsType
 		if profileName == DP2Profile {
 			transitEncryption = IPSEC
+			fsType = eitFsType
 		}
 	}
 

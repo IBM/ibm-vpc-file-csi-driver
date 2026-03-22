@@ -203,13 +203,16 @@ func (m *Manager) generateConfig(volumeID, nfsServer string, port int) (string, 
 	config := fmt.Sprintf(`; Stunnel configuration for volume %s
 ; Generated at %s
 ; This configuration runs with host network access for NFS4 mounting
+
+; Service definition for NFS over TLS
+[nfs-%s]
 client = yes
 accept = 127.0.0.1:%d
 connect = %s:%d
 cafile = %s
 checkHost = %s
 verify = 1
-`, volumeID, time.Now().Format(time.RFC3339), port, nfsServer, m.nfsPort, m.caFile, checkHost)
+`, volumeID, time.Now().Format(time.RFC3339), volumeID, port, nfsServer, m.nfsPort, m.caFile, checkHost)
 
 	configPath := filepath.Join(m.configDir, fmt.Sprintf("%s.conf", volumeID))
 	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
