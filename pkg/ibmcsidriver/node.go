@@ -256,6 +256,9 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
 	}
 
+	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
+	fileShareID := getTokens(volID)
+
 	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
 	//This will not hold other volumes and target path processing.
 	csiNS.mutex.Lock(targetPath)
@@ -269,9 +272,9 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 
 	// Clean up tunnel if it exists for this volume
 	if csiNS.TunnelManager != nil {
-		if _, exists := csiNS.TunnelManager.GetTunnel(volID); exists {
-			ctxLogger.Info("Removing tunnel for volume", zap.String("volumeID", volID))
-			if err := csiNS.TunnelManager.RemoveTunnel(volID); err != nil {
+		if _, exists := csiNS.TunnelManager.GetTunnel(fileShareID[0]); exists {
+			ctxLogger.Info("Removing tunnel for volume", zap.String("volumeID", fileShareID[0]))
+			if err := csiNS.TunnelManager.RemoveTunnel(fileShareID[0]); err != nil {
 				ctxLogger.Warn("Failed to remove tunnel, continuing with unmount",
 					zap.String("volumeID", volID),
 					zap.Error(err))
