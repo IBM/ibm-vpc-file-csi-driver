@@ -204,9 +204,12 @@ func (m *Manager) generateConfig(volumeID, nfsServer string, port int) (string, 
 ; Generated at %s
 ; This configuration runs with host network access for NFS4 mounting
 
+; Global options
+client = yes
+foreground = yes
+
 ; Service definition for NFS over TLS
 [nfs-%s]
-client = yes
 accept = 127.0.0.1:%d
 connect = %s:%d
 cafile = %s
@@ -270,8 +273,8 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
-	
-	m.logger.Info("configContent",zap.String("configContent", string(configContent)))
+
+	m.logger.Info("configContent", zap.String("configContent", string(configContent)))
 
 	// Create tunnel context
 	ctx, cancel := context.WithCancel(context.Background())
