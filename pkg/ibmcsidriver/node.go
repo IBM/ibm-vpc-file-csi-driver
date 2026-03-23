@@ -201,6 +201,12 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 				ctxLogger.Error("Failed to initialize tunnel manager", zap.Error(err))
 				return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 			}
+
+			// After creating tunnel manager
+			if err := csiNS.TunnelManager.RecoverFromCrash(); err != nil {
+				ctxLogger.Warn("Failed to recover tunnels", zap.Error(err))
+				// Don't fail startup - recovery is best-effort
+			}
 		}
 
 		// Parse the NFS server and export path from source
@@ -256,9 +262,6 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
 	}
 
-	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	fileShareID := getTokens(volID)
-
 	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
 	//This will not hold other volumes and target path processing.
 	csiNS.mutex.Lock(targetPath)
@@ -269,18 +272,52 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
 	}
+	ctxLogger.Info("Successfully unmounted target path", zap.String("targetPath", targetPath))
+
+	// Initialize tunnel manager this case will occure if CSI driver crash happens
+	if csiNS.TunnelManager == nil {
+		tunnelCfg := tunnel.GetConfigFromEnv(ctxLogger)
+		var err error
+		csiNS.TunnelManager, err = tunnel.NewManager(tunnelCfg)
+		if err != nil {
+			ctxLogger.Error("Failed to initialize tunnel manager", zap.Error(err))
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+		}
+		// After creating tunnel manager
+		if err := csiNS.TunnelManager.RecoverFromCrash(); err != nil {
+			ctxLogger.Warn("Failed to recover tunnels", zap.Error(err))
+			// Don't fail startup - recovery is best-effort
+		}
+	}
 
 	// Clean up tunnel if it exists for this volume
+	// Note: We only remove the tunnel after successful unmount to avoid disrupting active mounts
 	if csiNS.TunnelManager != nil {
-		if _, exists := csiNS.TunnelManager.GetTunnel(fileShareID[0]); exists {
-			ctxLogger.Info("Removing tunnel for volume", zap.String("volumeID", fileShareID[0]))
-			if err := csiNS.TunnelManager.RemoveTunnel(fileShareID[0]); err != nil {
-				ctxLogger.Warn("Failed to remove tunnel, continuing with unmount",
-					zap.String("volumeID", volID),
-					zap.Error(err))
-				// Don't fail the unmount operation if tunnel cleanup fails
+		// Extract the share ID from the volume ID (format: shareID#clusterID)
+		fileShareID := getTokens(volID)
+		if len(fileShareID) > 0 {
+			shareID := fileShareID[0]
+
+			ctxLogger.Info("Checking for tunnel cleanup",
+				zap.String("volumeID", volID),
+				zap.String("shareID", shareID))
+
+			if tunnel, exists := csiNS.TunnelManager.GetTunnel(shareID); exists {
+				ctxLogger.Info("Found tunnel for volume, attempting removal",
+					zap.String("shareID", shareID),
+					zap.Int("localPort", tunnel.LocalPort))
+
+				if err := csiNS.TunnelManager.RemoveTunnel(shareID); err != nil {
+					ctxLogger.Warn("Failed to remove tunnel, but unmount succeeded",
+						zap.String("shareID", shareID),
+						zap.Error(err))
+					// Don't fail the unmount operation if tunnel cleanup fails
+				} else {
+					ctxLogger.Info("Tunnel removed successfully", zap.String("shareID", shareID))
+				}
 			} else {
-				ctxLogger.Info("Tunnel removed successfully", zap.String("volumeID", volID))
+				ctxLogger.Info("No tunnel found for volume (may not be RFS or already cleaned up)",
+					zap.String("shareID", shareID))
 			}
 		}
 	}

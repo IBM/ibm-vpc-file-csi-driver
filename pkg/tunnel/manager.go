@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -49,6 +51,7 @@ type Tunnel struct {
 	ConfigPath   string
 	State        TunnelState
 	LastHealthy  time.Time
+	RefCount     int // Number of active mounts using this tunnel
 	RestartCount int
 	ctx          context.Context
 	cancel       context.CancelFunc
@@ -148,6 +151,118 @@ func NewManager(cfg *Config) (*Manager, error) {
 	return m, nil
 }
 
+// TunnelMetadata stores persistent information about a tunnel
+type TunnelMetadata struct {
+	VolumeID  string `json:"volumeID"`
+	NFSServer string `json:"nfsServer"`
+	Port      int    `json:"port"`
+	RefCount  int    `json:"refCount"`
+}
+
+// saveTunnelMetadata persists tunnel metadata to disk
+func (m *Manager) saveTunnelMetadata(t *Tunnel) error {
+	metadata := TunnelMetadata{
+		VolumeID:  t.VolumeID,
+		NFSServer: t.RemoteAddr,
+		Port:      t.LocalPort,
+		RefCount:  t.RefCount,
+	}
+
+	metadataPath := filepath.Join(m.configDir, fmt.Sprintf("%s.meta.json", t.VolumeID))
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	if err := os.WriteFile(metadataPath, data, 0600); err != nil {
+		return fmt.Errorf("failed to write metadata: %w", err)
+	}
+
+	return nil
+}
+
+// loadTunnelMetadata loads tunnel metadata from disk
+func (m *Manager) loadTunnelMetadata(volumeID string) (*TunnelMetadata, error) {
+	metadataPath := filepath.Join(m.configDir, fmt.Sprintf("%s.meta.json", volumeID))
+	data, err := os.ReadFile(metadataPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var metadata TunnelMetadata
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+	}
+
+	return &metadata, nil
+}
+
+// deleteTunnelMetadata removes tunnel metadata from disk
+func (m *Manager) deleteTunnelMetadata(volumeID string) {
+	metadataPath := filepath.Join(m.configDir, fmt.Sprintf("%s.meta.json", volumeID))
+	os.Remove(metadataPath)
+}
+
+// RecoverFromCrash scans for persisted tunnel metadata and recreates tunnels
+// This is called on startup to recover from driver crashes
+func (m *Manager) RecoverFromCrash() error {
+	m.logger.Info("Starting tunnel recovery from crash")
+
+	// List all metadata files in config directory
+	files, err := filepath.Glob(filepath.Join(m.configDir, "*.meta.json"))
+	if err != nil {
+		return fmt.Errorf("failed to list metadata files: %w", err)
+	}
+
+	recovered := 0
+	failed := 0
+
+	for _, metaFile := range files {
+		// Extract volumeID from filename
+		base := filepath.Base(metaFile)
+		volumeID := strings.TrimSuffix(base, ".meta.json")
+
+		// Load metadata
+		metadata, err := m.loadTunnelMetadata(volumeID)
+		if err != nil {
+			m.logger.Warn("Failed to load tunnel metadata",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
+			failed++
+			continue
+		}
+
+		// Recreate tunnel
+		m.logger.Info("Recovering tunnel from metadata",
+			zap.String("volumeID", volumeID),
+			zap.String("nfsServer", metadata.NFSServer),
+			zap.Int("port", metadata.Port),
+			zap.Int("refCount", metadata.RefCount))
+
+		tunnel, err := m.EnsureTunnel(volumeID, metadata.NFSServer)
+		if err != nil {
+			m.logger.Error("Failed to recover tunnel",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
+			failed++
+			continue
+		}
+
+		// Restore refcount from metadata
+		m.mu.Lock()
+		tunnel.RefCount = metadata.RefCount
+		m.mu.Unlock()
+
+		recovered++
+	}
+
+	m.logger.Info("Tunnel recovery completed",
+		zap.Int("recovered", recovered),
+		zap.Int("failed", failed))
+
+	return nil
+}
+
 // allocatePort finds an available port for a volume
 func (m *Manager) allocatePort(volumeID string) (int, error) {
 	m.mu.Lock()
@@ -226,26 +341,52 @@ verify = 1
 }
 
 // EnsureTunnel ensures a tunnel exists for the given volume
+// It increments the reference count if the tunnel already exists
 func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 	m.mu.Lock()
 
 	// Check if tunnel already exists and is healthy
 	if t, ok := m.tunnels[volumeID]; ok {
-		m.mu.Unlock()
-
 		if t.State == StateRunning && m.checkTunnelHealth(t) {
-			m.logger.Info("Tunnel already exists and is healthy",
+			// Increment reference count for existing healthy tunnel
+			t.RefCount++
+			m.mu.Unlock()
+
+			// Update metadata with new refcount
+			if err := m.saveTunnelMetadata(t); err != nil {
+				m.logger.Warn("Failed to update tunnel metadata",
+					zap.String("volumeID", volumeID),
+					zap.Error(err))
+			}
+
+			m.logger.Info("Tunnel already exists and is healthy, incremented refcount",
 				zap.String("volumeID", volumeID),
-				zap.Int("port", t.LocalPort))
+				zap.Int("port", t.LocalPort),
+				zap.Int("refCount", t.RefCount))
 			return t, nil
 		}
 
 		// Tunnel exists but unhealthy, restart it
 		m.logger.Warn("Existing tunnel is unhealthy, restarting",
 			zap.String("volumeID", volumeID))
+		m.mu.Unlock()
+
 		if err := m.restartTunnel(t); err != nil {
 			return nil, fmt.Errorf("failed to restart unhealthy tunnel: %w", err)
 		}
+
+		// Increment refcount after successful restart
+		m.mu.Lock()
+		t.RefCount++
+		m.mu.Unlock()
+
+		// Update metadata with new refcount
+		if err := m.saveTunnelMetadata(t); err != nil {
+			m.logger.Warn("Failed to update tunnel metadata",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
+		}
+
 		return t, nil
 	}
 	m.mu.Unlock()
@@ -285,6 +426,7 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 		LocalPort:  port,
 		ConfigPath: configPath,
 		State:      StateStarting,
+		RefCount:   1, // Initialize with 1 for the first mount
 		ctx:        ctx,
 		cancel:     cancel,
 		logger:     m.logger.With(zap.String("volumeID", volumeID)),
@@ -314,6 +456,14 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 
 	tunnel.State = StateRunning
 	tunnel.LastHealthy = time.Now()
+
+	// Save tunnel metadata for crash recovery
+	if err := m.saveTunnelMetadata(tunnel); err != nil {
+		m.logger.Warn("Failed to save tunnel metadata",
+			zap.String("volumeID", volumeID),
+			zap.Error(err))
+		// Don't fail tunnel creation if metadata save fails
+	}
 
 	m.logger.Info("Tunnel created successfully",
 		zap.String("volumeID", volumeID),
@@ -491,7 +641,7 @@ func (m *Manager) performHealthChecks() {
 	}
 }
 
-// RemoveTunnel removes and cleans up a tunnel
+// RemoveTunnel decrements the reference count and removes the tunnel only when refcount reaches 0
 func (m *Manager) RemoveTunnel(volumeID string) error {
 	m.mu.Lock()
 	t, ok := m.tunnels[volumeID]
@@ -499,10 +649,36 @@ func (m *Manager) RemoveTunnel(volumeID string) error {
 		m.mu.Unlock()
 		return fmt.Errorf("tunnel not found for volume %s", volumeID)
 	}
+
+	// Decrement reference count
+	t.RefCount--
+
+	m.logger.Info("Decremented tunnel refcount",
+		zap.String("volumeID", volumeID),
+		zap.Int("refCount", t.RefCount))
+
+	// Only remove tunnel if no more references
+	if t.RefCount > 0 {
+		m.mu.Unlock()
+
+		// Update metadata with new refcount
+		if err := m.saveTunnelMetadata(t); err != nil {
+			m.logger.Warn("Failed to update tunnel metadata",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
+		}
+
+		m.logger.Info("Tunnel still in use, keeping it active",
+			zap.String("volumeID", volumeID),
+			zap.Int("refCount", t.RefCount))
+		return nil
+	}
+
+	// RefCount is 0, remove the tunnel
 	delete(m.tunnels, volumeID)
 	m.mu.Unlock()
 
-	m.logger.Info("Removing tunnel", zap.String("volumeID", volumeID))
+	m.logger.Info("Removing tunnel (refcount reached 0)", zap.String("volumeID", volumeID))
 
 	// Cancel context to stop monitoring
 	t.cancel()
@@ -517,6 +693,9 @@ func (m *Manager) RemoveTunnel(volumeID string) error {
 	if t.ConfigPath != "" {
 		os.Remove(t.ConfigPath)
 	}
+
+	// Delete tunnel metadata
+	m.deleteTunnelMetadata(volumeID)
 
 	t.State = StateStopped
 	m.logger.Info("Tunnel removed successfully", zap.String("volumeID", volumeID))
