@@ -265,6 +265,15 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 		return nil, fmt.Errorf("failed to generate config: %w", err)
 	}
 
+	// Crude way: Directly read and print file contents
+	configContent, err := os.ReadFile(configPath)
+	if err != nil {
+		log.Fatalf("Failed to read config: %s", err)
+	}
+
+	// Print as raw string
+	fmt.Println(string(configContent))
+
 	// Create tunnel context
 	ctx, cancel := context.WithCancel(context.Background())
 
