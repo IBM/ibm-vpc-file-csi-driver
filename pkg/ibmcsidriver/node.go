@@ -262,18 +262,6 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
 	}
 
-	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
-	//This will not hold other volumes and target path processing.
-	csiNS.mutex.Lock(targetPath)
-	defer csiNS.mutex.Unlock(targetPath)
-
-	ctxLogger.Info("Unmounting target path", zap.String("targetPath", targetPath))
-	err := mount.CleanupMountPoint(targetPath, csiNS.Mounter, false /* bind mount */)
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
-	}
-	ctxLogger.Info("Successfully unmounted target path", zap.String("targetPath", targetPath))
-
 	// Initialize tunnel manager this case will occure if CSI driver crash happens
 	if csiNS.TunnelManager == nil {
 		tunnelCfg := tunnel.GetConfigFromEnv(ctxLogger)
@@ -289,6 +277,18 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 			// Don't fail startup - recovery is best-effort
 		}
 	}
+	
+	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
+	//This will not hold other volumes and target path processing.
+	csiNS.mutex.Lock(targetPath)
+	defer csiNS.mutex.Unlock(targetPath)
+
+	ctxLogger.Info("Unmounting target path", zap.String("targetPath", targetPath))
+	err := mount.CleanupMountPoint(targetPath, csiNS.Mounter, false /* bind mount */)
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
+	}
+	ctxLogger.Info("Successfully unmounted target path", zap.String("targetPath", targetPath))
 
 	// Clean up tunnel if it exists for this volume
 	// Note: We only remove the tunnel after successful unmount to avoid disrupting active mounts
