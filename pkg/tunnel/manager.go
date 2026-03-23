@@ -271,7 +271,7 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 	
-	m.logger.Info("configContent",zap.String("configContent", string(configContent))
+	m.logger.Info("configContent",zap.String("configContent", string(configContent)))
 
 	// Create tunnel context
 	ctx, cancel := context.WithCancel(context.Background())
