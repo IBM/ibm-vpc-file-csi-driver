@@ -19,11 +19,17 @@ LABEL razee.io/source-url="${REPO_SOURCE_URL}"
 LABEL razee.io/build-url="${BUILD_URL}"
 LABEL compliance.owner="ibm-armada-storage"
 
-RUN apt-get update && apt-get install -y --no-install-recommends nfs-common && \
-   apt-get install -y udev && \		
-         apt-get install -y --no-install-recommends apt && \		
- 	apt-get install -y --no-install-recommends ca-certificates xfsprogs && \		
- 	apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nfs-common \
+    stunnel4 \
+    && apt-get install -y udev && \
+    apt-get install -y --no-install-recommends apt && \
+    apt-get install -y --no-install-recommends ca-certificates xfsprogs && \
+    apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
+# Create directory for stunnel configurations
+RUN mkdir -p /etc/stunnel && \
+    chmod 755 /etc/stunnel
 
 RUN mkdir -p /home/ibm-csi-drivers/
 ADD ibm-vpc-file-csi-driver /home/ibm-csi-drivers

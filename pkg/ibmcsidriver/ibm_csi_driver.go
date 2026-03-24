@@ -29,6 +29,7 @@ import (
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/tunnel"
 	"go.uber.org/zap"
 )
 
@@ -132,6 +133,24 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	} else {
 		icDriver.rfsEnabled = true
 		icDriver.logger.Info("RFS profile is supported")
+	}
+
+	// Initialize tunnel manager if not already done
+	if icDriver.ns.TunnelManager == nil {
+		tunnelCfg := tunnel.GetConfigFromEnv(icDriver.logger)
+		var err error
+		icDriver.ns.TunnelManager, err = tunnel.NewManager(tunnelCfg)
+		if err != nil {
+			icDriver.logger.Warn("Failed to initialize tunnel manager", zap.Error(err))
+			// Don't fail startup - recovery is best-effort
+			return nil
+		}
+
+		// After creating tunnel manager
+		if err := icDriver.ns.TunnelManager.RecoverFromCrash(); err != nil {
+			icDriver.logger.Warn("Failed to recover tunnels", zap.Error(err))
+			// Don't fail startup - recovery is best-effort
+		}
 	}
 	return nil
 }
