@@ -201,12 +201,6 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 				ctxLogger.Error("Failed to initialize tunnel manager", zap.Error(err))
 				return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 			}
-
-			// After creating tunnel manager
-			if err := csiNS.TunnelManager.RecoverFromCrash(); err != nil {
-				ctxLogger.Warn("Failed to recover tunnels", zap.Error(err))
-				// Don't fail startup - recovery is best-effort
-			}
 		}
 
 		// Parse the NFS server and export path from source
@@ -262,22 +256,6 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoTargetPath, requestID, nil)
 	}
 
-	// Initialize tunnel manager this case will occure if CSI driver crash happens
-	if csiNS.TunnelManager == nil {
-		tunnelCfg := tunnel.GetConfigFromEnv(ctxLogger)
-		var err error
-		csiNS.TunnelManager, err = tunnel.NewManager(tunnelCfg)
-		if err != nil {
-			ctxLogger.Error("Failed to initialize tunnel manager", zap.Error(err))
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
-		}
-		// After creating tunnel manager
-		if err := csiNS.TunnelManager.RecoverFromCrash(); err != nil {
-			ctxLogger.Warn("Failed to recover tunnels", zap.Error(err))
-			// Don't fail startup - recovery is best-effort
-		}
-	}
-	
 	//Lets try to put lock at targetPath level. If we are processing same target path lets wait for other to finish.
 	//This will not hold other volumes and target path processing.
 	csiNS.mutex.Lock(targetPath)
