@@ -12,7 +12,6 @@ resources:
 - cluster-info.yaml
 - ibm-cloud-provider-data.yaml
 - node-server.yaml
-- tunnel-manager.yaml
 - controller-server.yaml
 - setup-vpc-file-sa.yaml
 - csidriver.yaml

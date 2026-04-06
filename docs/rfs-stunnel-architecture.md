@@ -4,23 +4,23 @@
 
 This document describes the production-ready implementation of dynamic per-volume Stunnel tunnels for IBM VPC File Storage RFS (Remote File Storage) profile volumes with Encryption in Transit (EIT).
 
-The current implementation uses a **separate node-local tunnel-manager DaemonSet**. This decouples Stunnel lifecycle from the CSI node plugin pod and reduces the risk that a CSI node pod restart tears down active encrypted tunnels for mounted shares.
+The current implementation uses a **tunnel-manager sidecar container inside the CSI node DaemonSet pod**. This decouples Stunnel lifecycle from the CSI node driver container and reduces the risk that a CSI driver container restart tears down active encrypted tunnels for mounted shares.
 
 ## Architecture
 
 ### Components
 
-1. **Tunnel Manager DaemonSet** (`pkg/tunnel/manager.go`, `pkg/tunnel/http_service.go`)
-   - Runs as a separate pod on every node
+1. **Tunnel Manager Sidecar** (`pkg/tunnel/manager.go`, `pkg/tunnel/http_service.go`)
+   - Runs as a sidecar container in the CSI node pod on every node
    - Manages lifecycle of Stunnel processes
    - Handles dynamic port allocation
    - Monitors tunnel health and performs automatic recovery
    - Persists tunnel metadata for recovery
-   - Exposes a node-local Unix socket API to the CSI node server
+   - Exposes a node-local Unix socket API to the CSI node server container
 
 2. **CSI Node Server** (`pkg/ibmcsidriver/node.go`)
    - Detects RFS + EIT + Stunnel mount requests
-   - Calls the node-local tunnel-manager API over Unix socket
+   - Calls the sidecar tunnel-manager API over Unix socket
    - Mounts the share through the returned local port
    - Cleans up tunnels during volume unmount
 
@@ -54,7 +54,7 @@ The current implementation uses a **separate node-local tunnel-manager DaemonSet
                               │ /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock
                               ▼
 ┌──────────────────────────────────────────────────────────────────────┐
-│                    Tunnel Manager DaemonSet                           │
+│                     Tunnel Manager Sidecar                            │
 │  ┌────────────────────────────────────────────────────────────────┐  │
 │  │ EnsureTunnel                                                     │  │
 │  │  1. Check if tunnel exists and is healthy                       │  │
@@ -96,7 +96,7 @@ The current implementation uses a **separate node-local tunnel-manager DaemonSet
 2. **Tunnel Establishment**
    - CSI Node Server detects RFS profile with EIT enabled
    - NFS source is parsed to extract server address and export path
-   - CSI Node Server calls the tunnel-manager API on the same node
+   - CSI Node Server calls the sidecar tunnel-manager API on the same node
    - Tunnel Manager allocates a unique port (20000-30000 range)
    - Stunnel configuration is generated with proper TLS settings in `/etc/stunnel`
    - Stunnel process starts and connects to the remote NFS server
@@ -131,7 +131,7 @@ The current implementation uses a **separate node-local tunnel-manager DaemonSet
 
 ### Environment Variables
 
-Configure the tunnel-manager behavior via environment variables in the tunnel-manager DaemonSet.
+Configure the tunnel-manager behavior via environment variables in the tunnel-manager sidecar container.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -198,13 +198,13 @@ parameters:
 
 The implementation is designed to work with host network access and node-local process isolation:
 
-1. **Tunnel-manager DaemonSet**
-   - Runs independently from the CSI node plugin pod
-   - Uses host network access for node-local tunnel endpoints
+1. **Tunnel-manager Sidecar**
+   - Runs in the same pod as the CSI node plugin container
+   - Uses the shared node-local host paths for tunnel endpoints
    - Exposes a Unix socket in the existing host plugin path
 
 2. **Stunnel Configuration**
-   - Managed by the tunnel-manager DaemonSet
+   - Managed by the tunnel-manager sidecar
    - Listens on localhost (127.0.0.1) with allocated port
    - Stores configuration and metadata in `/etc/stunnel`
 
@@ -223,16 +223,16 @@ The implementation is designed to work with host network access and node-local p
    - Mount source format: `127.0.0.1:/<export_path>`
 
 5. **Benefits**
-   - CSI node pod restart does not directly own tunnel lifecycle
+   - CSI node driver container restart does not directly own tunnel lifecycle
    - Standard NFS4 mounting on host
-   - Better node-local process isolation for encrypted mounts
+   - Better container-level isolation for encrypted mounts
 
 ### Configuration File Security
 
 - Configuration and metadata files stored in `/etc/stunnel`
 - File permissions: 0600 (owner read/write only)
 - Automatic cleanup on final volume unmount
-- Metadata is reused for best-effort recovery after tunnel-manager restart
+- Metadata is reused for best-effort recovery after tunnel-manager sidecar restart
 
 ## Health Monitoring
 

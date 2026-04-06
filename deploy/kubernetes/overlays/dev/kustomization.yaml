@@ -7,7 +7,6 @@ resources:
 patches:
 - path: controller-server-images.yaml
 - path: node-server-images.yaml
-- path: tunnel-manager-images.yaml
 - path: cm-providerData-data.yaml
 - path: cm-clusterInfo-data.yaml
 - path: sa-controller-secrets.yaml

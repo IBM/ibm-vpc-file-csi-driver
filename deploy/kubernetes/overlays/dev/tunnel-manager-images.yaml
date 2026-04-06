@@ -1,15 +1,5 @@
----
-kind: DaemonSet
-apiVersion: apps/v1
-metadata:
-  name: ibm-vpc-file-tunnel-manager
-  namespace: <KUSTOMIZE> # DoNotEdit. Taken from kustomization.yaml
-spec:
-  template:
-    spec:
-      containers:
-        - name: ibm-vpc-file-tunnel-manager
-          image: <UPDATE THIS> # Custom image built or use the images available from tags created https://cloud.ibm.com/docs/containers?topic=containers-cl-add-ons-vpc-file-csi-driver
-          imagePullPolicy: Always
+# Deprecated: tunnel-manager now runs as a sidecar container in deploy/kubernetes/manifests/node-server.yaml.
+# Dev image overrides must be applied through deploy/kubernetes/overlays/dev/node-server-images.yaml.
+# This file is intentionally retained only to document the old separate-DaemonSet approach.
 
 # Made with Bob

@@ -22,6 +22,7 @@ package ibmcsidriver
 import (
 	"context"
 	"fmt"
+	"os"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
@@ -135,7 +136,11 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		icDriver.logger.Info("RFS profile is supported")
 	}
 
-	icDriver.ns.TunnelService = tunnel.NewHTTPClient(tunnel.DefaultSocketPath, icDriver.logger)
+	socketPath := os.Getenv("TUNNEL_MANAGER_SOCKET")
+	if socketPath == "" {
+		socketPath = tunnel.DefaultSocketPath
+	}
+	icDriver.ns.TunnelService = tunnel.NewHTTPClient(socketPath, icDriver.logger)
 	return nil
 }
 

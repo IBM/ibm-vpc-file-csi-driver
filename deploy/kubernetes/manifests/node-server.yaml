@@ -157,6 +157,34 @@ spec:
               name: libpath
             - mountPath: /tmp/mount-helper
               name: mh-logs
+        - name: tunnel-manager
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            runAsGroup: 0
+            privileged: true
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
+          imagePullPolicy: Always
+          args:
+            - "--mode=tunnel-manager"
+            - "--tunnel-manager-socket=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            limits:
+              cpu: 200m
+              memory: 250Mi
+            requests:
+              cpu: 20m
+              memory: 50Mi
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/
+            - name: stunnel-dir
+              mountPath: /etc/stunnel
         - name: liveness-probe
           securityContext:
             runAsNonRoot: false # For IKS use true, for OCP use false
@@ -240,4 +268,8 @@ spec:
         - name: mh-logs
           hostPath:
             path: /opt/ibm/mount-ibmshare/
+            type: DirectoryOrCreate
+        - name: stunnel-dir
+          hostPath:
+            path: /etc/stunnel
             type: DirectoryOrCreate
