@@ -18,6 +18,28 @@ import (
 )
 
 const (
+	// DefaultSocketPath is the node-local Unix domain socket path for tunnel manager API
+	DefaultSocketPath = "/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
+)
+
+// TunnelInfo is the transport-safe view of a tunnel
+type TunnelInfo struct {
+	VolumeID   string `json:"volumeID"`
+	RemoteAddr string `json:"remoteAddr"`
+	LocalPort  int    `json:"localPort"`
+	State      string `json:"state"`
+	RefCount   int    `json:"refCount"`
+}
+
+// Service defines the node-local tunnel manager API used by the CSI node service
+type Service interface {
+	EnsureTunnel(ctx context.Context, volumeID, nfsServer string) (*TunnelInfo, error)
+	RemoveTunnel(ctx context.Context, volumeID string) error
+	GetTunnel(ctx context.Context, volumeID string) (*TunnelInfo, bool, error)
+	Health(ctx context.Context) error
+}
+
+const (
 	// DefaultBasePort is the starting port for tunnel allocation
 	DefaultBasePort = 20000
 	// DefaultPortRange is the number of ports available for allocation
@@ -718,6 +740,20 @@ func (m *Manager) GetLocalEndpoint(volumeID string) (string, error) {
 		return "", fmt.Errorf("tunnel not found for volume %s", volumeID)
 	}
 	return fmt.Sprintf("127.0.0.1:%d", t.LocalPort), nil
+}
+
+// ToTunnelInfo converts an in-memory tunnel to a transport-safe DTO
+func ToTunnelInfo(t *Tunnel) *TunnelInfo {
+	if t == nil {
+		return nil
+	}
+	return &TunnelInfo{
+		VolumeID:   t.VolumeID,
+		RemoteAddr: t.RemoteAddr,
+		LocalPort:  t.LocalPort,
+		State:      string(t.State),
+		RefCount:   t.RefCount,
+	}
 }
 
 // Shutdown gracefully shuts down the manager

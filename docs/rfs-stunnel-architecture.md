@@ -4,78 +4,87 @@
 
 This document describes the production-ready implementation of dynamic per-volume Stunnel tunnels for IBM VPC File Storage RFS (Remote File Storage) profile volumes with Encryption in Transit (EIT).
 
+The current implementation uses a **separate node-local tunnel-manager DaemonSet**. This decouples Stunnel lifecycle from the CSI node plugin pod and reduces the risk that a CSI node pod restart tears down active encrypted tunnels for mounted shares.
+
 ## Architecture
 
 ### Components
 
-1. **Tunnel Manager** (`pkg/tunnel/manager.go`)
+1. **Tunnel Manager DaemonSet** (`pkg/tunnel/manager.go`, `pkg/tunnel/http_service.go`)
+   - Runs as a separate pod on every node
    - Manages lifecycle of Stunnel processes
    - Handles dynamic port allocation
    - Monitors tunnel health and performs automatic recovery
-   - Provides TLS certificate verification
+   - Persists tunnel metadata for recovery
+   - Exposes a node-local Unix socket API to the CSI node server
 
 2. **CSI Node Server** (`pkg/ibmcsidriver/node.go`)
-   - Integrates tunnel manager for RFS volumes
-   - Establishes tunnels during volume mount
+   - Detects RFS + EIT + Stunnel mount requests
+   - Calls the node-local tunnel-manager API over Unix socket
+   - Mounts the share through the returned local port
    - Cleans up tunnels during volume unmount
 
 3. **Stunnel Process** (per volume)
-   - Runs in the driver container
+   - Runs under tunnel-manager control
    - Provides TLS encryption for NFS traffic
    - Verifies server certificates against system CA bundle
 
 ### Flow Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Pod with PVC                             │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             │ Mount Request
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    CSI Node Server                               │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ NodePublishVolume                                         │  │
-│  │  1. Detect RFS profile + EIT enabled                      │  │
-│  │  2. Initialize Tunnel Manager (if needed)                 │  │
-│  │  3. Call EnsureTunnel(volumeID, nfsServer)               │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Tunnel Manager                               │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ EnsureTunnel                                              │  │
-│  │  1. Check if tunnel exists and is healthy                │  │
-│  │  2. Allocate port (hash-based with fallback)             │  │
-│  │  3. Generate Stunnel configuration                       │  │
-│  │  4. Start Stunnel process                                │  │
-│  │  5. Wait for tunnel to be ready                          │  │
-│  │  6. Register tunnel and start health monitoring          │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  Stunnel Process (per volume)                    │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Configuration:                                            │  │
-│  │  - client = yes                                           │  │
-│  │  - accept = 127.0.0.1:<allocated_port>                   │  │
-│  │  - connect = <nfs_server>:20049                          │  │
-│  │  - cafile = /etc/pki/tls/certs/ca-bundle.crt            │  │
-│  │  - checkHost = <env>.is-share.appdomain.cloud            │  │
-│  │  - verify = 2                                             │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             │ TLS Connection
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              IBM VPC RFS NFS Server (port 20049)                │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                             Pod with PVC                              │
+└─────────────────────────────┬────────────────────────────────────────┘
+                              │
+                              │ Mount Request
+                              ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                         CSI Node Server                                │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ NodePublishVolume                                               │  │
+│  │  1. Detect RFS profile + EIT enabled                            │  │
+│  │  2. Parse NFS source into <nfsServer> and <exportPath>          │  │
+│  │  3. Call tunnel-manager API over Unix socket                    │  │
+│  │  4. Receive local tunnel port                                   │  │
+│  │  5. Mount 127.0.0.1:/<exportPath> with port=<localPort>         │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────┬────────────────────────────────────────┘
+                              │
+                              │ Unix domain socket
+                              │ /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock
+                              ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    Tunnel Manager DaemonSet                           │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ EnsureTunnel                                                     │  │
+│  │  1. Check if tunnel exists and is healthy                       │  │
+│  │  2. Allocate port (hash-based with fallback)                    │  │
+│  │  3. Generate Stunnel configuration in /etc/stunnel              │  │
+│  │  4. Start Stunnel process                                       │  │
+│  │  5. Wait for tunnel to be ready                                 │  │
+│  │  6. Persist metadata and start health monitoring                │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────┬────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                     Stunnel Process (per volume)                      │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ Configuration:                                                  │  │
+│  │  - client = yes                                                 │  │
+│  │  - accept = 127.0.0.1:<allocated_port>                         │  │
+│  │  - connect = <nfs_server>:20049                                │  │
+│  │  - cafile = <configured CA file>                               │  │
+│  │  - checkHost = <env>.is-share.appdomain.cloud                  │  │
+│  │  - verify = 1                                                  │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────┬────────────────────────────────────────┘
+                              │
+                              │ TLS Connection
+                              ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                   IBM VPC RFS NFS Server (port 20049)                 │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Mount Flow
@@ -87,9 +96,10 @@ This document describes the production-ready implementation of dynamic per-volum
 2. **Tunnel Establishment**
    - CSI Node Server detects RFS profile with EIT enabled
    - NFS source is parsed to extract server address and export path
+   - CSI Node Server calls the tunnel-manager API on the same node
    - Tunnel Manager allocates a unique port (20000-30000 range)
-   - Stunnel configuration is generated with proper TLS settings
-   - Stunnel process starts with host network access and connects to remote NFS server
+   - Stunnel configuration is generated with proper TLS settings in `/etc/stunnel`
+   - Stunnel process starts and connects to the remote NFS server
 
 3. **NFS4 Mount**
    - Mount source is rewritten to use local tunnel endpoint: `127.0.0.1:/<export_path>`
@@ -111,25 +121,31 @@ This document describes the production-ready implementation of dynamic per-volum
    - Standard NFS unmount is performed
 
 3. **Tunnel Cleanup**
-   - Tunnel Manager stops Stunnel process
-   - Configuration files are removed
+   - CSI node server calls `RemoveTunnel` after successful unmount
+   - Tunnel Manager decrements reference count
+   - Stunnel process is removed only when refcount reaches zero
+   - Configuration and metadata files are removed
    - Port is released for reuse
 
 ## Configuration
 
 ### Environment Variables
 
-Configure the tunnel manager behavior via environment variables in the node server DaemonSet:
+Configure the tunnel-manager behavior via environment variables in the tunnel-manager DaemonSet.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `TUNNEL_MANAGER_SOCKET` | `/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock` | Unix domain socket used by CSI node to call tunnel-manager |
 | `STUNNEL_BASE_PORT` | 20000 | Starting port for tunnel allocation |
 | `STUNNEL_PORT_RANGE` | 10000 | Number of ports available for allocation |
-| `STUNNEL_CONFIG_DIR` | /var/lib/ibm-csi-driver/stunnel | Directory for Stunnel configurations |
-| `STUNNEL_CA_FILE` | /etc/pki/tls/certs/ca-bundle.crt | System CA bundle for certificate verification |
+| `STUNNEL_CONFIG_DIR` | /etc/stunnel | Directory for Stunnel configurations and metadata |
+| `STUNNEL_CA_FILE` | /host-certs/tls-ca-bundle.pem | CA bundle path used for certificate verification |
 | `STUNNEL_NFS_PORT` | 20049 | NFS port on RFS servers |
 | `STUNNEL_ENVIRONMENT` | production | Environment for hostname verification (staging/production) |
 | `STUNNEL_HEALTH_CHECK_INTERVAL` | 30s | Interval for tunnel health checks |
+
+The CSI node DaemonSet uses:
+- `TUNNEL_MANAGER_SOCKET=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock`
 
 ### Storage Class Parameters
 
@@ -173,21 +189,26 @@ parameters:
 
 ### TLS Certificate Verification
 
-- Uses system CA bundle from host (`/etc/pki/tls/certs/ca-bundle.crt`)
+- Uses configured CA bundle path from the tunnel-manager environment
 - Verifies server certificate against trusted CAs
 - Validates hostname matches `<env>.is-share.appdomain.cloud`
 - Verification level set to 1 (verify certificate chain)
 
 ### Host Network and NFS4 Mounting
 
-The implementation is designed to work with host network access:
+The implementation is designed to work with host network access and node-local process isolation:
 
-1. **Stunnel Configuration**
-   - Runs with access to host network stack
-   - Uses host CA certificates for TLS verification
+1. **Tunnel-manager DaemonSet**
+   - Runs independently from the CSI node plugin pod
+   - Uses host network access for node-local tunnel endpoints
+   - Exposes a Unix socket in the existing host plugin path
+
+2. **Stunnel Configuration**
+   - Managed by the tunnel-manager DaemonSet
    - Listens on localhost (127.0.0.1) with allocated port
+   - Stores configuration and metadata in `/etc/stunnel`
 
-2. **NFS4 Mount Command**
+3. **NFS4 Mount Command**
    ```bash
    sudo mount -t nfs4 \
      -o vers=4.1,proto=tcp,port=<tunnel_port> \
@@ -195,23 +216,23 @@ The implementation is designed to work with host network access:
      <target_path>
    ```
 
-3. **Mount Options**
+4. **Mount Options**
    - `vers=4.1`: Use NFS version 4.1 protocol
    - `proto=tcp`: Use TCP protocol
    - `port=<tunnel_port>`: Connect to Stunnel's local port
    - Mount source format: `127.0.0.1:/<export_path>`
 
-4. **Benefits**
-   - Direct access to host CA certificates
-   - No need for certificate management in container
+5. **Benefits**
+   - CSI node pod restart does not directly own tunnel lifecycle
    - Standard NFS4 mounting on host
-   - Better performance with host network
+   - Better node-local process isolation for encrypted mounts
 
 ### Configuration File Security
 
-- Configuration files stored in `/var/lib/ibm-csi-driver/stunnel/`
+- Configuration and metadata files stored in `/etc/stunnel`
 - File permissions: 0600 (owner read/write only)
-- Automatic cleanup on volume unmount
+- Automatic cleanup on final volume unmount
+- Metadata is reused for best-effort recovery after tunnel-manager restart
 
 ## Health Monitoring
 

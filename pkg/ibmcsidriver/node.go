@@ -46,7 +46,7 @@ type CSINodeServer struct {
 	Mounter       mountmanager.Mounter
 	Metadata      nodeMetadata.NodeMetadata
 	Stats         StatsUtils
-	TunnelManager *tunnel.Manager
+	TunnelService tunnel.Service
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
 	mutex utils.LockStore
 	csi.UnimplementedNodeServer
@@ -192,15 +192,12 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 			zap.String("volumeID", volumeID),
 			zap.String("nfsServer", source))
 
-		// Initialize tunnel manager if not already done
-		if csiNS.TunnelManager == nil {
-			tunnelCfg := tunnel.GetConfigFromEnv(ctxLogger)
-			var err error
-			csiNS.TunnelManager, err = tunnel.NewManager(tunnelCfg)
-			if err != nil {
-				ctxLogger.Error("Failed to initialize tunnel manager", zap.Error(err))
-				return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
-			}
+		if csiNS.TunnelService == nil {
+			err := fmt.Errorf("tunnel service is not configured")
+			ctxLogger.Error("Failed to ensure tunnel for volume",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 		}
 
 		// Parse the NFS server and export path from source
@@ -210,7 +207,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		exportPath = parts[1]
 
 		// Ensure tunnel exists for this volume
-		tun, err := csiNS.TunnelManager.EnsureTunnel(fileShareID, nfsServer)
+		tun, err := csiNS.TunnelService.EnsureTunnel(ctx, fileShareID, nfsServer)
 		if err != nil {
 			ctxLogger.Error("Failed to ensure tunnel for volume",
 				zap.String("volumeID", volumeID),
@@ -270,7 +267,7 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 
 	// Clean up tunnel if it exists for this volume
 	// Note: We only remove the tunnel after successful unmount to avoid disrupting active mounts
-	if csiNS.TunnelManager != nil {
+	if csiNS.TunnelService != nil {
 		// Extract the share ID from the volume ID (format: shareID#clusterID)
 		fileShareID := getTokens(volID)
 		if len(fileShareID) > 0 {
@@ -280,12 +277,16 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 				zap.String("volumeID", volID),
 				zap.String("shareID", shareID))
 
-			if tunnel, exists := csiNS.TunnelManager.GetTunnel(shareID); exists {
+			if tunnelInfo, exists, err := csiNS.TunnelService.GetTunnel(ctx, shareID); err != nil {
+				ctxLogger.Warn("Failed to query tunnel before cleanup",
+					zap.String("shareID", shareID),
+					zap.Error(err))
+			} else if exists {
 				ctxLogger.Info("Found tunnel for volume, attempting removal",
 					zap.String("shareID", shareID),
-					zap.Int("localPort", tunnel.LocalPort))
+					zap.Int("localPort", tunnelInfo.LocalPort))
 
-				if err := csiNS.TunnelManager.RemoveTunnel(shareID); err != nil {
+				if err := csiNS.TunnelService.RemoveTunnel(ctx, shareID); err != nil {
 					ctxLogger.Warn("Failed to remove tunnel, but unmount succeeded",
 						zap.String("shareID", shareID),
 						zap.Error(err))

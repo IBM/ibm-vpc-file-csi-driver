@@ -1,0 +1,15 @@
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: ibm-vpc-file-tunnel-manager
+  namespace: <KUSTOMIZE> # DoNotEdit. Taken from kustomization.yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: ibm-vpc-file-tunnel-manager
+          image: <UPDATE THIS> # Custom image built or use the images available from tags created https://cloud.ibm.com/docs/containers?topic=containers-cl-add-ons-vpc-file-csi-driver
+          imagePullPolicy: Always
+
+# Made with Bob

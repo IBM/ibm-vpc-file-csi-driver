@@ -7,6 +7,7 @@ The `ibm-vpc-file-csi-driver` is a [CSI plugin](https://kubernetes-csi.github.io
 The driver consists mainly of,
 - **vpc-file-csi-controller** controller deployment pods.
 - **vpc-file-csi-node** node server daemonset pods.
+- **ibm-vpc-file-tunnel-manager** node-local tunnel manager daemonset pods for RFS + EIT using Stunnel.
 
 **Note:** 
 - If using **IBM Cloud Managed services**: IBM Kubernetes Service (IKS) and RedHat OpenShift Kubernetes Service (ROKS), stick to **vpc-file-csi-driver** **_addon_**. For more info follow [IBM Cloud File Storage Share CSI Driver](https://cloud.ibm.com/docs/containers?topic=containers-storage-file-vpc-install).
@@ -32,10 +33,11 @@ This CSI Driver can be used on all supported versions of **IBM Cloud Managed ser
 
 ## RFS Profile with Stunnel Encryption
 
-The driver supports **RFS (Remote File Storage)** profile volumes with **Encryption in Transit (EIT)** using dynamic per-volume Stunnel tunnels. This provides:
+The driver supports **RFS (Remote File Storage)** profile volumes with **Encryption in Transit (EIT)** using dynamic per-volume Stunnel tunnels. The implementation now uses a **separate tunnel-manager DaemonSet per node** so that Stunnel lifecycle is decoupled from the CSI node plugin pod. This provides:
 
 - **Automatic TLS encryption** for NFS traffic
 - **Per-volume isolation** with dedicated Stunnel processes
+- **Better failure isolation** because CSI node pod restarts do not directly own tunnel lifecycle
 - **Production-grade reliability** with health monitoring and automatic recovery
 - **Certificate verification** using system CA bundle
 
@@ -70,6 +72,7 @@ spec:
 ```
 
 3. The driver automatically:
+   - Calls the node-local tunnel-manager service
    - Creates a Stunnel tunnel for the volume
    - Establishes TLS connection to the NFS server
    - Mounts the volume through the encrypted tunnel
@@ -84,11 +87,36 @@ For detailed information about the RFS+Stunnel implementation, see:
 
 ### Configuration
 
-Customize Stunnel behavior via environment variables in the node server DaemonSet:
+The RFS + Stunnel implementation now has two node-local components:
+
+1. **CSI node plugin DaemonSet**
+   - Uses `TUNNEL_MANAGER_SOCKET=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock`
+   - Calls the tunnel-manager over a Unix domain socket on the host plugin path
+
+2. **Tunnel-manager DaemonSet**
+   - Runs one pod per node
+   - Owns Stunnel lifecycle, health checks, and crash recovery
+   - Uses the current host paths:
+     - Socket: `/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock`
+     - Stunnel config and metadata: `/etc/stunnel`
+
+Customize tunnel behavior via environment variables in the tunnel-manager DaemonSet:
 - `STUNNEL_BASE_PORT`: Starting port (default: 20000)
 - `STUNNEL_PORT_RANGE`: Port range size (default: 10000)
+- `STUNNEL_CONFIG_DIR`: Config directory (current implementation uses `/etc/stunnel`)
+- `STUNNEL_CA_FILE`: CA bundle path used by Stunnel
+- `STUNNEL_NFS_PORT`: Remote RFS NFS port (default: 20049)
 - `STUNNEL_ENVIRONMENT`: staging or production (default: production)
-- See [architecture doc](docs/rfs-stunnel-architecture.md#configuration) for all options
+- `STUNNEL_HEALTH_CHECK_INTERVAL`: health-check interval (default: 30s)
+
+### Why the separate tunnel-manager DaemonSet?
+
+Earlier designs coupled the Stunnel lifecycle to the CSI node pod. If the CSI node pod crashed or restarted, the Stunnel process was terminated with it, while the host mount could remain active and enter a hung state. This could impact node-level operations such as `df -h`.
+
+The separate tunnel-manager DaemonSet reduces that failure coupling:
+- CSI node plugin handles CSI RPCs and host mounts
+- Tunnel-manager handles Stunnel processes and recovery
+- CSI node plugin restart no longer directly implies tunnel teardown
 
 ## Utilities Needed
 

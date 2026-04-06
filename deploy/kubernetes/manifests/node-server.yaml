@@ -103,6 +103,8 @@ spec:
                   fieldPath: spec.nodeName
             - name: SOCKET_PATH
               value: "/var/lib/ibmshare.sock"
+            - name: TUNNEL_MANAGER_SOCKET
+              value: "/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
             # Not applicable to Red Hat OpenShift Container Platform Self-Managed
             # - name: IS_NODE_SERVER
             #   value: "true"

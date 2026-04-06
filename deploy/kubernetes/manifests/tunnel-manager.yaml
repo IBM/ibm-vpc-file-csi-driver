@@ -1,0 +1,64 @@
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: ibm-vpc-file-tunnel-manager
+  namespace: <KUSTOMIZE>
+  labels:
+    app.kubernetes.io/name: ibm-vpc-file-csi-driver
+spec:
+  selector:
+    matchLabels:
+      app: ibm-vpc-file-tunnel-manager
+      app.kubernetes.io/name: ibm-vpc-file-csi-driver
+  template:
+    metadata:
+      labels:
+        app: ibm-vpc-file-tunnel-manager
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+    spec:
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      serviceAccountName: ibm-vpc-file-node-sa
+      tolerations:
+      - operator: Exists
+      containers:
+        - name: ibm-vpc-file-tunnel-manager
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            runAsGroup: 0
+            privileged: true
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
+          imagePullPolicy: Always
+          args:
+            - "--mode=tunnel-manager"
+            - "--tunnel-manager-socket=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            limits:
+              cpu: 200m
+              memory: 250Mi
+            requests:
+              cpu: 20m
+              memory: 50Mi
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/
+            - name: stunnel-dir
+              mountPath: /etc/stunnel
+      volumes:
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/
+            type: DirectoryOrCreate
+        - name: stunnel-dir
+          hostPath:
+            path: /etc/stunnel
+            type: DirectoryOrCreate
+
+# Made with Bob
