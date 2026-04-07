@@ -181,6 +181,98 @@ type TunnelMetadata struct {
 	RefCount  int    `json:"refCount"`
 }
 
+const (
+	metadataSaveRetryCount = 3
+	metadataSaveRetryDelay = 200 * time.Millisecond
+)
+
+func (m *Manager) metadataPath(volumeID string) string {
+	return filepath.Join(m.configDir, fmt.Sprintf("%s.meta.json", volumeID))
+}
+
+func (m *Manager) metadataBackupPath(volumeID string) string {
+	return filepath.Join(m.configDir, fmt.Sprintf("%s.meta.json.bak", volumeID))
+}
+
+func (m *Manager) validateTunnelMetadata(metadata *TunnelMetadata) error {
+	if metadata == nil {
+		return fmt.Errorf("metadata is nil")
+	}
+	if metadata.VolumeID == "" {
+		return fmt.Errorf("metadata volumeID is empty")
+	}
+	if metadata.NFSServer == "" {
+		return fmt.Errorf("metadata nfsServer is empty")
+	}
+	if metadata.Port < m.basePort || metadata.Port >= m.basePort+m.portRange {
+		return fmt.Errorf("metadata port %d is outside managed range %d-%d", metadata.Port, m.basePort, m.basePort+m.portRange-1)
+	}
+	if metadata.RefCount < 0 {
+		return fmt.Errorf("metadata refCount %d is invalid", metadata.RefCount)
+	}
+	return nil
+}
+
+func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	tmpPath := path + ".tmp"
+
+	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+
+	writeErr := func() error {
+		if _, err := f.Write(data); err != nil {
+			return err
+		}
+		if err := f.Sync(); err != nil {
+			return err
+		}
+		if err := f.Close(); err != nil {
+			return err
+		}
+		return os.Rename(tmpPath, path)
+	}()
+
+	if writeErr != nil {
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
+		return writeErr
+	}
+
+	return nil
+}
+
+func (m *Manager) saveTunnelMetadataWithRetry(t *Tunnel) error {
+	var lastErr error
+
+	for attempt := 1; attempt <= metadataSaveRetryCount; attempt++ {
+		err := m.saveTunnelMetadata(t)
+		if err == nil {
+			if attempt > 1 {
+				m.logger.Info("Tunnel metadata save succeeded after retry",
+					zap.String("volumeID", t.VolumeID),
+					zap.Int("attempt", attempt))
+			}
+			return nil
+		}
+
+		lastErr = err
+		if attempt < metadataSaveRetryCount {
+			retryDelay := metadataSaveRetryDelay * time.Duration(attempt)
+			m.logger.Warn("Tunnel metadata save failed, retrying",
+				zap.String("volumeID", t.VolumeID),
+				zap.Int("attempt", attempt),
+				zap.Int("maxAttempts", metadataSaveRetryCount),
+				zap.Duration("retryDelay", retryDelay),
+				zap.Error(err))
+			time.Sleep(retryDelay)
+		}
+	}
+
+	return fmt.Errorf("failed to save tunnel metadata after %d attempts: %w", metadataSaveRetryCount, lastErr)
+}
+
 // saveTunnelMetadata persists tunnel metadata to disk
 func (m *Manager) saveTunnelMetadata(t *Tunnel) error {
 	metadata := TunnelMetadata{
@@ -190,14 +282,27 @@ func (m *Manager) saveTunnelMetadata(t *Tunnel) error {
 		RefCount:  t.RefCount,
 	}
 
-	metadataPath := filepath.Join(m.configDir, fmt.Sprintf("%s.meta.json", t.VolumeID))
+	if err := m.validateTunnelMetadata(&metadata); err != nil {
+		return fmt.Errorf("refusing to save invalid metadata: %w", err)
+	}
+
+	metadataPath := m.metadataPath(t.VolumeID)
+	backupPath := m.metadataBackupPath(t.VolumeID)
+
 	data, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	if err := os.WriteFile(metadataPath, data, 0600); err != nil {
+	if err := atomicWriteFile(metadataPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write metadata: %w", err)
+	}
+
+	if err := atomicWriteFile(backupPath, data, 0600); err != nil {
+		m.logger.Warn("Failed to write metadata backup",
+			zap.String("volumeID", t.VolumeID),
+			zap.String("backupPath", backupPath),
+			zap.Error(err))
 	}
 
 	return nil
@@ -205,24 +310,66 @@ func (m *Manager) saveTunnelMetadata(t *Tunnel) error {
 
 // loadTunnelMetadata loads tunnel metadata from disk
 func (m *Manager) loadTunnelMetadata(volumeID string) (*TunnelMetadata, error) {
-	metadataPath := filepath.Join(m.configDir, fmt.Sprintf("%s.meta.json", volumeID))
+	metadataPath := m.metadataPath(volumeID)
 	data, err := os.ReadFile(metadataPath)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		var metadata TunnelMetadata
+		if err := json.Unmarshal(data, &metadata); err == nil {
+			if validateErr := m.validateTunnelMetadata(&metadata); validateErr == nil {
+				return &metadata, nil
+			} else {
+				m.logger.Warn("Primary metadata validation failed, attempting backup",
+					zap.String("volumeID", volumeID),
+					zap.String("metadataPath", metadataPath),
+					zap.Error(validateErr))
+			}
+		} else {
+			m.logger.Warn("Primary metadata unmarshal failed, attempting backup",
+				zap.String("volumeID", volumeID),
+				zap.String("metadataPath", metadataPath),
+				zap.Error(err))
+		}
+	} else {
+		m.logger.Warn("Primary metadata read failed, attempting backup",
+			zap.String("volumeID", volumeID),
+			zap.String("metadataPath", metadataPath),
+			zap.Error(err))
 	}
 
-	var metadata TunnelMetadata
-	if err := json.Unmarshal(data, &metadata); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+	backupPath := m.metadataBackupPath(volumeID)
+	backupData, backupErr := os.ReadFile(backupPath)
+	if backupErr != nil {
+		return nil, fmt.Errorf("failed to load metadata from primary (%s) and backup (%s): primary error: %v, backup error: %w", metadataPath, backupPath, err, backupErr)
 	}
 
-	return &metadata, nil
+	var backupMetadata TunnelMetadata
+	if err := json.Unmarshal(backupData, &backupMetadata); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal backup metadata %s: %w", backupPath, err)
+	}
+	if err := m.validateTunnelMetadata(&backupMetadata); err != nil {
+		return nil, fmt.Errorf("backup metadata validation failed for %s: %w", backupPath, err)
+	}
+
+	if writeErr := atomicWriteFile(metadataPath, backupData, 0600); writeErr != nil {
+		m.logger.Warn("Failed to restore primary metadata from backup",
+			zap.String("volumeID", volumeID),
+			zap.String("metadataPath", metadataPath),
+			zap.String("backupPath", backupPath),
+			zap.Error(writeErr))
+	} else {
+		m.logger.Info("Restored primary metadata from backup",
+			zap.String("volumeID", volumeID),
+			zap.String("metadataPath", metadataPath),
+			zap.String("backupPath", backupPath))
+	}
+
+	return &backupMetadata, nil
 }
 
 // deleteTunnelMetadata removes tunnel metadata from disk
 func (m *Manager) deleteTunnelMetadata(volumeID string) {
-	metadataPath := filepath.Join(m.configDir, fmt.Sprintf("%s.meta.json", volumeID))
-	os.Remove(metadataPath)
+	_ = os.Remove(m.metadataPath(volumeID))
+	_ = os.Remove(m.metadataBackupPath(volumeID))
 }
 
 // RecoverFromCrash scans for persisted tunnel metadata and recreates tunnels
@@ -395,8 +542,8 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 			m.mu.Unlock()
 
 			// Update metadata with new refcount
-			if err := m.saveTunnelMetadata(t); err != nil {
-				m.logger.Warn("Failed to update tunnel metadata",
+			if err := m.saveTunnelMetadataWithRetry(t); err != nil {
+				m.logger.Warn("Failed to update tunnel metadata after retries",
 					zap.String("volumeID", volumeID),
 					zap.Error(err))
 			}
@@ -423,8 +570,8 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 		m.mu.Unlock()
 
 		// Update metadata with new refcount
-		if err := m.saveTunnelMetadata(t); err != nil {
-			m.logger.Warn("Failed to update tunnel metadata",
+		if err := m.saveTunnelMetadataWithRetry(t); err != nil {
+			m.logger.Warn("Failed to update tunnel metadata after retries",
 				zap.String("volumeID", volumeID),
 				zap.Error(err))
 		}
