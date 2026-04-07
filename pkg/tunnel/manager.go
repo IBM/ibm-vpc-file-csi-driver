@@ -254,28 +254,28 @@ func (m *Manager) RecoverFromCrash() error {
 			continue
 		}
 
-		// Recreate tunnel
+		// Recreate tunnel on the original saved port so existing mounts keep working
 		m.logger.Info("Recovering tunnel from metadata",
 			zap.String("volumeID", volumeID),
 			zap.String("nfsServer", metadata.NFSServer),
 			zap.Int("port", metadata.Port),
 			zap.Int("refCount", metadata.RefCount))
 
-		tunnel, err := m.EnsureTunnel(volumeID, metadata.NFSServer)
+		tunnel, err := m.recoverTunnel(volumeID, metadata.NFSServer, metadata.Port, metadata.RefCount)
 		if err != nil {
 			m.logger.Error("Failed to recover tunnel",
 				zap.String("volumeID", volumeID),
+				zap.Int("port", metadata.Port),
 				zap.Error(err))
 			failed++
 			continue
 		}
 
-		// Restore refcount from metadata
-		m.mu.Lock()
-		tunnel.RefCount = metadata.RefCount
-		m.mu.Unlock()
-
 		recovered++
+		m.logger.Info("Recovered tunnel successfully",
+			zap.String("volumeID", volumeID),
+			zap.Int("port", tunnel.LocalPort),
+			zap.Int("refCount", tunnel.RefCount))
 	}
 
 	m.logger.Info("Tunnel recovery completed",
@@ -329,6 +329,26 @@ func (m *Manager) releasePort(port int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.allocatedPorts, port)
+}
+
+// reservePort reserves a specific port if it is available.
+// Used during crash recovery so restored tunnels come back on the same local port.
+func (m *Manager) reservePort(port int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if port < m.basePort || port >= m.basePort+m.portRange {
+		return fmt.Errorf("port %d is outside managed range %d-%d", port, m.basePort, m.basePort+m.portRange-1)
+	}
+	if m.allocatedPorts[port] {
+		return fmt.Errorf("port %d is already allocated", port)
+	}
+	if !m.isPortAvailable(port) {
+		return fmt.Errorf("port %d is not available", port)
+	}
+
+	m.allocatedPorts[port] = true
+	return nil
 }
 
 // generateConfig creates a Stunnel configuration file with proper TLS verification
@@ -419,10 +439,25 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 		return nil, fmt.Errorf("failed to allocate port: %w", err)
 	}
 
-	m.logger.Info("Allocated port for tunnel",
+	return m.createTunnel(volumeID, nfsServer, port, 1, true)
+}
+
+// recoverTunnel recreates a tunnel on its original saved port for crash recovery.
+func (m *Manager) recoverTunnel(volumeID, nfsServer string, port, refCount int) (*Tunnel, error) {
+	if err := m.reservePort(port); err != nil {
+		return nil, fmt.Errorf("failed to reserve recovered port: %w", err)
+	}
+	return m.createTunnel(volumeID, nfsServer, port, refCount, false)
+}
+
+// createTunnel creates and starts a tunnel on a specified port.
+// saveMetadata controls whether metadata should be rewritten after creation.
+func (m *Manager) createTunnel(volumeID, nfsServer string, port, refCount int, saveMetadata bool) (*Tunnel, error) {
+	m.logger.Info("Preparing tunnel",
 		zap.String("volumeID", volumeID),
 		zap.String("nfsServer", nfsServer),
-		zap.Int("port", port))
+		zap.Int("port", port),
+		zap.Int("refCount", refCount))
 
 	// Generate configuration
 	configPath, err := m.generateConfig(volumeID, nfsServer, port)
@@ -434,6 +469,8 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 	// Crude way: Directly read and print file contents
 	configContent, err := os.ReadFile(configPath)
 	if err != nil {
+		m.releasePort(port)
+		_ = os.Remove(configPath)
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
@@ -448,7 +485,7 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 		LocalPort:  port,
 		ConfigPath: configPath,
 		State:      StateStarting,
-		RefCount:   1, // Initialize with 1 for the first mount
+		RefCount:   refCount,
 		ctx:        ctx,
 		cancel:     cancel,
 		logger:     m.logger.With(zap.String("volumeID", volumeID)),
@@ -458,7 +495,7 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 	if err := m.startTunnelProcess(tunnel); err != nil {
 		cancel()
 		m.releasePort(port)
-		os.Remove(configPath)
+		_ = os.Remove(configPath)
 		return nil, fmt.Errorf("failed to start tunnel process: %w", err)
 	}
 
@@ -467,7 +504,7 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 		cancel()
 		m.stopTunnelProcess(tunnel)
 		m.releasePort(port)
-		os.Remove(configPath)
+		_ = os.Remove(configPath)
 		return nil, fmt.Errorf("tunnel failed to become ready: %w", err)
 	}
 
@@ -479,18 +516,20 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 	tunnel.State = StateRunning
 	tunnel.LastHealthy = time.Now()
 
-	// Save tunnel metadata for crash recovery
-	if err := m.saveTunnelMetadata(tunnel); err != nil {
-		m.logger.Warn("Failed to save tunnel metadata",
-			zap.String("volumeID", volumeID),
-			zap.Error(err))
-		// Don't fail tunnel creation if metadata save fails
+	if saveMetadata {
+		if err := m.saveTunnelMetadata(tunnel); err != nil {
+			m.logger.Warn("Failed to save tunnel metadata",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
+			// Don't fail tunnel creation if metadata save fails
+		}
 	}
 
 	m.logger.Info("Tunnel created successfully",
 		zap.String("volumeID", volumeID),
 		zap.String("nfsServer", nfsServer),
-		zap.Int("port", port))
+		zap.Int("port", port),
+		zap.Int("refCount", refCount))
 
 	return tunnel, nil
 }
