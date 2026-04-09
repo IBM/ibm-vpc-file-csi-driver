@@ -1,6 +1,7 @@
 package tunnel
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -372,10 +373,90 @@ func (m *Manager) deleteTunnelMetadata(volumeID string) {
 	_ = os.Remove(m.metadataBackupPath(volumeID))
 }
 
+// getActiveMountCount counts unique pod UIDs using this tunnel port from /proc/mounts
+// This provides the actual number of active CSI mounts, handling duplicate entries
+// from symlinks (e.g., /var/data/kubelet -> /var/lib/kubelet on RHCOS)
+// It also validates that pod directories exist to avoid counting orphaned mounts
+func (m *Manager) getActiveMountCount(port int) (int, error) {
+	file, err := os.Open("/proc/mounts")
+	if err != nil {
+		return 0, fmt.Errorf("failed to open /proc/mounts: %w", err)
+	}
+	defer file.Close()
+
+	portStr := fmt.Sprintf("port=%d", port)
+	validPodUIDs := make(map[string]bool) // Track unique pod UIDs with validated pod directories
+	orphanedCount := 0
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Look for NFS4 mounts using our tunnel
+		// Format: 127.0.0.1:/export /var/.../kubelet/pods/<pod-uid>/volumes/... nfs4 ...port=20574...
+		if !strings.Contains(line, "nfs4") ||
+			!strings.Contains(line, "127.0.0.1") ||
+			!strings.Contains(line, portStr) {
+			continue
+		}
+
+		// Extract mount point (second field in /proc/mounts)
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		mountPoint := fields[1]
+
+		// Extract pod UID from mount path
+		// Path format: /var/.../kubelet/pods/<pod-uid>/volumes/kubernetes.io~csi/...
+		if idx := strings.Index(mountPoint, "/pods/"); idx != -1 {
+			remaining := mountPoint[idx+6:] // Skip "/pods/"
+			if endIdx := strings.Index(remaining, "/"); endIdx != -1 {
+				podUID := remaining[:endIdx]
+
+				// CRITICAL: Verify pod directory still exists to avoid counting orphaned mounts
+				// Kubelet deletes pod directories when pods are removed, but mounts may linger
+				podDir := filepath.Join("/var/lib/kubelet/pods", podUID)
+				if _, statErr := os.Stat(podDir); statErr == nil {
+					// Pod directory exists, this is a valid active mount
+					validPodUIDs[podUID] = true
+					m.logger.Debug("Found valid mount for existing pod",
+						zap.String("podUID", podUID),
+						zap.String("mountPoint", mountPoint),
+						zap.Int("port", port))
+				} else {
+					// Pod directory doesn't exist, this is an orphaned mount
+					// (e.g., from force-deleted pod or kubelet cleanup lag)
+					orphanedCount++
+					m.logger.Warn("Ignoring orphaned mount for deleted pod",
+						zap.String("podUID", podUID),
+						zap.String("mountPoint", mountPoint),
+						zap.Int("port", port),
+						zap.Error(statErr))
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return 0, fmt.Errorf("error reading /proc/mounts: %w", err)
+	}
+
+	count := len(validPodUIDs)
+	m.logger.Debug("Counted active mounts from /proc/mounts with pod validation",
+		zap.Int("port", port),
+		zap.Int("validPodUIDs", count),
+		zap.Int("orphanedMounts", orphanedCount))
+
+	return count, nil
+}
+
 // RecoverFromCrash scans for persisted tunnel metadata and recreates tunnels
-// This is called on startup to recover from driver crashes
+// This is called on startup to recover from driver crashes or node reboots
+// It verifies actual active mounts from /proc/mounts to correct stale refcounts
 func (m *Manager) RecoverFromCrash() error {
-	m.logger.Info("Starting tunnel recovery from crash")
+	m.logger.Info("Starting tunnel recovery with /proc/mounts verification")
 
 	// List all metadata files in config directory
 	files, err := filepath.Glob(filepath.Join(m.configDir, "*.meta.json"))
@@ -383,7 +464,14 @@ func (m *Manager) RecoverFromCrash() error {
 		return fmt.Errorf("failed to list metadata files: %w", err)
 	}
 
+	if len(files) == 0 {
+		m.logger.Info("No metadata files found, nothing to recover")
+		return nil
+	}
+
 	recovered := 0
+	cleaned := 0
+	corrected := 0
 	failed := 0
 
 	for _, metaFile := range files {
@@ -401,14 +489,39 @@ func (m *Manager) RecoverFromCrash() error {
 			continue
 		}
 
-		// Recreate tunnel on the original saved port so existing mounts keep working
-		m.logger.Info("Recovering tunnel from metadata",
+		m.logger.Info("Found tunnel metadata",
 			zap.String("volumeID", volumeID),
 			zap.String("nfsServer", metadata.NFSServer),
 			zap.Int("port", metadata.Port),
-			zap.Int("refCount", metadata.RefCount))
+			zap.Int("savedRefCount", metadata.RefCount))
 
-		tunnel, err := m.recoverTunnel(volumeID, metadata.NFSServer, metadata.Port, metadata.RefCount)
+		// CRITICAL: Verify actual active mounts from /proc/mounts
+		// This handles node reboots where NodeUnpublishVolume was never called
+		actualMountCount, err := m.getActiveMountCount(metadata.Port)
+		if err != nil {
+			m.logger.Warn("Failed to verify active mounts from /proc/mounts, using saved refcount",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
+			// Fallback to saved refcount if /proc/mounts check fails
+			actualMountCount = metadata.RefCount
+		}
+
+		m.logger.Info("Verified mount count from /proc/mounts",
+			zap.String("volumeID", volumeID),
+			zap.Int("savedRefCount", metadata.RefCount),
+			zap.Int("actualMountCount", actualMountCount))
+
+		// If no active mounts found, clean up stale metadata
+		if actualMountCount == 0 {
+			m.logger.Info("No active mounts found in /proc/mounts, cleaning up stale tunnel metadata",
+				zap.String("volumeID", volumeID))
+			os.Remove(metaFile)
+			cleaned++
+			continue
+		}
+
+		// Recreate tunnel with VERIFIED refcount from /proc/mounts
+		tunnel, err := m.recoverTunnel(volumeID, metadata.NFSServer, metadata.Port, actualMountCount)
 		if err != nil {
 			m.logger.Error("Failed to recover tunnel",
 				zap.String("volumeID", volumeID),
@@ -416,6 +529,22 @@ func (m *Manager) RecoverFromCrash() error {
 				zap.Error(err))
 			failed++
 			continue
+		}
+
+		// Track if refcount was corrected
+		if actualMountCount != metadata.RefCount {
+			m.logger.Warn("Corrected stale refcount from /proc/mounts",
+				zap.String("volumeID", volumeID),
+				zap.Int("oldRefCount", metadata.RefCount),
+				zap.Int("newRefCount", actualMountCount))
+			corrected++
+		}
+
+		// Save metadata with corrected refcount
+		if err := m.saveTunnelMetadata(tunnel); err != nil {
+			m.logger.Warn("Failed to save corrected metadata",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
 		}
 
 		recovered++
@@ -427,6 +556,8 @@ func (m *Manager) RecoverFromCrash() error {
 
 	m.logger.Info("Tunnel recovery completed",
 		zap.Int("recovered", recovered),
+		zap.Int("cleaned", cleaned),
+		zap.Int("corrected", corrected),
 		zap.Int("failed", failed))
 
 	return nil
