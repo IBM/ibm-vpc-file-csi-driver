@@ -373,6 +373,29 @@ func (m *Manager) deleteTunnelMetadata(volumeID string) {
 	_ = os.Remove(m.metadataBackupPath(volumeID))
 }
 
+// statWithTimeout performs os.Stat with a timeout to prevent hanging on unstable mounts
+// Returns (fileInfo, error) where error is context.DeadlineExceeded on timeout
+func statWithTimeout(path string, timeout time.Duration) (os.FileInfo, error) {
+	type result struct {
+		info os.FileInfo
+		err  error
+	}
+
+	resultChan := make(chan result, 1)
+
+	go func() {
+		info, err := os.Stat(path)
+		resultChan <- result{info: info, err: err}
+	}()
+
+	select {
+	case res := <-resultChan:
+		return res.info, res.err
+	case <-time.After(timeout):
+		return nil, context.DeadlineExceeded
+	}
+}
+
 // getActiveMountCount counts unique pod UIDs using this tunnel port from /proc/mounts
 // This provides the actual number of active CSI mounts, handling duplicate entries
 // from symlinks (e.g., /var/data/kubelet -> /var/lib/kubelet on RHCOS)
@@ -417,14 +440,33 @@ func (m *Manager) getActiveMountCount(port int) (int, error) {
 
 				// CRITICAL: Verify pod directory still exists to avoid counting orphaned mounts
 				// Kubelet deletes pod directories when pods are removed, but mounts may linger
-				podDir := filepath.Join("/var/lib/kubelet/pods", podUID)
-				if _, statErr := os.Stat(podDir); statErr == nil {
+				// Extract the kubelet base path from the actual mount point to handle custom paths
+				// (e.g., /var/data/kubelet on some systems instead of /var/lib/kubelet)
+				kubeletBasePath := mountPoint[:idx] // Everything before "/pods/"
+				podDir := filepath.Join(kubeletBasePath, "pods", podUID)
+
+				// Use timeout-protected stat to prevent hanging on unstable/hung mounts
+				// Timeout of 2 seconds is sufficient for local filesystem access
+				_, statErr := statWithTimeout(podDir, 2*time.Second)
+
+				if statErr == nil {
 					// Pod directory exists, this is a valid active mount
 					validPodUIDs[podUID] = true
 					m.logger.Debug("Found valid mount for existing pod",
 						zap.String("podUID", podUID),
 						zap.String("mountPoint", mountPoint),
+						zap.String("podDir", podDir),
 						zap.Int("port", port))
+				} else if statErr == context.DeadlineExceeded {
+					// Stat operation timed out - likely hung mount
+					// Treat as orphaned to avoid blocking recovery
+					orphanedCount++
+					m.logger.Warn("Pod directory stat timed out (likely hung mount), treating as orphaned",
+						zap.String("podUID", podUID),
+						zap.String("mountPoint", mountPoint),
+						zap.String("podDir", podDir),
+						zap.Int("port", port),
+						zap.Duration("timeout", 2*time.Second))
 				} else {
 					// Pod directory doesn't exist, this is an orphaned mount
 					// (e.g., from force-deleted pod or kubelet cleanup lag)
@@ -432,6 +474,7 @@ func (m *Manager) getActiveMountCount(port int) (int, error) {
 					m.logger.Warn("Ignoring orphaned mount for deleted pod",
 						zap.String("podUID", podUID),
 						zap.String("mountPoint", mountPoint),
+						zap.String("podDir", podDir),
 						zap.Int("port", port),
 						zap.Error(statErr))
 				}
@@ -444,7 +487,7 @@ func (m *Manager) getActiveMountCount(port int) (int, error) {
 	}
 
 	count := len(validPodUIDs)
-	m.logger.Debug("Counted active mounts from /proc/mounts with pod validation",
+	m.logger.Info("Counted active mounts from /proc/mounts with pod validation",
 		zap.Int("port", port),
 		zap.Int("validPodUIDs", count),
 		zap.Int("orphanedMounts", orphanedCount))

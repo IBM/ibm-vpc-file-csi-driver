@@ -376,6 +376,182 @@ kubectl logs -n kube-system <csi-node-pod> -c ibm-vpc-file-csi-driver
 2. **Health Check Interval**: Balance between responsiveness and overhead
 3. **Resource Limits**: Set appropriate limits on node DaemonSet
 
+## Scalability Limitations
+
+### Sidecar Approach Constraints
+
+The tunnel-manager sidecar architecture, while providing better isolation and reliability, has inherent scalability limitations:
+
+#### 1. **Per-Node Process Limits**
+
+**Limitation**: Each RFS volume with EIT requires a dedicated Stunnel process on the node
+- **Impact**: High volume density can exhaust node process limits
+- **Typical Limit**: Linux default `pid_max` is 32,768 processes per node
+- **Practical Limit**: ~1,000-2,000 RFS volumes per node before hitting resource constraints
+
+**Mitigation**:
+- Monitor process count: `ps aux | wc -l`
+- Increase `pid_max` if needed: `sysctl kernel.pid_max=65536`
+- Use node selectors to distribute RFS workloads across nodes
+- Consider connection pooling (future enhancement)
+
+#### 2. **Port Exhaustion**
+
+**Limitation**: Default port range supports 10,000 concurrent tunnels per node
+- **Impact**: Cannot create more tunnels once port range is exhausted
+- **Default Range**: 20000-30000 (10,000 ports)
+
+**Mitigation**:
+- Increase port range via `STUNNEL_BASE_PORT` and `STUNNEL_PORT_RANGE`
+- Monitor port usage: `netstat -tuln | grep -c "127.0.0.1:2[0-9]"`
+- Use multiple nodes for high-density workloads
+
+#### 3. **Memory Overhead**
+
+**Limitation**: Linear memory growth with tunnel count
+- **Per-Tunnel Memory**: ~10-20 MB per Stunnel process
+- **Example**: 1,000 tunnels = ~10-20 GB memory overhead
+- **Impact**: Can exhaust node memory on high-density nodes
+
+**Mitigation**:
+- Set appropriate memory limits on tunnel-manager container
+- Monitor memory usage: `kubectl top pod -n kube-system`
+- Use memory-optimized node types for high-density scenarios
+- Implement pod eviction policies based on memory pressure
+
+#### 4. **File Descriptor Limits**
+
+**Limitation**: Each tunnel consumes file descriptors for sockets and config files
+- **Per-Tunnel FDs**: ~5-10 file descriptors
+- **System Limit**: Default `ulimit -n` is typically 1024-65536
+- **Impact**: Can hit FD limits with hundreds of tunnels
+
+**Mitigation**:
+- Increase FD limits in container: `ulimit -n 65536`
+- Monitor FD usage: `lsof -p <tunnel-manager-pid> | wc -l`
+- Set appropriate limits in DaemonSet spec:
+  ```yaml
+  resources:
+    limits:
+      nofile: 65536
+  ```
+
+#### 5. **Health Check Overhead**
+
+**Limitation**: Health checks scale linearly with tunnel count
+- **Default Interval**: 30 seconds per tunnel
+- **Impact**: With 1,000 tunnels, ~33 health checks per second
+- **CPU Impact**: Can consume significant CPU on high-density nodes
+
+**Mitigation**:
+- Increase health check interval for high-density scenarios
+- Implement adaptive health checking (check more frequently on failure)
+- Consider batch health checking (future enhancement)
+
+#### 6. **Metadata File I/O**
+
+**Limitation**: Each tunnel maintains a metadata file for recovery
+- **Per-Tunnel Files**: 2 files (config + metadata) in `/etc/stunnel`
+- **I/O Impact**: Frequent writes during tunnel lifecycle operations
+- **Impact**: Can cause I/O contention on high-density nodes
+
+**Mitigation**:
+- Use fast local storage (SSD/NVMe) for `/etc/stunnel`
+- Implement write batching for metadata updates (future enhancement)
+- Monitor I/O wait: `iostat -x 1`
+
+#### 7. **Recovery Time After Node Reboot**
+
+**Limitation**: Recovery time increases with tunnel count
+- **Recovery Process**: Validates each tunnel against `/proc/mounts`
+- **Time Complexity**: O(n) where n = number of tunnels
+- **Impact**: With 1,000 tunnels, recovery can take 30-60 seconds
+
+**Mitigation**:
+- Implement parallel recovery (future enhancement)
+- Use faster storage for metadata files
+- Monitor recovery time in logs
+
+### Architectural Alternatives
+
+For extremely high-density scenarios (>1,000 volumes per node), consider:
+
+#### 1. **Connection Pooling**
+- Share tunnels between volumes from the same NFS server
+- Reduces process count and resource usage
+- Requires careful refcount management
+- **Trade-off**: Increased complexity, potential security concerns
+
+#### 2. **Proxy-Based Architecture**
+- Single proxy process handling multiple connections
+- Better resource efficiency at scale
+- Requires significant architectural changes
+- **Trade-off**: Single point of failure, increased complexity
+
+#### 3. **Kernel-Level TLS**
+- Use kernel TLS (kTLS) for NFS encryption
+- Eliminates userspace tunnel processes
+- Requires kernel support and NFS server compatibility
+- **Trade-off**: Limited availability, platform-specific
+
+### Recommended Deployment Patterns
+
+#### Small-Scale Deployments (<100 volumes per node)
+- ✅ Use default configuration
+- ✅ Standard health check interval (30s)
+- ✅ No special tuning required
+
+#### Medium-Scale Deployments (100-500 volumes per node)
+- ⚠️ Monitor resource usage
+- ⚠️ Increase health check interval to 60s
+- ⚠️ Set appropriate memory limits
+- ⚠️ Use node selectors for workload distribution
+
+#### Large-Scale Deployments (500-1000 volumes per node)
+- 🔴 Increase `pid_max` and FD limits
+- 🔴 Use fast local storage for metadata
+- 🔴 Increase health check interval to 120s
+- 🔴 Monitor recovery time after reboots
+- 🔴 Consider dedicated nodes for RFS workloads
+
+#### Very Large-Scale Deployments (>1000 volumes per node)
+- 🚫 **Not recommended** with current sidecar architecture
+- 🚫 Consider architectural alternatives (connection pooling, proxy)
+- 🚫 Distribute workloads across multiple nodes
+- 🚫 Evaluate if RFS profile is appropriate for use case
+
+### Monitoring Recommendations
+
+Monitor these metrics to detect scalability issues:
+
+```bash
+# Process count
+ps aux | grep stunnel | wc -l
+
+# Port usage
+netstat -tuln | grep "127.0.0.1:2[0-9]" | wc -l
+
+# Memory usage
+kubectl top pod -n kube-system -l app=ibm-vpc-file-csi-driver
+
+# File descriptor usage
+lsof -p $(pgrep tunnel-manager) | wc -l
+
+# Recovery time (from logs)
+kubectl logs -n kube-system <csi-pod> -c tunnel-manager | grep "Tunnel recovery completed"
+```
+
+### Summary
+
+The tunnel-manager sidecar approach provides:
+- ✅ **Excellent reliability** (survives CSI driver restarts)
+- ✅ **Good isolation** (separate process per volume)
+- ✅ **Proven scalability** up to ~500 volumes per node
+- ⚠️ **Limited scalability** beyond 1,000 volumes per node
+- 🔴 **Not suitable** for extreme high-density scenarios (>2,000 volumes per node)
+
+For most production workloads, the current architecture is appropriate and well-tested.
+
 ## Future Enhancements
 
 Potential improvements for future versions:

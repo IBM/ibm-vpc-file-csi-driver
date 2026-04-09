@@ -185,6 +185,9 @@ spec:
               mountPath: /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/
             - name: stunnel-dir
               mountPath: /etc/stunnel
+            - name: kubelet-data-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: "HostToContainer"
         - name: liveness-probe
           securityContext:
             runAsNonRoot: false # For IKS use true, for OCP use false
