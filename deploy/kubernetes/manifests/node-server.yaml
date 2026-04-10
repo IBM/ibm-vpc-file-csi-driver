@@ -186,7 +186,7 @@ spec:
             - name: stunnel-dir
               mountPath: /etc/stunnel
             - name: kubelet-data-dir
-              mountPath: /var/lib/kubelet
+              mountPath: /var/data/kubelet
               mountPropagation: "HostToContainer"
         - name: liveness-probe
           securityContext:
