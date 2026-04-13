@@ -20,12 +20,9 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	libMetrics "github.com/IBM/ibmcloud-volume-interface/lib/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -37,7 +34,6 @@ import (
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	csiConfig "github.com/IBM/ibm-vpc-file-csi-driver/config"
 	driver "github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver"
-	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/tunnel"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeInfoManager "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	"github.com/IBM/ibmcloud-volume-file-vpc/pkg/watcher"
@@ -57,8 +53,6 @@ func init() {
 var (
 	endpoint             = flag.String("endpoint", "unix:/tmp/csi.sock", "CSI endpoint")
 	metricsAddress       = flag.String("metrics-address", "0.0.0.0:9080", "Metrics address")
-	mode                 = flag.String("mode", "csi", "Execution mode: csi or tunnel-manager")
-	tunnelManagerSocket  = flag.String("tunnel-manager-socket", tunnel.DefaultSocketPath, "Unix domain socket path for tunnel-manager API")
 	vendorVersion        string
 	extraVolumeLabelsStr = flag.String("extra-labels", "", "Extra labels to tag all volumes created by driver. It is a comma separated list of key value pairs like '<key1>:<value1>,<key2>:<value2>'.")
 	logger               *zap.Logger
@@ -94,17 +88,10 @@ func handle(logger *zap.Logger) {
 	logger.Info("IBM CSI driver version", zap.Reflect("DriverVersion", vendorVersion))
 	logger.Info("Controller Mutex Lock enabled", zap.Bool("LockEnabled", *utils.LockEnabled))
 
-	switch *mode {
-	case "tunnel-manager":
-		runTunnelManager(logger)
-	case "csi":
-		runCSI(logger)
-	default:
-		logger.Fatal("Invalid execution mode", zap.String("mode", *mode))
-	}
+	runCSI(logger)
 }
 
-func runCSI(logger *zap.Logger) {
+func runCSI(logger *zap.Logger) { //nolint:funlen
 	// Setup Cloud Provider
 	k8sClient, err := k8sUtils.Getk8sClientSet()
 	if err != nil {
@@ -146,36 +133,6 @@ func runCSI(logger *zap.Logger) {
 	driver.WatchClusterConfigMap(k8sClient.Clientset.CoreV1().RESTClient(), logger)
 
 	ibmCSIDriver.Run(*endpoint)
-}
-
-func runTunnelManager(logger *zap.Logger) {
-	cfg := tunnel.GetConfigFromEnv(logger)
-	manager, err := tunnel.NewManager(cfg)
-	if err != nil {
-		logger.Fatal("Failed to initialize tunnel manager", zap.Error(err))
-	}
-
-	if err := manager.RecoverFromCrash(); err != nil {
-		logger.Warn("Failed to recover tunnels", zap.Error(err))
-	}
-
-	server := tunnel.NewGRPCServer(manager, *tunnelManagerSocket, logger)
-	if err := server.Start(); err != nil {
-		logger.Fatal("Failed to start tunnel-manager gRPC server", zap.Error(err))
-	}
-
-	logger.Info("Tunnel-manager mode started (gRPC)", zap.String("socketPath", *tunnelManagerSocket))
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
-	<-sigCh
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*1000*1000*1000)
-	defer cancel()
-
-	if err := server.Stop(ctx); err != nil {
-		logger.Warn("Failed to stop tunnel-manager server cleanly", zap.Error(err))
-	}
 }
 
 func serveMetrics() {
