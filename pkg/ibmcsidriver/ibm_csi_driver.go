@@ -136,18 +136,26 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		icDriver.logger.Info("RFS profile is supported")
 	}
 
-	socketPath := os.Getenv("TUNNEL_MANAGER_SOCKET")
-	if socketPath == "" {
-		socketPath = tunnel.DefaultSocketPath
+	// Initialize tunnel manager gRPC client only for node servers (not controllers)
+	// The tunnel manager runs as a sidecar in the node DaemonSet, not in the controller StatefulSet
+	if os.Getenv("IS_NODE_SERVER") == "true" {
+		socketPath := os.Getenv("TUNNEL_MANAGER_SOCKET")
+		if socketPath == "" {
+			socketPath = tunnel.DefaultSocketPath
+		}
+
+		// Create gRPC client for tunnel manager
+		grpcClient, err := tunnel.NewGRPCClient(socketPath, icDriver.logger)
+		if err != nil {
+			icDriver.logger.Error("Failed to create gRPC client for tunnel manager", zap.Error(err))
+			return fmt.Errorf("failed to create tunnel manager gRPC client: %w", err)
+		}
+		icDriver.ns.TunnelService = grpcClient
+		icDriver.logger.Info("Successfully initialized tunnel manager gRPC client for node server")
+	} else {
+		icDriver.logger.Info("Skipping tunnel manager initialization (running as controller)")
 	}
 
-	// Create gRPC client for tunnel manager
-	grpcClient, err := tunnel.NewGRPCClient(socketPath, icDriver.logger)
-	if err != nil {
-		icDriver.logger.Error("Failed to create gRPC client for tunnel manager", zap.Error(err))
-		return fmt.Errorf("failed to create tunnel manager gRPC client: %w", err)
-	}
-	icDriver.ns.TunnelService = grpcClient
 	return nil
 }
 

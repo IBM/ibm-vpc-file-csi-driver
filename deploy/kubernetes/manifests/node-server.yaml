@@ -105,9 +105,9 @@ spec:
               value: "/var/lib/ibmshare.sock"
             - name: TUNNEL_MANAGER_SOCKET
               value: "/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
+            - name: IS_NODE_SERVER
+              value: "true"
             # Not applicable to Red Hat OpenShift Container Platform Self-Managed
-            # - name: IS_NODE_SERVER
-            #   value: "true"
             # - name: SIDECAR_GROUP_ID
             #   value: "2121"
           resources:
