@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"time"
 
 	pb "github.com/IBM/ibm-vpc-file-csi-driver/pkg/tunnel/proto"
 	"go.uber.org/zap"
@@ -14,10 +13,11 @@ import (
 
 // GRPCClient implements the Service interface using gRPC
 type GRPCClient struct {
-	socketPath string
-	conn       *grpc.ClientConn
-	client     pb.TunnelManagerClient
-	logger     *zap.Logger
+	socketPath  string
+	conn        *grpc.ClientConn
+	client      pb.TunnelManagerClient
+	logger      *zap.Logger
+	retryConfig RetryConfig
 }
 
 // NewGRPCClient creates a new gRPC client for tunnel management
@@ -29,33 +29,36 @@ func NewGRPCClient(socketPath string, logger *zap.Logger) (*GRPCClient, error) {
 		logger = zap.NewNop()
 	}
 
+	// Use default retry configuration
+	retryConfig := DefaultRetryConfig()
+
 	// Create custom dialer for Unix socket
 	dialer := func(ctx context.Context, addr string) (net.Conn, error) {
 		return net.Dial("unix", addr)
 	}
 
-	// Connect to Unix socket
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(
-		ctx,
+	// Connect to Unix socket with non-blocking dial
+	// This allows the CSI driver to start even if tunnel-manager is temporarily unavailable
+	// The connection will be established in the background and retried automatically
+	conn, err := grpc.Dial(
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
-		grpc.WithBlock(),
+		// Removed grpc.WithBlock() to make connection non-blocking
+		// This prevents CSI driver startup from being blocked if tunnel-manager is down
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to tunnel-manager at %s: %w", socketPath, err)
+		return nil, fmt.Errorf("failed to create gRPC connection to tunnel-manager at %s: %w", socketPath, err)
 	}
 
 	client := pb.NewTunnelManagerClient(conn)
 
 	return &GRPCClient{
-		socketPath: socketPath,
-		conn:       conn,
-		client:     client,
-		logger:     logger,
+		socketPath:  socketPath,
+		conn:        conn,
+		client:      client,
+		logger:      logger,
+		retryConfig: retryConfig,
 	}, nil
 }
 
@@ -68,59 +71,87 @@ func (c *GRPCClient) Close() error {
 }
 
 // EnsureTunnel creates or reuses a tunnel for the given volume
+// Retries automatically on transient failures (e.g., tunnel-manager temporarily unavailable)
 func (c *GRPCClient) EnsureTunnel(ctx context.Context, volumeID, nfsServer string) (*TunnelInfo, error) {
 	c.logger.Debug("EnsureTunnel gRPC request",
 		zap.String("volumeID", volumeID),
 		zap.String("nfsServer", nfsServer))
 
-	req := &pb.EnsureTunnelRequest{
-		VolumeId:  volumeID,
-		NfsServer: nfsServer,
-	}
+	var tunnelInfo *TunnelInfo
+	var created bool
 
-	resp, err := c.client.EnsureTunnel(ctx, req)
+	// Retry the RPC call with exponential backoff
+	err := retryWithBackoff(ctx, c.logger, c.retryConfig, "EnsureTunnel", func() error {
+		req := &pb.EnsureTunnelRequest{
+			VolumeId:  volumeID,
+			NfsServer: nfsServer,
+		}
+
+		resp, err := c.client.EnsureTunnel(ctx, req)
+		if err != nil {
+			return fmt.Errorf("failed to ensure tunnel: %w", err)
+		}
+
+		if resp.Tunnel == nil {
+			return fmt.Errorf("tunnel-manager returned nil tunnel")
+		}
+
+		tunnelInfo = protoToTunnelInfo(resp.Tunnel)
+		created = resp.Created
+		return nil
+	})
+
 	if err != nil {
-		c.logger.Error("EnsureTunnel gRPC failed",
+		c.logger.Error("EnsureTunnel gRPC failed after retries",
 			zap.String("volumeID", volumeID),
 			zap.Error(err))
-		return nil, fmt.Errorf("failed to ensure tunnel: %w", err)
+		return nil, err
 	}
-
-	if resp.Tunnel == nil {
-		return nil, fmt.Errorf("tunnel-manager returned nil tunnel")
-	}
-
-	tunnelInfo := protoToTunnelInfo(resp.Tunnel)
 
 	c.logger.Info("EnsureTunnel gRPC succeeded",
 		zap.String("volumeID", volumeID),
 		zap.Int("localPort", tunnelInfo.LocalPort),
-		zap.Bool("created", resp.Created))
+		zap.Bool("created", created))
 
 	return tunnelInfo, nil
 }
 
 // RemoveTunnel decrements refcount and removes tunnel if refcount reaches zero
+// Retries automatically on transient failures (e.g., tunnel-manager temporarily unavailable)
 func (c *GRPCClient) RemoveTunnel(ctx context.Context, volumeID string) error {
 	c.logger.Debug("RemoveTunnel gRPC request",
 		zap.String("volumeID", volumeID))
 
-	req := &pb.RemoveTunnelRequest{
-		VolumeId: volumeID,
-	}
+	var removed bool
+	var refCount int32
 
-	resp, err := c.client.RemoveTunnel(ctx, req)
+	// Retry the RPC call with exponential backoff
+	err := retryWithBackoff(ctx, c.logger, c.retryConfig, "RemoveTunnel", func() error {
+		req := &pb.RemoveTunnelRequest{
+			VolumeId: volumeID,
+		}
+
+		resp, err := c.client.RemoveTunnel(ctx, req)
+		if err != nil {
+			return fmt.Errorf("failed to remove tunnel: %w", err)
+		}
+
+		removed = resp.Removed
+		refCount = resp.RefCount
+		return nil
+	})
+
 	if err != nil {
-		c.logger.Error("RemoveTunnel gRPC failed",
+		c.logger.Error("RemoveTunnel gRPC failed after retries",
 			zap.String("volumeID", volumeID),
 			zap.Error(err))
-		return fmt.Errorf("failed to remove tunnel: %w", err)
+		return err
 	}
 
 	c.logger.Info("RemoveTunnel gRPC succeeded",
 		zap.String("volumeID", volumeID),
-		zap.Bool("removed", resp.Removed),
-		zap.Int32("refCount", resp.RefCount))
+		zap.Bool("removed", removed),
+		zap.Int32("refCount", refCount))
 
 	return nil
 }

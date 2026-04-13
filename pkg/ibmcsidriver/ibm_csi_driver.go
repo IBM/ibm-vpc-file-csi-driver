@@ -145,13 +145,19 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		}
 
 		// Create gRPC client for tunnel manager
+		// Connection is non-blocking, so this will succeed even if tunnel-manager is temporarily down
+		// gRPC will automatically retry connections in the background
 		grpcClient, err := tunnel.NewGRPCClient(socketPath, icDriver.logger)
 		if err != nil {
+			// This should rarely fail since connection is non-blocking
+			// Only fails if there's a fundamental issue (e.g., invalid socket path)
 			icDriver.logger.Error("Failed to create gRPC client for tunnel manager", zap.Error(err))
 			return fmt.Errorf("failed to create tunnel manager gRPC client: %w", err)
 		}
 		icDriver.ns.TunnelService = grpcClient
-		icDriver.logger.Info("Successfully initialized tunnel manager gRPC client for node server")
+		icDriver.logger.Info("Successfully initialized tunnel manager gRPC client for node server",
+			zap.String("socketPath", socketPath),
+			zap.String("note", "Connection is non-blocking; will retry automatically if tunnel-manager is unavailable"))
 	} else {
 		icDriver.logger.Info("Skipping tunnel manager initialization (running as controller)")
 	}
