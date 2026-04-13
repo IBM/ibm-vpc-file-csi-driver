@@ -37,8 +37,7 @@ RUN mkdir -p /home/tunnel-manager/
 # This directory will be mounted as hostPath and must exist in the image
 # to ensure it persists across pod restarts
 RUN mkdir -p /etc/stunnel && \
-   chmod 755 /etc/stunnel && \
-
+    chmod 755 /etc/stunnel
 
 # Copy the tunnel-manager binary
 ADD ibm-vpc-file-tunnel-manager /home/tunnel-manager/
