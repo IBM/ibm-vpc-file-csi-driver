@@ -729,28 +729,44 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 			return t, nil
 		}
 
-		// Tunnel exists but unhealthy, restart it
-		m.logger.Warn("Existing tunnel is unhealthy, restarting",
-			zap.String("volumeID", volumeID))
+		// Tunnel exists but unhealthy
+		// Check if it's a process issue or NFS server issue
+		processHealthy := t.Cmd != nil && t.Cmd.Process != nil
 		m.mu.Unlock()
 
-		if err := m.restartTunnel(t); err != nil {
-			return nil, fmt.Errorf("failed to restart unhealthy tunnel: %w", err)
+		if !processHealthy {
+			// Tunnel process died - restart it
+			m.logger.Warn("Existing tunnel process died, restarting",
+				zap.String("volumeID", volumeID))
+
+			if err := m.restartTunnel(t); err != nil {
+				return nil, fmt.Errorf("failed to restart unhealthy tunnel: %w", err)
+			}
+
+			// Increment refcount after successful restart
+			m.mu.Lock()
+			t.RefCount++
+			m.mu.Unlock()
+
+			// Update metadata with new refcount
+			if err := m.saveTunnelMetadataWithRetry(t); err != nil {
+				m.logger.Warn("Failed to update tunnel metadata after retries",
+					zap.String("volumeID", volumeID),
+					zap.Error(err))
+			}
+
+			return t, nil
 		}
 
-		// Increment refcount after successful restart
-		m.mu.Lock()
-		t.RefCount++
-		m.mu.Unlock()
+		// Tunnel process is running but NFS server is unreachable
+		// Don't restart - just return error and let CSI retry later
+		m.logger.Error("Tunnel exists but NFS server is unreachable, waiting for recovery",
+			zap.String("volumeID", volumeID),
+			zap.String("nfsServer", nfsServer),
+			zap.Int("port", t.LocalPort),
+			zap.Int("currentRefCount", t.RefCount))
 
-		// Update metadata with new refcount
-		if err := m.saveTunnelMetadataWithRetry(t); err != nil {
-			m.logger.Warn("Failed to update tunnel metadata after retries",
-				zap.String("volumeID", volumeID),
-				zap.Error(err))
-		}
-
-		return t, nil
+		return nil, fmt.Errorf("tunnel exists but NFS server %s is unreachable, please check network connectivity and NFS server status", nfsServer)
 	}
 	m.mu.Unlock()
 
@@ -760,7 +776,7 @@ func (m *Manager) EnsureTunnel(volumeID, nfsServer string) (*Tunnel, error) {
 		return nil, fmt.Errorf("failed to allocate port: %w", err)
 	}
 
-	return m.createTunnel(volumeID, nfsServer, port, 1, true)
+	return m.createTunnel(volumeID, nfsServer, port, 1, true, false)
 }
 
 // recoverTunnel recreates a tunnel on its original saved port for crash recovery.
@@ -768,12 +784,13 @@ func (m *Manager) recoverTunnel(volumeID, nfsServer string, port, refCount int) 
 	if err := m.reservePort(port); err != nil {
 		return nil, fmt.Errorf("failed to reserve recovered port: %w", err)
 	}
-	return m.createTunnel(volumeID, nfsServer, port, refCount, false)
+	return m.createTunnel(volumeID, nfsServer, port, refCount, false, true)
 }
 
 // createTunnel creates and starts a tunnel on a specified port.
 // saveMetadata controls whether metadata should be rewritten after creation.
-func (m *Manager) createTunnel(volumeID, nfsServer string, port, refCount int, saveMetadata bool) (*Tunnel, error) {
+// isRecovery indicates this is crash recovery (skip NFS connectivity check in waitForTunnel).
+func (m *Manager) createTunnel(volumeID, nfsServer string, port, refCount int, saveMetadata, isRecovery bool) (*Tunnel, error) {
 	m.logger.Info("Preparing tunnel",
 		zap.String("volumeID", volumeID),
 		zap.String("nfsServer", nfsServer),
@@ -821,7 +838,7 @@ func (m *Manager) createTunnel(volumeID, nfsServer string, port, refCount int, s
 	}
 
 	// Wait for tunnel to be ready
-	if err := m.waitForTunnel(tunnel, 10*time.Second); err != nil {
+	if err := m.waitForTunnel(tunnel, 10*time.Second, isRecovery); err != nil {
 		cancel()
 		m.stopTunnelProcess(tunnel)
 		m.releasePort(port)
@@ -926,7 +943,8 @@ func (m *Manager) restartTunnel(t *Tunnel) error {
 	}
 
 	// Wait for tunnel to be ready
-	if err := m.waitForTunnel(t, 10*time.Second); err != nil {
+	// Use isRecovery=true since this is a restart of existing tunnel
+	if err := m.waitForTunnel(t, 10*time.Second, true); err != nil {
 		cancel()
 		m.stopTunnelProcess(t)
 		return err
@@ -948,20 +966,49 @@ func (m *Manager) stopTunnelProcess(t *Tunnel) {
 }
 
 // waitForTunnel waits for a tunnel to become ready
-func (m *Manager) waitForTunnel(t *Tunnel, timeout time.Duration) error {
+// IMPORTANT: For new tunnels, verifies NFS server connectivity to prevent leaks
+// For recovery, skips NFS check to restore service even if NFS temporarily down
+func (m *Manager) waitForTunnel(t *Tunnel, timeout time.Duration, isRecovery bool) error {
 	deadline := time.Now().Add(timeout)
 	addr := fmt.Sprintf("127.0.0.1:%d", t.LocalPort)
 
 	for time.Now().Before(deadline) {
+		// First check if local tunnel port is listening
 		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
 		if err == nil {
 			conn.Close()
-			return nil
+
+			// CRITICAL: For NEW tunnels, verify NFS server is reachable
+			// This prevents creating "healthy" tunnels when NFS server is down on FIRST mount
+			// For RECOVERY, skip this check to restore tunnel even if NFS temporarily down
+			if !isRecovery {
+				if m.checkNFSServerConnectivity(t) {
+					m.logger.Info("Tunnel ready and NFS server reachable",
+						zap.String("volumeID", t.VolumeID),
+						zap.String("nfsServer", t.RemoteAddr))
+					return nil
+				}
+
+				// Tunnel process running but NFS server unreachable - keep retrying
+				m.logger.Debug("Tunnel process ready but NFS server unreachable, retrying...",
+					zap.String("volumeID", t.VolumeID),
+					zap.String("nfsServer", t.RemoteAddr))
+			} else {
+				// Recovery mode: tunnel process ready is sufficient
+				// Pod's mount already exists, just need tunnel process running
+				m.logger.Info("Tunnel recovered (process ready, skipping NFS check for recovery)",
+					zap.String("volumeID", t.VolumeID),
+					zap.String("nfsServer", t.RemoteAddr))
+				return nil
+			}
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	return fmt.Errorf("tunnel did not become ready within %v", timeout)
+	if isRecovery {
+		return fmt.Errorf("tunnel recovery failed: process did not become ready within %v", timeout)
+	}
+	return fmt.Errorf("tunnel did not become ready within %v (NFS server may be unreachable)", timeout)
 }
 
 // checkTunnelHealth checks if a tunnel is healthy
@@ -983,6 +1030,34 @@ func (m *Manager) checkTunnelHealth(t *Tunnel) bool {
 	}
 	conn.Close()
 
+	// CRITICAL: Check if NFS server is actually reachable through the tunnel
+	// This prevents incrementing refCount when NFS server is down/unreachable
+	if !m.checkNFSServerConnectivity(t) {
+		m.logger.Warn("Tunnel process running but NFS server unreachable",
+			zap.String("volumeID", t.VolumeID),
+			zap.String("nfsServer", t.RemoteAddr),
+			zap.Int("port", t.LocalPort))
+		return false
+	}
+
+	return true
+}
+
+// checkNFSServerConnectivity verifies the NFS server is reachable through the tunnel
+// by attempting a connection to the remote NFS server
+func (m *Manager) checkNFSServerConnectivity(t *Tunnel) bool {
+	// Try to connect directly to the NFS server to verify it's reachable
+	// Use a short timeout to avoid blocking
+	nfsAddr := fmt.Sprintf("%s:%d", t.RemoteAddr, m.nfsPort)
+	conn, err := net.DialTimeout("tcp", nfsAddr, 2*time.Second)
+	if err != nil {
+		m.logger.Debug("NFS server connectivity check failed",
+			zap.String("volumeID", t.VolumeID),
+			zap.String("nfsServer", nfsAddr),
+			zap.Error(err))
+		return false
+	}
+	conn.Close()
 	return true
 }
 

@@ -1,0 +1,213 @@
+<mxfile host="app.diagrams.net" modified="2026-04-10T11:16:00.000Z" agent="5.0" version="21.0.0" etag="stunnel-architecture" type="device">
+  <diagram name="RFS Stunnel Architecture" id="stunnel-arch">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        
+        <!-- Kubernetes Cluster Container -->
+        <mxCell id="k8s-cluster" value="KUBERNETES CLUSTER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=16;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1520" height="1100" as="geometry"/>
+        </mxCell>
+        
+        <!-- Kubernetes Node Container -->
+        <mxCell id="k8s-node" value="KUBERNETES NODE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="1440" height="900" as="geometry"/>
+        </mxCell>
+        
+        <!-- Application Layer -->
+        <mxCell id="app-layer" value="APPLICATION LAYER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="140" width="1360" height="140" as="geometry"/>
+        </mxCell>
+        
+        <!-- Pods -->
+        <mxCell id="pod1" value="Pod 1<br>(PVC-A)<br><br>Volume Mount" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="160" y="180" width="120" height="80" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="pod2" value="Pod 2<br>(PVC-A)<br><br>Volume Mount" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="320" y="180" width="120" height="80" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="pod3" value="Pod 3<br>(PVC-B)<br><br>Volume Mount" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="480" y="180" width="120" height="80" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="pod-n" value="Pod N<br>(PVC-X)<br><br>Volume Mount" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="640" y="180" width="120" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- CSI Driver Layer -->
+        <mxCell id="csi-layer" value="CSI DRIVER LAYER (DaemonSet Pod)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="320" width="1360" height="400" as="geometry"/>
+        </mxCell>
+        
+        <!-- CSI Node Server Container -->
+        <mxCell id="csi-node-container" value="CSI Node Server Container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="160" y="360" width="280" height="320" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="node-publish" value="NodePublishVolume<br><br>• Detect RFS + EIT<br>• Parse NFS source<br>• Call tunnel manager<br>• Mount NFS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="180" y="400" width="240" height="120" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="node-unpublish" value="NodeUnpublishVolume<br><br>• Unmount NFS<br>• Call tunnel manager<br>• Decrement refcount" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="180" y="540" width="240" height="120" as="geometry"/>
+        </mxCell>
+        
+        <!-- Tunnel Manager Container -->
+        <mxCell id="tunnel-mgr-container" value="Tunnel Manager Sidecar Container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="360" width="360" height="320" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="tunnel-manager" value="Manager<br><br>• tunnels: map[volumeID]*Tunnel<br>• allocatedPorts: map[int]bool<br>• basePort: 20000<br>• portRange: 10000<br><br>API Endpoints:<br>• EnsureTunnel()<br>• RemoveTunnel()<br>• GetTunnel()<br>• Health()<br><br>Recovery:<br>• RecoverFromCrash()<br>• /proc/mounts verify<br><br>Health Monitoring:<br>• healthCheckLoop()<br>• 30s interval" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="400" width="320" height="260" as="geometry"/>
+        </mxCell>
+        
+        <!-- HTTP/Unix Socket Connection -->
+        <mxCell id="http-connection" value="HTTP over<br>Unix Socket" style="endArrow=classic;startArrow=classic;html=1;strokeWidth=2;strokeColor=#0000FF;" edge="1" parent="1" source="node-publish" target="tunnel-manager">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="440" y="460" as="sourcePoint"/>
+            <mxPoint x="490" y="410" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Stunnel Processes -->
+        <mxCell id="stunnel-container" value="Stunnel Processes (One per NFS share)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="880" y="360" width="280" height="320" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="stunnel-a" value="Share A<br>Port: 20001<br>RefCount: 2<br>State: RUNNING<br><br>127.0.0.1:20001<br>TLS Tunnel<br>10.x.x.x:20049" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="900" y="400" width="240" height="120" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="stunnel-b" value="Share B<br>Port: 20002<br>RefCount: 1<br>State: RUNNING<br><br>127.0.0.1:20002<br>TLS Tunnel<br>10.y.y.y:20049" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="900" y="540" width="240" height="120" as="geometry"/>
+        </mxCell>
+        
+        <!-- Manager to Stunnel Connection -->
+        <mxCell id="mgr-stunnel" value="Manages" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#00CC00;" edge="1" parent="1" source="tunnel-manager" target="stunnel-a">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="820" y="460" as="sourcePoint"/>
+            <mxPoint x="870" y="410" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Storage Layer -->
+        <mxCell id="storage-layer" value="STORAGE LAYER - Host Filesystem / Kubelet" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="760" width="1360" height="200" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="kubelet-paths" value="/var/lib/kubelet/pods/pod-uid/volumes/...<br>/var/data/kubelet/pods/pod-uid/volumes/...<br><br>NFS Mounts: 127.0.0.1:port:/export<br><br>/proc/mounts - Used for recovery verification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="160" y="800" width="1280" height="140" as="geometry"/>
+        </mxCell>
+        
+        <!-- Pod to CSI connections -->
+        <mxCell id="pod1-csi" value="" style="endArrow=classic;html=1;strokeWidth=2;" edge="1" parent="1" source="pod1" target="csi-node-container">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="220" y="280" as="sourcePoint"/>
+            <mxPoint x="270" y="230" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="pod2-csi" value="" style="endArrow=classic;html=1;strokeWidth=2;" edge="1" parent="1" source="pod2" target="csi-node-container">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="380" y="280" as="sourcePoint"/>
+            <mxPoint x="430" y="230" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="pod3-csi" value="" style="endArrow=classic;html=1;strokeWidth=2;" edge="1" parent="1" source="pod3" target="csi-node-container">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="280" as="sourcePoint"/>
+            <mxPoint x="590" y="230" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- CSI to Storage connections -->
+        <mxCell id="csi-storage" value="NFS Mount" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#CC0000;" edge="1" parent="1" source="csi-node-container" target="kubelet-paths">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="300" y="700" as="sourcePoint"/>
+            <mxPoint x="350" y="650" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- IBM Cloud Infrastructure -->
+        <mxCell id="ibm-cloud" value="IBM CLOUD VPC INFRASTRUCTURE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b0e3e6;strokeColor=#0e8088;verticalAlign=top;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1060" width="1200" height="200" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="rfs-storage" value="IBM VPC File Storage (RFS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="1100" width="1120" height="140" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="nfs-server-a" value="NFS Server A<br>10.x.x.x<br>Port: 20049<br>TLS Enabled (EIT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="400" y="1140" width="200" height="80" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="nfs-server-b" value="NFS Server B<br>10.y.y.y<br>Port: 20049<br>TLS Enabled (EIT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="700" y="1140" width="200" height="80" as="geometry"/>
+        </mxCell>
+        
+        <!-- Stunnel to NFS connections -->
+        <mxCell id="stunnel-nfs-a" value="TLS Encrypted<br>Connection" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#FF0000;dashed=1;" edge="1" parent="1" source="stunnel-a" target="nfs-server-a">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1020" y="720" as="sourcePoint"/>
+            <mxPoint x="500" y="1100" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="stunnel-nfs-b" value="TLS Encrypted<br>Connection" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#FF0000;dashed=1;" edge="1" parent="1" source="stunnel-b" target="nfs-server-b">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1020" y="720" as="sourcePoint"/>
+            <mxPoint x="800" y="1100" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Legend -->
+        <mxCell id="legend" value="LEGEND" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="140" width="260" height="200" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="legend-http" value="HTTP/Unix Socket" style="endArrow=classic;startArrow=classic;html=1;strokeWidth=2;strokeColor=#0000FF;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1220" y="180" as="sourcePoint"/>
+            <mxPoint x="1320" y="180" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="legend-manage" value="Process Management" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#00CC00;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1220" y="220" as="sourcePoint"/>
+            <mxPoint x="1320" y="220" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="legend-mount" value="NFS Mount" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#CC0000;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1220" y="260" as="sourcePoint"/>
+            <mxPoint x="1320" y="260" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="legend-tls" value="TLS Encrypted" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#FF0000;dashed=1;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1220" y="300" as="sourcePoint"/>
+            <mxPoint x="1320" y="300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Key Features Box -->
+        <mxCell id="features" value="KEY FEATURES<br><br>• One tunnel per NFS share<br>• Reference counting<br>• Crash recovery<br>• Health monitoring<br>• Port range: 20000-29999<br>• TLS certificate verification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="380" width="260" height="180" as="geometry"/>
+        </mxCell>
+        
+        <!-- Metadata Files -->
+        <mxCell id="metadata" value="PERSISTENT METADATA<br><br>/etc/stunnel/<br>• *.conf (stunnel config)<br>• *.meta.json (state)<br>• *.meta.json.bak (backup)<br><br>Used for crash recovery" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;verticalAlign=top;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="600" width="260" height="160" as="geometry"/>
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
