@@ -140,7 +140,14 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	if socketPath == "" {
 		socketPath = tunnel.DefaultSocketPath
 	}
-	icDriver.ns.TunnelService = tunnel.NewHTTPClient(socketPath, icDriver.logger)
+
+	// Create gRPC client for tunnel manager
+	grpcClient, err := tunnel.NewGRPCClient(socketPath, icDriver.logger)
+	if err != nil {
+		icDriver.logger.Error("Failed to create gRPC client for tunnel manager", zap.Error(err))
+		return fmt.Errorf("failed to create tunnel manager gRPC client: %w", err)
+	}
+	icDriver.ns.TunnelService = grpcClient
 	return nil
 }
 

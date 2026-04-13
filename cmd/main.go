@@ -159,12 +159,12 @@ func runTunnelManager(logger *zap.Logger) {
 		logger.Warn("Failed to recover tunnels", zap.Error(err))
 	}
 
-	server := tunnel.NewHTTPServer(manager, *tunnelManagerSocket, logger)
+	server := tunnel.NewGRPCServer(manager, *tunnelManagerSocket, logger)
 	if err := server.Start(); err != nil {
-		logger.Fatal("Failed to start tunnel-manager server", zap.Error(err))
+		logger.Fatal("Failed to start tunnel-manager gRPC server", zap.Error(err))
 	}
 
-	logger.Info("Tunnel-manager mode started", zap.String("socketPath", *tunnelManagerSocket))
+	logger.Info("Tunnel-manager mode started (gRPC)", zap.String("socketPath", *tunnelManagerSocket))
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
