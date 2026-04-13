@@ -293,6 +293,71 @@ The migration has been tested and all existing tests pass.
    - Optimize gRPC client connection reuse
    - Reduce connection overhead
 
+## Deployment Configuration
+
+### Node Server YAML Changes
+
+The tunnel-manager container configuration has been updated to use the dedicated binary:
+
+**Before (HTTP mode with --mode flag):**
+```yaml
+- name: tunnel-manager
+  args:
+    - "--mode=tunnel-manager"
+    - "--tunnel-manager-socket=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
+```
+
+**After (gRPC with dedicated binary):**
+```yaml
+- name: tunnel-manager
+  args:
+    - "--v=5"
+    - "--tunnel-manager-socket=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
+  # Uses ENTRYPOINT from Dockerfile.tunnel-manager: /home/tunnel-manager/ibm-vpc-file-tunnel-manager
+```
+
+### Key Changes:
+1. **Removed `--mode` flag** - No longer needed, dedicated binary runs tunnel-manager by default
+2. **Added `--v=5` flag** - Verbose logging for initial deployment monitoring
+3. **Binary path** - Uses `/home/tunnel-manager/ibm-vpc-file-tunnel-manager` from Dockerfile.tunnel-manager
+4. **Socket path** - Unchanged: `/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock`
+
+### Files Modified:
+- `deploy/kubernetes/manifests/node-server.yaml` - Main deployment manifest
+- `cmd/main.go` - Removed tunnel-manager mode (runs in separate container)
+
+### Build and Deploy Steps
+
+1. **Build New Images**
+   ```bash
+   # Build CSI driver image (with gRPC client)
+   make buildimage
+   
+   # Build tunnel-manager image (with gRPC server)
+   make buildimage-tunnel-manager
+   ```
+
+2. **Update Deployment Manifests**
+   - Update image tags in `deploy/kubernetes/manifests/node-server.yaml`
+   - Or use kustomize overlays in `deploy/kubernetes/overlays/dev/`
+
+3. **Deploy to Cluster**
+   ```bash
+   kubectl apply -k deploy/kubernetes/overlays/dev/
+   ```
+
+4. **Verify Deployment**
+   ```bash
+   # Check pods are running
+   kubectl get pods -n kube-system -l app=ibm-vpc-file-csi-node
+   
+   # Check tunnel-manager logs
+   kubectl logs -n kube-system -l app=ibm-vpc-file-csi-node -c tunnel-manager
+   
+   # Check CSI driver logs
+   kubectl logs -n kube-system -l app=ibm-vpc-file-csi-node -c iks-vpc-file-node-driver
+   ```
+
 ## References
 
 - [gRPC Documentation](https://grpc.io/docs/)
