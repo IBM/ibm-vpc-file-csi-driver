@@ -1243,6 +1243,9 @@ func GetConfigFromEnv(logger *zap.Logger) *Config {
 
 	if caFile := os.Getenv("STUNNEL_CA_FILE"); caFile != "" {
 		cfg.CAFile = caFile
+	} else {
+		// Auto-detect CA bundle path based on node OS label
+		cfg.CAFile = detectCABundlePath(logger)
 	}
 
 	if nfsPort := os.Getenv("STUNNEL_NFS_PORT"); nfsPort != "" {
@@ -1253,6 +1256,9 @@ func GetConfigFromEnv(logger *zap.Logger) *Config {
 
 	if env := os.Getenv("STUNNEL_ENVIRONMENT"); env != "" {
 		cfg.Environment = env
+	} else {
+		// Auto-detect from cluster master URL
+		cfg.Environment = detectEnvironmentFromCluster(logger)
 	}
 
 	if healthInterval := os.Getenv("STUNNEL_HEALTH_CHECK_INTERVAL"); healthInterval != "" {
@@ -1262,4 +1268,82 @@ func GetConfigFromEnv(logger *zap.Logger) *Config {
 	}
 
 	return cfg
+}
+
+// detectCABundlePath detects the CA bundle path based on node OS type
+// Reads NODE_OS_TYPE env var (from ibm-cloud.kubernetes.io/os label) to determine RHEL/RHCOS vs Ubuntu
+// Note: Host /etc is mounted at /host-certs in the container
+func detectCABundlePath(logger *zap.Logger) string {
+	// Try to read from downward API volume mount first (if available)
+	if osType := os.Getenv("NODE_OS_TYPE"); osType != "" {
+		return getCAPathForOS(osType, logger)
+	}
+
+	// Fallback: detect from filesystem (simpler, no K8s API needed)
+	// Check for RHEL/RHCOS by looking for /host-certs/redhat-release
+	if _, err := os.Stat("/host-certs/redhat-release"); err == nil {
+		caPath := "/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
+		logger.Info("Detected RHEL/RHCOS from filesystem", zap.String("caPath", caPath))
+		return caPath
+	}
+
+	// Default to Ubuntu/Debian
+	caPath := "/host-certs/ssl/certs/ca-certificates.crt"
+	logger.Info("Detected Ubuntu/Debian (default)", zap.String("caPath", caPath))
+	return caPath
+}
+
+// getCAPathForOS returns the CA bundle path for the given OS type
+// Note: Host /etc is mounted at /host-certs in the container
+func getCAPathForOS(osType string, logger *zap.Logger) string {
+	osType = strings.ToLower(osType)
+
+	if strings.Contains(osType, "rhel") || strings.Contains(osType, "rhcos") || strings.Contains(osType, "redhat") {
+		caPath := "/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
+		logger.Info("Using RHEL/RHCOS CA bundle", zap.String("osType", osType), zap.String("caPath", caPath))
+		return caPath
+	}
+
+	// Default to Ubuntu/Debian
+	caPath := "/host-certs/ssl/certs/ca-certificates.crt"
+	logger.Info("Using Ubuntu/Debian CA bundle", zap.String("osType", osType), zap.String("caPath", caPath))
+	return caPath
+}
+
+// detectEnvironmentFromCluster detects environment from cluster master URL
+// Checks for ".test." or "stage" in the URL to determine staging environment
+func detectEnvironmentFromCluster(logger *zap.Logger) string {
+	// Try to read cluster-info configmap (mounted at /etc/storage_ibmc/cluster_info)
+	clusterConfigPath := "/etc/storage_ibmc/cluster_info/cluster-config.json"
+
+	data, err := os.ReadFile(clusterConfigPath)
+	if err != nil {
+		logger.Debug("Could not read cluster config, defaulting to production",
+			zap.String("path", clusterConfigPath),
+			zap.Error(err))
+		return "production"
+	}
+
+	// Parse JSON to get master_url
+	var config struct {
+		MasterURL string `json:"master_url"`
+	}
+
+	if err := json.Unmarshal(data, &config); err != nil {
+		logger.Debug("Could not parse cluster config, defaulting to production", zap.Error(err))
+		return "production"
+	}
+
+	masterURL := strings.ToLower(config.MasterURL)
+
+	// Check if URL contains staging indicators
+	if strings.Contains(masterURL, ".test.") ||
+		strings.Contains(masterURL, "stage") ||
+		strings.Contains(masterURL, "staging") {
+		logger.Info("Detected staging environment from master URL", zap.String("masterURL", config.MasterURL))
+		return "staging"
+	}
+
+	logger.Info("Detected production environment from master URL", zap.String("masterURL", config.MasterURL))
+	return "production"
 }
