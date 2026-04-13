@@ -56,9 +56,13 @@ ENV TUNNEL_MANAGER_SOCKET=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-ma
 ENV STUNNEL_BASE_PORT=20000
 ENV STUNNEL_PORT_RANGE=10000
 ENV STUNNEL_CONFIG_DIR=/etc/stunnel
-ENV STUNNEL_CA_FILE=/host-certs/tls-ca-bundle.pem
+# STUNNEL_CA_FILE is auto-detected based on NODE_OS_TYPE (RHEL/RHCOS vs Ubuntu)
+# Can be manually overridden by setting STUNNEL_CA_FILE environment variable in deployment
+# ENV STUNNEL_CA_FILE=/host-certs/tls-ca-bundle.pem
 ENV STUNNEL_NFS_PORT=20049
-ENV STUNNEL_ENVIRONMENT=production
+# STUNNEL_ENVIRONMENT is auto-detected from cluster master URL (checks for .test. or stage)
+# Can be manually overridden by setting STUNNEL_ENVIRONMENT environment variable in deployment
+# ENV STUNNEL_ENVIRONMENT=production
 ENV STUNNEL_HEALTH_CHECK_INTERVAL=30s
 ENV LOG_LEVEL=info
 

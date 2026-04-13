@@ -166,8 +166,7 @@ spec:
           image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
           imagePullPolicy: Always
           args:
-            - "--v=5"
-            - "--tunnel-manager-socket=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
+            - "--socket=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
