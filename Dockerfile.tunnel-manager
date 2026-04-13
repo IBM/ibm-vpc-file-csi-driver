@@ -29,11 +29,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Create directories for stunnel configurations and metadata
-RUN mkdir -p /etc/stunnel && \
-    chmod 755 /etc/stunnel && \
-    mkdir -p /var/lib/kubelet/plugins/vpc.file.csi.ibm.io && \
-    chmod 755 /var/lib/kubelet/plugins/vpc.file.csi.ibm.io
 
 # Create application directory
 RUN mkdir -p /home/tunnel-manager/
