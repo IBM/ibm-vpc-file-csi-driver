@@ -1,0 +1,66 @@
+# Dockerfile for IBM VPC File CSI Driver - Tunnel Manager Sidecar
+FROM ubuntu:24.04
+
+# Default values
+ARG git_commit_id=unknown
+ARG git_remote_url=unknown
+ARG build_date=unknown
+ARG jenkins_build_number=unknown
+ARG REPO_SOURCE_URL=blank
+ARG BUILD_URL=blank
+
+# Add Labels to image to show build details
+LABEL git-commit-id=${git_commit_id}
+LABEL git-remote-url=${git_remote_url}
+LABEL build-date=${build_date}
+LABEL jenkins-build-number=${jenkins_build_number}
+LABEL razee.io/source-url="${REPO_SOURCE_URL}"
+LABEL razee.io/build-url="${BUILD_URL}"
+LABEL compliance.owner="ibm-armada-storage"
+LABEL component="tunnel-manager"
+LABEL description="Tunnel Manager sidecar for IBM VPC File CSI Driver - manages stunnel processes for RFS encryption in transit"
+
+# Install required packages
+# - stunnel4: For TLS tunnel management
+# - ca-certificates: For TLS certificate verification
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    stunnel4 \
+    ca-certificates \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create directories for stunnel configurations and metadata
+RUN mkdir -p /etc/stunnel && \
+    chmod 755 /etc/stunnel && \
+    mkdir -p /var/lib/kubelet/plugins/vpc.file.csi.ibm.io && \
+    chmod 755 /var/lib/kubelet/plugins/vpc.file.csi.ibm.io
+
+# Create application directory
+RUN mkdir -p /home/tunnel-manager/
+
+# Copy the tunnel-manager binary
+ADD ibm-vpc-file-tunnel-manager /home/tunnel-manager/
+RUN chmod +x /home/tunnel-manager/ibm-vpc-file-tunnel-manager
+
+# Set working directory
+WORKDIR /home/tunnel-manager
+
+# Run as non-root user (will be overridden by securityContext in deployment)
+# Note: In actual deployment, this runs as privileged to access /proc/mounts
+USER 2121:2121
+
+# Default socket path (can be overridden via command args)
+ENV TUNNEL_MANAGER_SOCKET=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock
+
+# Stunnel configuration defaults (can be overridden via environment variables)
+ENV STUNNEL_BASE_PORT=20000
+ENV STUNNEL_PORT_RANGE=10000
+ENV STUNNEL_CONFIG_DIR=/etc/stunnel
+ENV STUNNEL_CA_FILE=/host-certs/tls-ca-bundle.pem
+ENV STUNNEL_NFS_PORT=20049
+ENV STUNNEL_ENVIRONMENT=production
+ENV STUNNEL_HEALTH_CHECK_INTERVAL=30s
+ENV LOG_LEVEL=info
+
+ENTRYPOINT ["/home/tunnel-manager/ibm-vpc-file-tunnel-manager"]
+CMD ["--socket=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"]
