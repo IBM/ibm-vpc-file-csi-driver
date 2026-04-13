@@ -1,5 +1,0 @@
-# Deprecated: tunnel-manager now runs as a sidecar container in deploy/kubernetes/manifests/node-server.yaml.
-# This file is intentionally retained only to document the old separate-DaemonSet approach.
-# It must not be referenced by deploy/kubernetes/manifests/kustomization.yaml or overlays.
-
-# Made with Bob
