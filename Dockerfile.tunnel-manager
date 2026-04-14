@@ -39,6 +39,11 @@ RUN mkdir -p /home/tunnel-manager/
 RUN mkdir -p /etc/stunnel && \
     chmod 755 /etc/stunnel
 
+# Create stunnel log directory
+# This directory stores per-volume stunnel logs
+RUN mkdir -p /var/log/stunnel && \
+    chmod 755 /var/log/stunnel
+
 # Copy the tunnel-manager binary
 ADD ibm-vpc-file-tunnel-manager /home/tunnel-manager/
 RUN chmod +x /home/tunnel-manager/ibm-vpc-file-tunnel-manager

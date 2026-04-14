@@ -193,6 +193,8 @@ spec:
               mountPath: /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/
             - name: stunnel-dir
               mountPath: /etc/stunnel
+            - name: stunnel-logs
+              mountPath: /var/log/stunnel
             - name: kubelet-data-dir
               mountPath: /var/data/kubelet
               mountPropagation: "HostToContainer"
@@ -277,6 +279,10 @@ spec:
             - serviceAccountToken:
                 path: vault-token
                 expirationSeconds: 600
+        - name: stunnel-logs
+          hostPath:
+            path: /var/log/stunnel
+            type: DirectoryOrCreate
         - name: libpath
           hostPath:
             path: /var/lib
