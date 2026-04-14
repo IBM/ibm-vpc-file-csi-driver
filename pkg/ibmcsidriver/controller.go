@@ -21,6 +21,7 @@ package ibmcsidriver
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -766,5 +767,71 @@ func (csiCS *CSIControllerServer) ControllerGetVolume(ctx context.Context, req *
 // ControllerModifyVolume ...
 func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	return nil, commonError.GetCSIError(ctxLogger, commonError.MethodUnimplemented, requestID, nil, "ControllerModifyVolume")
+	_ = context.WithValue(ctx, provider.RequestID, requestID)
+	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIModifyVolume", time.Now())
+
+	ctxLogger.Info("CSIControllerServer-ControllerModifyVolume",
+		zap.Reflect("RequestID", requestID),
+		zap.String("VolumeID", req.GetVolumeId()),
+	)
+
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
+	}
+
+	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.FailedPrecondition, requestID, err)
+	}
+
+	requestedVolume := &provider.Volume{}
+
+	tokens := getTokens(volumeID)
+	if len(tokens) != 2 {
+		ctxLogger.Info("Invalid VolumeID format", zap.Any("tokens", tokens))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+	}
+
+	requestedVolume.VolumeID = tokens[0]
+
+	volDetail, err := checkIfVolumeExists(session, *requestedVolume, ctxLogger)
+	if volDetail == nil && err == nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeID)
+	} else if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
+	}
+
+	params := req.GetMutableParameters()
+
+	var iops int64
+	var bandwidth int32
+
+	if val, ok := params["iops"]; ok {
+		parsed, _ := strconv.ParseInt(val, 10, 64)
+		iops = parsed
+	}
+
+	if val, ok := params["bandwidth"]; ok {
+		parsed, _ := strconv.ParseInt(val, 10, 32)
+		bandwidth = int32(parsed)
+	}
+
+	modifyReq := provider.ModifyVolumeRequest{
+		VolumeID:  requestedVolume.VolumeID,
+		Iops:      iops,
+		Bandwidth: bandwidth,
+	}
+
+	ctxLogger.Info("ModifyVolume Request",
+		zap.String("VolumeID", modifyReq.VolumeID),
+		zap.Int64("IOPS", modifyReq.Iops),
+		zap.Int32("Bandwidth", modifyReq.Bandwidth),
+	)
+
+	_, _, err = session.ModifyVolume(modifyReq)
+	if err != nil {
+		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
+	}
+	return &csi.ControllerModifyVolumeResponse{}, nil
 }
