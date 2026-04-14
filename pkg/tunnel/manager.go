@@ -878,8 +878,10 @@ func (m *Manager) createTunnel(volumeID, nfsServer string, port, refCount int, s
 // startTunnelProcess starts the Stunnel process for a tunnel
 func (m *Manager) startTunnelProcess(t *Tunnel) error {
 	cmd := exec.CommandContext(t.ctx, "stunnel", t.ConfigPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Discard stdout/stderr since stunnel logs to its own file via output directive
+	// This prevents stunnel logs from appearing in tunnel manager logs
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start stunnel: %w", err)
