@@ -189,11 +189,11 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer string) (int, error) {
 	}
 
 	// Create service config for denali-stunnel
+	// VPC File Share uses TLS on port 20049
 	config := fmt.Sprintf(`[%s]
 client = yes
 accept = 127.0.0.1:%d
-connect = %s:2049
-transparent = none
+connect = %s:20049
 `, volumeID, port, nfsServer)
 
 	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
