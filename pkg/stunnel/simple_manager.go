@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -207,7 +208,27 @@ connect = %s:20049
 		zap.Int("port", port),
 		zap.String("configPath", configPath))
 
+	// Reload stunnel to pick up the new config
+	// Only reload if this is not the first config (stunnel loads all configs at startup)
+	if len(sm.allocatedPorts) > 1 {
+		if err := sm.reloadStunnel(); err != nil {
+			sm.logger.Warn("Failed to reload stunnel, tunnel may not start immediately",
+				zap.Error(err))
+			// Don't fail - stunnel will pick it up on next restart
+		}
+	}
+
 	return port, nil
+}
+
+// reloadStunnel sends SIGHUP to stunnel to reload configuration
+func (sm *SimpleManager) reloadStunnel() error {
+	cmd := exec.Command("pkill", "-HUP", "stunnel")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to send SIGHUP to stunnel: %w", err)
+	}
+	sm.logger.Info("Sent SIGHUP to stunnel to reload configuration")
+	return nil
 }
 
 // RemoveTunnel removes tunnel configuration
@@ -237,6 +258,13 @@ func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 	sm.logger.Info("Removed tunnel config",
 		zap.String("volumeID", volumeID),
 		zap.String("configPath", configPath))
+
+	// Reload stunnel to remove the service
+	if err := sm.reloadStunnel(); err != nil {
+		sm.logger.Warn("Failed to reload stunnel after removing config",
+			zap.Error(err))
+		// Don't fail - stunnel will clean up on next restart
+	}
 
 	return nil
 }
