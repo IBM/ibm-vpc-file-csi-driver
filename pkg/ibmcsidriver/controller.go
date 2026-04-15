@@ -823,15 +823,11 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 		Bandwidth: bandwidth,
 	}
 
-	ctxLogger.Info("ModifyVolume Request",
-		zap.String("VolumeID", modifyReq.VolumeID),
-		zap.Int64("IOPS", modifyReq.Iops),
-		zap.Int32("Bandwidth", modifyReq.Bandwidth),
-	)
-
+	ctxLogger.Info("ModifyVolume Request", zap.String("VolumeID", modifyReq.VolumeID), zap.Int64("IOPS", modifyReq.Iops), zap.Int32("Bandwidth", modifyReq.Bandwidth))
 	_, _, err = session.ModifyVolume(modifyReq)
 	if err != nil {
 		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
+
 	return &csi.ControllerModifyVolumeResponse{}, nil
 }
