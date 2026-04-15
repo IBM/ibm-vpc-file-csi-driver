@@ -27,7 +27,7 @@ import (
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/tunnel"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/stunnel"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -137,29 +137,32 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	}
 
 	// Initialize tunnel manager gRPC client only for node servers (not controllers)
-	// The tunnel manager runs as a sidecar in the node DaemonSet, not in the controller StatefulSet
+	// Initialize stunnel manager for node server (works with denali-stunnel sidecar)
 	if os.Getenv("IS_NODE_SERVER") == "true" {
-		socketPath := os.Getenv("TUNNEL_MANAGER_SOCKET")
-		if socketPath == "" {
-			socketPath = tunnel.DefaultSocketPath
+		servicesDir := os.Getenv("STUNNEL_SERVICES_DIR")
+		if servicesDir == "" {
+			servicesDir = stunnel.DefaultServicesDir
 		}
 
-		// Create gRPC client for tunnel manager
-		// Connection is non-blocking, so this will succeed even if tunnel-manager is temporarily down
-		// gRPC will automatically retry connections in the background
-		grpcClient, err := tunnel.NewGRPCClient(socketPath, icDriver.logger)
+		// Create simple stunnel manager
+		stunnelMgr, err := stunnel.NewSimpleManager(&stunnel.Config{
+			ServicesDir: servicesDir,
+			BasePort:    stunnel.DefaultBasePort,
+			PortRange:   stunnel.DefaultPortRange,
+			Logger:      icDriver.logger,
+		})
 		if err != nil {
-			// This should rarely fail since connection is non-blocking
-			// Only fails if there's a fundamental issue (e.g., invalid socket path)
-			icDriver.logger.Error("Failed to create gRPC client for tunnel manager", zap.Error(err))
-			return fmt.Errorf("failed to create tunnel manager gRPC client: %w", err)
+			icDriver.logger.Error("Failed to create stunnel manager", zap.Error(err))
+			return fmt.Errorf("failed to create stunnel manager: %w", err)
 		}
-		icDriver.ns.TunnelService = grpcClient
-		icDriver.logger.Info("Successfully initialized tunnel manager gRPC client for node server",
-			zap.String("socketPath", socketPath),
-			zap.String("note", "Connection is non-blocking; will retry automatically if tunnel-manager is unavailable"))
+		icDriver.ns.StunnelMgr = stunnelMgr
+		icDriver.logger.Info("Successfully initialized stunnel manager for node server",
+			zap.String("servicesDir", servicesDir),
+			zap.Int("basePort", stunnel.DefaultBasePort),
+			zap.Int("portRange", stunnel.DefaultPortRange),
+			zap.String("note", "Works with denali-stunnel sidecar container"))
 	} else {
-		icDriver.logger.Info("Skipping tunnel manager initialization (running as controller)")
+		icDriver.logger.Info("Skipping stunnel manager initialization (running as controller)")
 	}
 
 	return nil
@@ -230,11 +233,11 @@ func NewIdentityServer(icDriver *IBMCSIDriver) *CSIIdentityServer {
 // NewNodeServer ...
 func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUtil StatsUtils, nodeMetadata nodeMetadata.NodeMetadata) *CSINodeServer {
 	return &CSINodeServer{
-		Driver:        icDriver,
-		Mounter:       mounter,
-		Stats:         statsUtil,
-		Metadata:      nodeMetadata,
-		TunnelService: nil,
+		Driver:     icDriver,
+		Mounter:    mounter,
+		Stats:      statsUtil,
+		Metadata:   nodeMetadata,
+		StunnelMgr: nil, // Will be initialized in SetupIBMCSIDriver if IS_NODE_SERVER=true
 	}
 }
 

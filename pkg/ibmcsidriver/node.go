@@ -31,7 +31,7 @@ import (
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/tunnel"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/stunnel"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
@@ -42,11 +42,11 @@ import (
 
 // CSINodeServer ...
 type CSINodeServer struct {
-	Driver        *IBMCSIDriver
-	Mounter       mountmanager.Mounter
-	Metadata      nodeMetadata.NodeMetadata
-	Stats         StatsUtils
-	TunnelService tunnel.Service
+	Driver     *IBMCSIDriver
+	Mounter    mountmanager.Mounter
+	Metadata   nodeMetadata.NodeMetadata
+	Stats      StatsUtils
+	StunnelMgr *stunnel.SimpleManager
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
 	mutex utils.LockStore
 	csi.UnimplementedNodeServer
@@ -192,8 +192,8 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 			zap.String("volumeID", volumeID),
 			zap.String("nfsServer", source))
 
-		if csiNS.TunnelService == nil {
-			err := fmt.Errorf("tunnel service is not configured")
+		if csiNS.StunnelMgr == nil {
+			err := fmt.Errorf("stunnel manager is not configured")
 			ctxLogger.Error("Failed to ensure tunnel for volume",
 				zap.String("volumeID", volumeID),
 				zap.Error(err))
@@ -206,10 +206,10 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		nfsServer := parts[0]
 		exportPath = parts[1]
 
-		// Ensure tunnel exists for this volume
-		tun, err := csiNS.TunnelService.EnsureTunnel(ctx, fileShareID, nfsServer)
+		// Ensure tunnel config exists for this volume (denali-stunnel auto-loads it)
+		tunnelPort, err := csiNS.StunnelMgr.EnsureTunnel(fileShareID, nfsServer)
 		if err != nil {
-			ctxLogger.Error("Failed to ensure tunnel for volume",
+			ctxLogger.Error("Failed to create tunnel config for volume",
 				zap.String("volumeID", volumeID),
 				zap.Error(err))
 			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
@@ -218,17 +218,17 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		// Update mount source to use local tunnel endpoint with export path
 		// Format: 127.0.0.1:/<export_path>
 		mountSource = fmt.Sprintf("127.0.0.1:%s", exportPath)
-		ctxLogger.Info("Tunnel established, using local endpoint",
+		ctxLogger.Info("Tunnel config created, using local endpoint",
 			zap.String("volumeID", volumeID),
 			zap.String("localEndpoint", mountSource),
 			zap.String("remoteServer", nfsServer),
 			zap.String("exportPath", exportPath),
-			zap.Int("tunnelPort", tun.LocalPort))
+			zap.Int("tunnelPort", tunnelPort))
 
 		// For NFS4 mount through tunnel, use nfs4 fsType and add required options
 		fsType = "nfs4"
 		// Add NFS4 specific options: vers=4.1, proto=tcp, port=<tunnel_port>
-		options = append(options, fmt.Sprintf("vers=4.1,proto=tcp,port=%d", tun.LocalPort))
+		options = append(options, fmt.Sprintf("vers=4.1,proto=tcp,port=%d", tunnelPort))
 	}
 
 	nodePublishResponse, mountErr = csiNS.processMount(ctxLogger, requestID, mountSource, target, fsType, transitEncryption, options)
@@ -265,37 +265,34 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 	}
 	ctxLogger.Info("Successfully unmounted target path", zap.String("targetPath", targetPath))
 
-	// Clean up tunnel if it exists for this volume
+	// Clean up tunnel config if it exists for this volume
 	// Note: We only remove the tunnel after successful unmount to avoid disrupting active mounts
-	if csiNS.TunnelService != nil {
+	if csiNS.StunnelMgr != nil {
 		// Extract the share ID from the volume ID (format: shareID#clusterID)
 		fileShareID := getTokens(volID)
 		if len(fileShareID) > 0 {
 			shareID := fileShareID[0]
 
-			ctxLogger.Info("Checking for tunnel cleanup",
+			ctxLogger.Info("Checking for tunnel config cleanup",
 				zap.String("volumeID", volID),
 				zap.String("shareID", shareID))
 
-			if tunnelInfo, exists, err := csiNS.TunnelService.GetTunnel(ctx, shareID); err != nil {
-				ctxLogger.Warn("Failed to query tunnel before cleanup",
+			// Check if tunnel config exists
+			if port, exists := csiNS.StunnelMgr.GetTunnelPort(shareID); exists {
+				ctxLogger.Info("Found tunnel config for volume, attempting removal",
 					zap.String("shareID", shareID),
-					zap.Error(err))
-			} else if exists {
-				ctxLogger.Info("Found tunnel for volume, attempting removal",
-					zap.String("shareID", shareID),
-					zap.Int("localPort", tunnelInfo.LocalPort))
+					zap.Int("port", port))
 
-				if err := csiNS.TunnelService.RemoveTunnel(ctx, shareID); err != nil {
-					ctxLogger.Warn("Failed to remove tunnel, but unmount succeeded",
+				if err := csiNS.StunnelMgr.RemoveTunnel(shareID); err != nil {
+					ctxLogger.Warn("Failed to remove tunnel config, but unmount succeeded",
 						zap.String("shareID", shareID),
 						zap.Error(err))
 					// Don't fail the unmount operation if tunnel cleanup fails
 				} else {
-					ctxLogger.Info("Tunnel removed successfully", zap.String("shareID", shareID))
+					ctxLogger.Info("Tunnel config removed successfully", zap.String("shareID", shareID))
 				}
 			} else {
-				ctxLogger.Info("No tunnel found for volume (may not be RFS or already cleaned up)",
+				ctxLogger.Info("No tunnel config found for volume (may not be RFS or already cleaned up)",
 					zap.String("shareID", shareID))
 			}
 		}
