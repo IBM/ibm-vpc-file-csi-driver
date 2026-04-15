@@ -21,13 +21,13 @@ package main
 
 import (
 	"flag"
+	"os"
 	"strings"
 
 	libMetrics "github.com/IBM/ibmcloud-volume-interface/lib/metrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"net/http"
-	"os"
 
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
@@ -87,6 +87,11 @@ func handle(logger *zap.Logger) {
 	}
 	logger.Info("IBM CSI driver version", zap.Reflect("DriverVersion", vendorVersion))
 	logger.Info("Controller Mutex Lock enabled", zap.Bool("LockEnabled", *utils.LockEnabled))
+
+	runCSI(logger)
+}
+
+func runCSI(logger *zap.Logger) { //nolint:funlen
 	// Setup Cloud Provider
 	k8sClient, err := k8sUtils.Getk8sClientSet()
 	if err != nil {

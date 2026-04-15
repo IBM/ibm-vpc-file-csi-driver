@@ -103,9 +103,11 @@ spec:
                   fieldPath: spec.nodeName
             - name: SOCKET_PATH
               value: "/var/lib/ibmshare.sock"
+            - name: TUNNEL_MANAGER_SOCKET
+              value: "/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
+            - name: IS_NODE_SERVER
+              value: "true"
             # Not applicable to Red Hat OpenShift Container Platform Self-Managed
-            # - name: IS_NODE_SERVER
-            #   value: "true"
             # - name: SIDECAR_GROUP_ID
             #   value: "2121"
           resources:
@@ -155,6 +157,52 @@ spec:
               name: libpath
             - mountPath: /tmp/mount-helper
               name: mh-logs
+        - name: tunnel-manager
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            runAsGroup: 0
+            privileged: true
+          image: EDIT_REQUIRED_MUST_PATCH_USING_KUSTOMIZE_OR_MANUAL
+          imagePullPolicy: Always
+          args:
+            - "--socket=/var/lib/kubelet/plugins/vpc.file.csi.ibm.io/tunnel-manager.sock"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # Read OS type from node label for CA bundle path detection
+            - name: NODE_OS_TYPE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['ibm-cloud.kubernetes.io/os']
+            # CA bundle path is auto-detected based on NODE_OS_TYPE:
+            # - RHEL/RHCOS: /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+            # - Ubuntu: /etc/ssl/certs/ca-certificates.crt
+            # Can be overridden by setting STUNNEL_CA_FILE environment variable
+          resources:
+            limits:
+              cpu: 200m
+              memory: 250Mi
+            requests:
+              cpu: 20m
+              memory: 50Mi
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /var/lib/kubelet/plugins/vpc.file.csi.ibm.io/
+            - name: stunnel-dir
+              mountPath: /etc/stunnel
+            - name: stunnel-logs
+              mountPath: /var/log/stunnel
+            - name: kubelet-data-dir
+              mountPath: /var/data/kubelet
+              mountPropagation: "HostToContainer"
+            # Mount host certificate directory
+            # The actual CA bundle path is detected via NODE_OS_TYPE env var
+            - name: host-certs
+              mountPath: /host-certs
+              readOnly: true
         - name: liveness-probe
           securityContext:
             runAsNonRoot: false # For IKS use true, for OCP use false
@@ -231,6 +279,10 @@ spec:
             - serviceAccountToken:
                 path: vault-token
                 expirationSeconds: 600
+        - name: stunnel-logs
+          hostPath:
+            path: /var/log/stunnel
+            type: DirectoryOrCreate
         - name: libpath
           hostPath:
             path: /var/lib
@@ -239,3 +291,15 @@ spec:
           hostPath:
             path: /opt/ibm/mount-ibmshare/
             type: DirectoryOrCreate
+        - name: stunnel-dir
+          hostPath:
+            path: /etc/stunnel
+            type: DirectoryOrCreate
+        # Mount host /etc directory to access CA bundles
+        # Code detects OS type and uses appropriate CA bundle path:
+        # - RHEL/RHCOS: /host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+        # - Ubuntu: /host-certs/ssl/certs/ca-certificates.crt
+        - name: host-certs
+          hostPath:
+            path: /etc
+            type: Directory

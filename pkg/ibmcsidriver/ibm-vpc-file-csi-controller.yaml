@@ -1,0 +1,279 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: ibm-vpc-file-csi-controller
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: ibm-vpc-file-csi-driver
+  annotations:
+    version: v2.0
+    revision: "4"
+spec:
+  minReadySeconds: 30
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ibm-vpc-file-csi-controller
+      app.kubernetes.io/name: ibm-vpc-file-csi-driver
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ibm-vpc-file-csi-controller
+        app.kubernetes.io/name: ibm-vpc-file-csi-driver
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - ibm-vpc-file-csi-controller
+              topologyKey: topology.kubernetes.io/zone
+            weight: 100
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - ibm-vpc-file-csi-controller
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+      dnsPolicy: ClusterFirst
+      priorityClassName: system-cluster-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      serviceAccount: ibm-vpc-file-controller-sa
+      serviceAccountName: ibm-vpc-file-controller-sa
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2121
+        runAsGroup: 2121
+      containers:
+        - name: iks-vpc-file-driver
+          imagePullPolicy: IfNotPresent
+          image: icr.io/ibm/ibm-vpc-file-csi-driver:<CR>
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+          args:
+            - "--v=5"
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--lock_enabled=false"
+            - "--sidecarEndpoint=$(SIDECAREP)"
+          envFrom:
+            - configMapRef:
+                name: ibm-vpc-file-csi-configmap
+            - configMapRef:
+                name: ibm-cloud-provider-data
+          env:
+            - name: SIDECAREP
+              value: "/csi/providerfile.sock"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: VPC_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: ibm-cloud-provider-data
+                  key: vpc_id
+            - name: VPC_SUBNET_IDS
+              valueFrom:
+                configMapKeyRef:
+                  name: ibm-cloud-provider-data
+                  key: vpc_subnet_ids
+                  optional: true
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          resources:
+            limits:
+              cpu: 300m
+              memory: 600Mi
+            requests:
+              cpu: 75m
+              memory: 150Mi
+          ports:
+            - name: healthz
+              containerPort: 9808
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 5
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+            - name: customer-auth
+              readOnly: true
+              mountPath: /etc/storage_ibmc
+            - name: cluster-info
+              readOnly: true
+              mountPath: /etc/storage_ibmc/cluster_info
+            - mountPath: /var/run/secrets/tokens
+              name: vault-token
+        - name: csi-provisioner
+          image: icr.io/ext/sig-storage/csi-provisioner:<CR>
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--timeout=600s"
+            - "--feature-gates=Topology=true"
+            - "--leader-election=true"
+            - "--kube-api-qps=15"
+            - "--kube-api-burst=20"
+          env:
+            - name: ADDRESS
+              value: /csi/csi-vpc-file.sock
+          resources:
+            limits:
+              cpu: 80m
+              memory: 160Mi
+            requests:
+              cpu: 20m
+              memory: 40Mi
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: csi-resizer
+          image: icr.io/ext/sig-storage/csi-resizer:<CR>
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+          args:
+            - "--v=5"
+            - "--csi-address=/csi/csi-vpc-file.sock"
+            - "--timeout=900s"
+            - "--handle-volume-inuse-error=false"
+            - "--leader-election=true"
+            - "--kube-api-qps=15"
+            - "--kube-api-burst=20"
+          resources:
+            limits:
+              cpu: 80m
+              memory: 160Mi
+            requests:
+              cpu: 20m
+              memory: 40Mi
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: snapshot8
+          image: icr.io/ext/sig-storage/snapshot8:<CR>
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--timeout=900s"
+            - "--leader-election=true"
+          env:
+            - name: ADDRESS
+              value: /csi/csi-vpc-file.sock
+          resources:
+            limits:
+              cpu: 80m
+              memory: 160Mi
+            requests:
+              cpu: 20m
+              memory: 40Mi
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: liveness-probe
+          image: icr.io/ext/sig-storage/livenessprobe:<CR>
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+          args:
+            - --csi-address=/csi/csi-vpc-file.sock
+          resources:
+            limits:
+              cpu: 20m
+              memory: 40Mi
+            requests:
+              cpu: 5m
+              memory: 10Mi
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: storage-secret-sidecar
+          image: icr.io/obs/armada-storage-secret:<CR>
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--endpoint=$(ENDPOINT)"
+          env:
+            - name: ENDPOINT
+              value: "unix:/sidecardir/providerfile.sock"
+          resources:
+            limits:
+              cpu: 60m
+              memory: 80Mi
+            requests:
+              cpu: 15m
+              memory: 20Mi
+          volumeMounts:
+            - mountPath: /sidecardir
+              name: socket-dir
+            - mountPath: /etc/storage_ibmc
+              name: customer-auth
+              readOnly: true
+            - mountPath: /var/run/secrets/tokens
+              name: vault-token
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+        - name: customer-auth
+          secret:
+            defaultMode: 420
+            secretName: storage-secret-store
+        - name: cluster-info
+          configMap:
+            defaultMode: 420
+            name: cluster-info
+        - name: vault-token
+          projected:
+            defaultMode: 420
+            sources:
+            - serviceAccountToken:
+                path: vault-token
+                expirationSeconds: 600

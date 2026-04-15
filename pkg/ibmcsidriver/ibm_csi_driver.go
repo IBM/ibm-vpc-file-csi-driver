@@ -22,10 +22,12 @@ package ibmcsidriver
 import (
 	"context"
 	"fmt"
+	"os"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/tunnel"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -133,6 +135,33 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		icDriver.rfsEnabled = true
 		icDriver.logger.Info("RFS profile is supported")
 	}
+
+	// Initialize tunnel manager gRPC client only for node servers (not controllers)
+	// The tunnel manager runs as a sidecar in the node DaemonSet, not in the controller StatefulSet
+	if os.Getenv("IS_NODE_SERVER") == "true" {
+		socketPath := os.Getenv("TUNNEL_MANAGER_SOCKET")
+		if socketPath == "" {
+			socketPath = tunnel.DefaultSocketPath
+		}
+
+		// Create gRPC client for tunnel manager
+		// Connection is non-blocking, so this will succeed even if tunnel-manager is temporarily down
+		// gRPC will automatically retry connections in the background
+		grpcClient, err := tunnel.NewGRPCClient(socketPath, icDriver.logger)
+		if err != nil {
+			// This should rarely fail since connection is non-blocking
+			// Only fails if there's a fundamental issue (e.g., invalid socket path)
+			icDriver.logger.Error("Failed to create gRPC client for tunnel manager", zap.Error(err))
+			return fmt.Errorf("failed to create tunnel manager gRPC client: %w", err)
+		}
+		icDriver.ns.TunnelService = grpcClient
+		icDriver.logger.Info("Successfully initialized tunnel manager gRPC client for node server",
+			zap.String("socketPath", socketPath),
+			zap.String("note", "Connection is non-blocking; will retry automatically if tunnel-manager is unavailable"))
+	} else {
+		icDriver.logger.Info("Skipping tunnel manager initialization (running as controller)")
+	}
+
 	return nil
 }
 
@@ -201,10 +230,11 @@ func NewIdentityServer(icDriver *IBMCSIDriver) *CSIIdentityServer {
 // NewNodeServer ...
 func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUtil StatsUtils, nodeMetadata nodeMetadata.NodeMetadata) *CSINodeServer {
 	return &CSINodeServer{
-		Driver:   icDriver,
-		Mounter:  mounter,
-		Stats:    statsUtil,
-		Metadata: nodeMetadata,
+		Driver:        icDriver,
+		Mounter:       mounter,
+		Stats:         statsUtil,
+		Metadata:      nodeMetadata,
+		TunnelService: nil,
 	}
 }
 
