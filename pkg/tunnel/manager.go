@@ -314,18 +314,8 @@ func (m *Manager) loadTunnelMetadata(volumeID string) (*TunnelMetadata, error) {
 	metadataPath := m.metadataPath(volumeID)
 	data, err := os.ReadFile(metadataPath)
 	if err == nil {
-		// DEBUG: Log raw file contents
-		m.logger.Info("DEBUG: Read metadata file",
-			zap.String("volumeID", volumeID),
-			zap.String("rawData", string(data)))
-
 		var metadata TunnelMetadata
 		if err := json.Unmarshal(data, &metadata); err == nil {
-			// DEBUG: Log parsed metadata
-			m.logger.Info("DEBUG: Parsed metadata",
-				zap.String("volumeID", volumeID),
-				zap.Int("refCount", metadata.RefCount))
-
 			if validateErr := m.validateTunnelMetadata(&metadata); validateErr == nil {
 				return &metadata, nil
 			} else {
@@ -586,10 +576,10 @@ func (m *Manager) RecoverFromCrash() error {
 
 		// Track if refcount was corrected
 		if actualMountCount != metadata.RefCount {
-			m.logger.Warn("Corrected stale refcount from /proc/mounts",
+			m.logger.Info("Synchronized refcount with active mounts (normal during crash recovery)",
 				zap.String("volumeID", volumeID),
-				zap.Int("oldRefCount", metadata.RefCount),
-				zap.Int("newRefCount", actualMountCount))
+				zap.Int("metadataRefCount", metadata.RefCount),
+				zap.Int("activeMountCount", actualMountCount))
 			corrected++
 		}
 
