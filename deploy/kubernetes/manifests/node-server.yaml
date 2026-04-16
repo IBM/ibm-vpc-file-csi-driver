@@ -21,6 +21,7 @@ spec:
         app: ibm-vpc-file-csi-node
         app.kubernetes.io/name: ibm-vpc-file-csi-driver
     spec:
+      shareProcessNamespace: true
       hostNetwork: true
       priorityClassName: system-node-critical
       serviceAccountName: ibm-vpc-file-node-sa

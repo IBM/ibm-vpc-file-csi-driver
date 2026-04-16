@@ -5,10 +5,12 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"go.uber.org/zap"
 )
@@ -207,18 +209,51 @@ connect = %s:20049
 		zap.Int("port", port),
 		zap.String("configPath", configPath))
 
-	// denali-stunnel auto-detects config changes via polling (every 10 seconds)
-	// No manual reload needed
-	sm.logger.Info("Config created, denali-stunnel will auto-detect within 10 seconds")
+	// Send SIGHUP to stunnel to reload configuration immediately
+	if err := sm.reloadStunnel(); err != nil {
+		sm.logger.Warn("Failed to send SIGHUP to stunnel, will rely on auto-detection",
+			zap.Error(err))
+		// Don't fail - stunnel will pick it up via polling within 10 seconds
+	}
 
 	return port, nil
 }
 
-// reloadStunnel is deprecated and no longer used
-// denali-stunnel auto-detects config changes via polling every 10 seconds
-// Keeping this function for backward compatibility but it does nothing
+// reloadStunnel sends SIGHUP to stunnel process to reload configuration
+// This requires shareProcessNamespace: true in the pod spec to work across containers
 func (sm *SimpleManager) reloadStunnel() error {
-	sm.logger.Debug("reloadStunnel called but skipped - denali-stunnel auto-detects changes")
+	// Try to find stunnel process directly (most reliable)
+	cmd := exec.Command("pgrep", "-x", "stunnel")
+	output, err := cmd.Output()
+	if err == nil {
+		pidStr := strings.TrimSpace(string(output))
+		if pid, err := strconv.Atoi(pidStr); err == nil {
+			if err := syscall.Kill(pid, syscall.SIGHUP); err == nil {
+				sm.logger.Info("Sent SIGHUP to stunnel process", zap.Int("pid", pid))
+				return nil
+			}
+		}
+	}
+
+	// Fallback: try to signal the wrapper script (container init process)
+	// The signal will propagate to child stunnel process
+	cmd = exec.Command("pgrep", "-f", "run-stunnel.sh")
+	output, err = cmd.Output()
+	if err != nil {
+		return fmt.Errorf("stunnel container process not found (requires shareProcessNamespace: true): %w", err)
+	}
+
+	pidStr := strings.TrimSpace(string(output))
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return fmt.Errorf("invalid PID: %w", err)
+	}
+
+	if err := syscall.Kill(pid, syscall.SIGHUP); err != nil {
+		return fmt.Errorf("failed to send SIGHUP to container: %w", err)
+	}
+
+	sm.logger.Info("Sent SIGHUP to denali-stunnel container", zap.Int("pid", pid))
 	return nil
 }
 
@@ -250,9 +285,12 @@ func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 		zap.String("volumeID", volumeID),
 		zap.String("configPath", configPath))
 
-	// denali-stunnel auto-detects config changes via polling (every 10 seconds)
-	// No manual reload needed
-	sm.logger.Info("Config removed, denali-stunnel will auto-detect within 10 seconds")
+	// Send SIGHUP to stunnel to reload configuration immediately
+	if err := sm.reloadStunnel(); err != nil {
+		sm.logger.Warn("Failed to send SIGHUP to stunnel, will rely on auto-detection",
+			zap.Error(err))
+		// Don't fail - stunnel will pick it up via polling within 10 seconds
+	}
 
 	return nil
 }
