@@ -253,11 +253,11 @@ func (sm *SimpleManager) reloadStunnel() error {
 		return fmt.Errorf("failed to send SIGHUP to container: %w", err)
 	}
 
-	sm.logger.Info("Sent SIGHUP to denali-stunnel container", zap.Int("pid", pid))
+	sm.logger.Info("", zap.Int("pid", pid))
 	return nil
 }
 
-// RemoveTunnel removes tunnel configuration
+// RemoveTunnel removes tunnel configuration only if no active mounts use it
 func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -266,23 +266,43 @@ func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 		return fmt.Errorf("volumeID is required")
 	}
 
-	configPath := sm.getConfigPath(volumeID)
-
-	// Find and release port
+	// Find the port for this volume
+	var tunnelPort int
 	for port, vid := range sm.allocatedPorts {
 		if vid == volumeID {
-			sm.releasePort(port)
+			tunnelPort = port
 			break
 		}
 	}
+
+	if tunnelPort == 0 {
+		sm.logger.Warn("No port found for volume, config may already be removed",
+			zap.String("volumeID", volumeID))
+		return nil
+	}
+
+	// Check if any mounts are still using this tunnel port
+	// This prevents premature deletion when multiple pods use the same volume
+	if sm.isTunnelPortInUse(tunnelPort) {
+		sm.logger.Info("Tunnel port still in use by active mounts, keeping config",
+			zap.String("volumeID", volumeID),
+			zap.Int("port", tunnelPort))
+		return nil
+	}
+
+	configPath := sm.getConfigPath(volumeID)
+
+	// Release port
+	sm.releasePort(tunnelPort)
 
 	// Remove config file (denali-stunnel will auto-unload the service)
 	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove config: %w", err)
 	}
 
-	sm.logger.Info("Removed tunnel config",
+	sm.logger.Info("Removed tunnel config (no active mounts)",
 		zap.String("volumeID", volumeID),
+		zap.Int("port", tunnelPort),
 		zap.String("configPath", configPath))
 
 	// Send SIGHUP to stunnel to reload configuration immediately
@@ -293,6 +313,48 @@ func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 	}
 
 	return nil
+}
+
+// isTunnelPortInUse checks if any NFS mounts are using the specified tunnel port
+// by reading /proc/mounts. This is fast (~2ms) and won't hang even if NFS is unresponsive.
+func (sm *SimpleManager) isTunnelPortInUse(port int) bool {
+	// Read /proc/mounts directly - doesn't stat the filesystem, so won't hang
+	data, err := os.ReadFile("/proc/mounts")
+	if err != nil {
+		sm.logger.Warn("Failed to read /proc/mounts, assuming port not in use",
+			zap.Int("port", port),
+			zap.Error(err))
+		return false // Fail-safe: allow tunnel removal if we can't check
+	}
+
+	// Search for mounts using this port
+	// Mount entries look like: 127.0.0.1:/EXPORT /mountpoint nfs4 rw,...,port=20000,... 0 0
+	portStr := fmt.Sprintf("port=%d", port)
+	lines := strings.Split(string(data), "\n")
+	mountCount := 0
+
+	for _, line := range lines {
+		// Check if this is an NFS4 mount using our tunnel port
+		if strings.Contains(line, "nfs4") &&
+			strings.Contains(line, "127.0.0.1:") &&
+			strings.Contains(line, portStr) {
+			mountCount++
+			sm.logger.Debug("Found mount using tunnel port",
+				zap.Int("port", port),
+				zap.String("mount", line))
+		}
+	}
+
+	if mountCount > 0 {
+		sm.logger.Info("Tunnel port has active mounts",
+			zap.Int("port", port),
+			zap.Int("mountCount", mountCount))
+		return true
+	}
+
+	sm.logger.Debug("Tunnel port has no active mounts",
+		zap.Int("port", port))
+	return false
 }
 
 // GetTunnelPort returns the port for a volume if it exists
