@@ -57,7 +57,7 @@ This document describes the complete architecture of stunnel tunnel management f
 │  │  └──────────────────────────┘    └─────────────────────────────────┘ │ │
 │  │                                                                        │ │
 │  │  Shared Volumes:                                                      │ │
-│  │  - /etc/stunnel/services (EmptyDir)                                   │ │
+│  │  - /etc/stunnel/services (HostPath - persists across restarts)       │ │
 │  │  - /etc/tls (HostPath - certificates)                                 │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                                                              │
@@ -590,7 +590,7 @@ Scenario: 3 pods, all unmount quickly
 Before Reboot:
 ├─> Active pods with NFS mounts
 ├─> Tunnels running in denali-stunnel container
-├─> Config files in /etc/stunnel/services/ (EmptyDir volume)
+├─> Config files in /etc/stunnel/services/ (HostPath volume)
 └─> NFS mounts in kernel
 
 Node Reboot Initiated:
@@ -607,8 +607,8 @@ After Reboot:
 ├─> Kubelet starts
 ├─> DaemonSet controller recreates ibm-vpc-file-csi-node pod
 │   ├─> New pod instance
-│   ├─> Fresh EmptyDir volume (empty /etc/stunnel/services/)
-│   ├─> allocatedPorts map empty
+│   ├─> HostPath volume preserved (/etc/stunnel/services/ configs survive)
+│   ├─> allocatedPorts map empty (in-memory state lost)
 │   └─> No tunnel configs
 │
 ├─> Kubelet reschedules pods that were running
@@ -638,7 +638,7 @@ Impact:
 Before Restart:
 ├─> Pod A, B, C have active NFS mounts
 ├─> Tunnels running in denali-stunnel container
-├─> Config files in /etc/stunnel/services/ (EmptyDir)
+├─> Config files in /etc/stunnel/services/ (HostPath - persisted)
 └─> Kernel NFS mounts active
 
 Pod Restart Initiated (kubectl delete pod):
@@ -651,14 +651,14 @@ Pod Restart Initiated (kubectl delete pod):
 │   └─> All tunnel listeners close
 └─> Pod terminates
 
-EmptyDir Volume Behavior:
-├─> /etc/stunnel/services/ is EmptyDir
-├─> When pod deleted, EmptyDir is destroyed
-└─> All tunnel configs lost
+HostPath Volume Behavior:
+├─> /etc/stunnel/services/ is HostPath
+├─> When pod deleted, HostPath persists on node
+└─> All tunnel configs preserved
 
 New Pod Starts:
 ├─> DaemonSet controller creates new pod
-├─> Fresh EmptyDir volume (empty /etc/stunnel/services/)
+├─> HostPath volume reused (existing /etc/stunnel/services/ configs)
 ├─> CSI driver container starts
 │   ├─> allocatedPorts map empty
 │   └─> recoverExistingTunnels() finds no configs
@@ -706,8 +706,8 @@ Crash Event:
 ├─> Pod crashes unexpectedly (OOM, panic, etc.)
 ├─> No graceful shutdown
 ├─> Containers terminated immediately
-├─> EmptyDir volume destroyed
-└─> All tunnel configs lost
+├─> HostPath volume persists on node
+└─> All tunnel configs preserved
 
 State After Crash:
 ├─> Kernel NFS mounts: Still active
@@ -718,9 +718,9 @@ State After Crash:
 Kubernetes Recovery:
 ├─> DaemonSet controller detects pod failure
 ├─> Restarts pod immediately
-├─> New pod starts with empty state
-│   ├─> Fresh EmptyDir
-│   ├─> No tunnel configs
+├─> New pod starts with preserved configs
+│   ├─> HostPath volume reused
+│   ├─> Existing tunnel configs available
 │   └─> Empty allocatedPorts map
 │
 └─> recoverExistingTunnels() runs:
@@ -872,13 +872,13 @@ Scenario: Only denali-stunnel container crashes/restarts
 Container Crash:
 ├─> denali-stunnel container exits
 ├─> CSI driver container still running
-├─> EmptyDir volume persists (shared between containers)
+├─> HostPath volume persists (shared between containers)
 ├─> Tunnel configs in /etc/stunnel/services/ preserved
 └─> Kernel NFS mounts still active
 
 Container Restart:
 ├─> Kubernetes restarts denali-stunnel container
-├─> Container starts with same EmptyDir volume
+├─> Container starts with same HostPath volume
 ├─> Stunnel process starts
 ├─> Reads /etc/stunnel/stunnel.conf
 ├─> Includes /etc/stunnel/services/*.conf
@@ -889,7 +889,7 @@ Container Restart:
 └─> All tunnels restored automatically
 
 Recovery:
-├─> Tunnel configs preserved (EmptyDir not destroyed)
+├─> Tunnel configs preserved (HostPath persists)
 ├─> Stunnel reads existing configs on start
 ├─> All listeners start immediately
 ├─> NFS mounts continue working
@@ -902,8 +902,8 @@ Impact:
 └─> Risk: Minimal (brief connection interruption)
 
 Why It Works:
-├─> EmptyDir survives container restart (not pod restart)
-├─> Config files persist in shared volume
+├─> HostPath survives container restart, pod restart, AND node reboot
+├─> Config files persist on node filesystem
 ├─> Stunnel automatically loads all configs on start
 └─> No CSI driver involvement needed
 
@@ -1036,7 +1036,9 @@ spec:
           
   volumes:
     - name: stunnel-services
-      emptyDir: {}  # Shared between containers
+      hostPath:
+        path: /etc/stunnel/services
+        type: DirectoryOrCreate  # Persists across pod restarts and node reboots
     - name: host-certs
       hostPath:
         path: /etc  # For certificates
