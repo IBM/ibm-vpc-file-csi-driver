@@ -409,9 +409,10 @@ CSI Driver Container:
 | **Stunnel Architecture** | 1 process per file share | 1 process with multiple listeners |
 | **Lines of Code** | ~2000 LOC | ~434 LOC |
 | **Code Complexity** | Higher (gRPC, metadata, health) | Lower (file-based configs) |
-| **State Persistence** | Persistent (metadata files) | Ephemeral (EmptyDir) |
+| **State Persistence** | Persistent (HostPath metadata) | Persistent (HostPath configs) |
+| **Config Survival** | Pod restart ✅ Node reboot ✅ | Pod restart ✅ Node reboot ✅ |
 | **Health Monitoring** | Active (continuous checks) | Passive (Kubernetes restarts) |
-| **Recovery Time** | Fast (metadata-based) | Medium (config scan) |
+| **Recovery Time** | Fast (metadata-based) | Instant (configs persist on HostPath) |
 | **Recovery Purpose** | Restore tunnel state + RefCounts | Rebuild port allocation map only |
 | **Resource Usage** | Higher (multiple processes) | Lower (single process) |
 | **Operational Overhead** | Higher (metadata management) | Lower (simple configs) |
