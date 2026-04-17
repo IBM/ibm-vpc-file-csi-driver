@@ -171,6 +171,9 @@ spec:
               name: mh-logs
             - name: stunnel-services
               mountPath: /etc/stunnel/services
+            - name: host-certs
+              mountPath: /etc/host-certs
+              readOnly: true
         - name: denali-stunnel
           securityContext:
             runAsNonRoot: false
