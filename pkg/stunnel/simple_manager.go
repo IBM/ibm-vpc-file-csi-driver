@@ -33,6 +33,7 @@ type SimpleManager struct {
 	basePort       int
 	portRange      int
 	allocatedPorts map[int]string // port -> volumeID
+	caFile         string         // Path to CA bundle file
 	logger         *zap.Logger
 }
 
@@ -41,6 +42,7 @@ type Config struct {
 	ServicesDir string
 	BasePort    int
 	PortRange   int
+	CAFile      string // Path to CA bundle file for TLS verification
 	Logger      *zap.Logger
 }
 
@@ -69,6 +71,13 @@ func NewSimpleManager(cfg *Config) (*SimpleManager, error) {
 		portRange = DefaultPortRange
 	}
 
+	// Auto-detect CA bundle if not provided
+	// Look in /etc/host-certs first (mounted from host), then fallback to container paths
+	caFile := cfg.CAFile
+	if caFile == "" {
+		caFile = detectCABundle(cfg.Logger)
+	}
+
 	// Ensure services directory exists
 	if err := os.MkdirAll(servicesDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create services directory: %w", err)
@@ -79,6 +88,7 @@ func NewSimpleManager(cfg *Config) (*SimpleManager, error) {
 		basePort:       basePort,
 		portRange:      portRange,
 		allocatedPorts: make(map[int]string),
+		caFile:         caFile,
 		logger:         cfg.Logger,
 	}
 
@@ -88,6 +98,60 @@ func NewSimpleManager(cfg *Config) (*SimpleManager, error) {
 	}
 
 	return sm, nil
+}
+
+// detectCABundle attempts to find the system CA bundle based on OS type
+func detectCABundle(logger *zap.Logger) string {
+	// Check for explicit override first
+	if caFile := os.Getenv("STUNNEL_CA_FILE"); caFile != "" {
+		if _, err := os.Stat(caFile); err == nil {
+			logger.Info("Using CA bundle from STUNNEL_CA_FILE env var", zap.String("path", caFile))
+			return caFile
+		}
+		logger.Warn("STUNNEL_CA_FILE specified but file not found",
+			zap.String("path", caFile))
+	}
+
+	// Detect OS type from node label
+	nodeOSType := os.Getenv("NODE_OS_TYPE")
+	logger.Info("Detecting CA bundle", zap.String("nodeOSType", nodeOSType))
+
+	var caBundlePath string
+	switch nodeOSType {
+	case "rhel", "rhcos", "RHEL", "RHCOS":
+		// RHEL/RHCOS: Use system CA trust bundle
+		caBundlePath = "/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
+	case "ubuntu", "Ubuntu", "UBUNTU":
+		// Ubuntu: Use Debian-style CA certificates
+		caBundlePath = "/etc/host-certs/ssl/certs/ca-certificates.crt"
+	default:
+		// Try to auto-detect if NODE_OS_TYPE not set or unknown
+		logger.Warn("NODE_OS_TYPE not set or unknown, attempting auto-detection",
+			zap.String("nodeOSType", nodeOSType))
+
+		// Try RHEL path first (most common in enterprise)
+		if _, err := os.Stat("/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"); err == nil {
+			caBundlePath = "/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
+		} else if _, err := os.Stat("/etc/host-certs/ssl/certs/ca-certificates.crt"); err == nil {
+			caBundlePath = "/etc/host-certs/ssl/certs/ca-certificates.crt"
+		}
+	}
+
+	// Verify the detected path exists
+	if caBundlePath != "" {
+		if _, err := os.Stat(caBundlePath); err == nil {
+			logger.Info("Detected CA bundle",
+				zap.String("path", caBundlePath),
+				zap.String("osType", nodeOSType))
+			return caBundlePath
+		}
+		logger.Warn("Detected CA bundle path does not exist",
+			zap.String("path", caBundlePath))
+	}
+
+	logger.Warn("No CA bundle detected, TLS verification will be disabled",
+		zap.String("nodeOSType", nodeOSType))
+	return ""
 }
 
 // recoverExistingTunnels scans the services directory and rebuilds port allocation map
@@ -211,11 +275,27 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer string) (int, error) {
 
 	// Create service config for denali-stunnel
 	// VPC File Share uses TLS on port 20049
-	config := fmt.Sprintf(`[%s]
+	var config string
+	if sm.caFile != "" {
+		// Use CA bundle for proper TLS verification (no self-signed certs)
+		config = fmt.Sprintf(`[%s]
 client = yes
 accept = 127.0.0.1:%d
 connect = %s:20049
+CAfile = %s
+verify = 2
+`, volumeID, port, nfsServer, sm.caFile)
+	} else {
+		// Fallback: no CA verification (will accept self-signed certs)
+		sm.logger.Warn("No CA bundle configured, TLS verification disabled",
+			zap.String("volumeID", volumeID))
+		config = fmt.Sprintf(`[%s]
+client = yes
+accept = 127.0.0.1:%d
+connect = %s:20049
+verify = 0
 `, volumeID, port, nfsServer)
+	}
 
 	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
 		sm.releasePort(port)
@@ -226,7 +306,9 @@ connect = %s:20049
 		zap.String("volumeID", volumeID),
 		zap.String("nfsServer", nfsServer),
 		zap.Int("port", port),
-		zap.String("configPath", configPath))
+		zap.String("configPath", configPath),
+		zap.String("caFile", sm.caFile),
+		zap.Bool("tlsVerify", sm.caFile != ""))
 
 	// Send SIGHUP to stunnel to reload configuration immediately
 	if err := sm.reloadStunnel(); err != nil {

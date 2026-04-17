@@ -108,6 +108,17 @@ spec:
               value: "/etc/stunnel/services"
             - name: IS_NODE_SERVER
               value: "true"
+            # Read OS type from node label for CA bundle path detection
+            - name: NODE_OS_TYPE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['ibm-cloud.kubernetes.io/os']
+            # CA bundle path is auto-detected based on NODE_OS_TYPE:
+            # - RHEL/RHCOS: /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+            # - Ubuntu: /etc/ssl/certs/ca-certificates.crt
+            # Can be overridden by setting STUNNEL_CA_FILE environment variable
+            - name: STUNNEL_CA_FILE
+              value: ""
             # Not applicable to Red Hat OpenShift Container Platform Self-Managed
             # - name: SIDECAR_GROUP_ID
             #   value: "2121"
@@ -187,6 +198,9 @@ spec:
               mountPath: /etc/stunnel/services
             - name: stunnel-logs
               mountPath: /var/log/stunnel
+            - name: host-certs
+              mountPath: /etc/host-certs
+              readOnly: true
         - name: liveness-probe
           securityContext:
             runAsNonRoot: false # For IKS use true, for OCP use false
