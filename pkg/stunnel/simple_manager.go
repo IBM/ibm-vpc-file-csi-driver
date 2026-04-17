@@ -100,7 +100,7 @@ func NewSimpleManager(cfg *Config) (*SimpleManager, error) {
 	return sm, nil
 }
 
-// detectCABundle attempts to find the system CA bundle based on OS type
+// detectCABundle attempts to find the system CA bundle by checking common paths
 func detectCABundle(logger *zap.Logger) string {
 	// Check for explicit override first
 	if caFile := os.Getenv("STUNNEL_CA_FILE"); caFile != "" {
@@ -112,45 +112,22 @@ func detectCABundle(logger *zap.Logger) string {
 			zap.String("path", caFile))
 	}
 
-	// Detect OS type from node label
-	nodeOSType := os.Getenv("NODE_OS_TYPE")
-	logger.Info("Detecting CA bundle", zap.String("nodeOSType", nodeOSType))
+	// Auto-detect CA bundle by checking common paths
+	logger.Info("Auto-detecting CA bundle from common system paths")
 
-	var caBundlePath string
-	switch nodeOSType {
-	case "rhel", "rhcos", "RHEL", "RHCOS":
-		// RHEL/RHCOS: Use system CA trust bundle
-		caBundlePath = "/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
-	case "ubuntu", "Ubuntu", "UBUNTU":
-		// Ubuntu: Use Debian-style CA certificates
-		caBundlePath = "/etc/host-certs/ssl/certs/ca-certificates.crt"
-	default:
-		// Try to auto-detect if NODE_OS_TYPE not set or unknown
-		logger.Warn("NODE_OS_TYPE not set or unknown, attempting auto-detection",
-			zap.String("nodeOSType", nodeOSType))
-
-		// Try RHEL path first (most common in enterprise)
-		if _, err := os.Stat("/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"); err == nil {
-			caBundlePath = "/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
-		} else if _, err := os.Stat("/etc/host-certs/ssl/certs/ca-certificates.crt"); err == nil {
-			caBundlePath = "/etc/host-certs/ssl/certs/ca-certificates.crt"
-		}
+	// Try RHEL/RHCOS path first (most common in enterprise/OpenShift)
+	if _, err := os.Stat("/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"); err == nil {
+		logger.Info("Detected CA bundle", zap.String("path", "/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"))
+		return "/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
 	}
 
-	// Verify the detected path exists
-	if caBundlePath != "" {
-		if _, err := os.Stat(caBundlePath); err == nil {
-			logger.Info("Detected CA bundle",
-				zap.String("path", caBundlePath),
-				zap.String("osType", nodeOSType))
-			return caBundlePath
-		}
-		logger.Warn("Detected CA bundle path does not exist",
-			zap.String("path", caBundlePath))
+	// Try Ubuntu/Debian path
+	if _, err := os.Stat("/etc/host-certs/ssl/certs/ca-certificates.crt"); err == nil {
+		logger.Info("Detected CA bundle", zap.String("path", "/etc/host-certs/ssl/certs/ca-certificates.crt"))
+		return "/etc/host-certs/ssl/certs/ca-certificates.crt"
 	}
 
-	logger.Warn("No CA bundle detected, TLS verification will be disabled",
-		zap.String("nodeOSType", nodeOSType))
+	logger.Warn("No CA bundle detected, TLS verification will be disabled")
 	return ""
 }
 
@@ -454,15 +431,15 @@ func (sm *SimpleManager) isServicesDirectoryEmpty() (bool, error) {
 	return true, nil
 }
 
-// terminateStunnel sends SIGINT to run-stunnel.sh to trigger container restart
+// terminateStunnel sends SIGTERM to stunnel process to trigger container restart
 // This is used when the last tunnel is removed to clean up resources
 func (sm *SimpleManager) terminateStunnel() error {
-	// Send SIGINT to run-stunnel.sh (container init process)
-	// This triggers the handle_sigint() function which exits with code 1
-	cmd := exec.Command("pgrep", "-f", "run-stunnel.sh")
+	// Find stunnel process (visible via shareProcessNamespace)
+	// Note: run-stunnel.sh is in a different PID namespace and not visible
+	cmd := exec.Command("pgrep", "-x", "stunnel")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("run-stunnel.sh process not found (requires shareProcessNamespace: true): %w", err)
+		return fmt.Errorf("stunnel process not found (requires shareProcessNamespace: true): %w", err)
 	}
 
 	pidStr := strings.TrimSpace(string(output))
@@ -471,12 +448,13 @@ func (sm *SimpleManager) terminateStunnel() error {
 		return fmt.Errorf("invalid PID: %w", err)
 	}
 
-	// Send SIGINT to trigger handle_sigint() in the wrapper script
-	if err := syscall.Kill(pid, syscall.SIGINT); err != nil {
-		return fmt.Errorf("failed to send SIGINT to run-stunnel.sh: %w", err)
+	// Send SIGTERM to stunnel for graceful shutdown
+	// This will cause the container to exit and restart (with restartPolicy: Always)
+	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+		return fmt.Errorf("failed to send SIGTERM to stunnel: %w", err)
 	}
 
-	sm.logger.Info("Sent SIGINT to run-stunnel.sh for container restart", zap.Int("pid", pid))
+	sm.logger.Info("Sent SIGTERM to stunnel for container restart", zap.Int("pid", pid))
 	return nil
 }
 
