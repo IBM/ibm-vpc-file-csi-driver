@@ -158,10 +158,8 @@ func (sm *SimpleManager) extractPortFromConfigFile(configPath string) (int, erro
 }
 
 // EnsureTunnel creates or returns existing tunnel configuration
+// Optimized with double-checked locking to avoid blocking when tunnel already exists
 func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer string) (int, error) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
 	if volumeID == "" {
 		return 0, fmt.Errorf("volumeID is required")
 	}
@@ -170,13 +168,34 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer string) (int, error) {
 		return 0, fmt.Errorf("nfsServer is required")
 	}
 
-	// Check if tunnel already exists
+	// Fast path: Check if tunnel already exists with read lock
+	// This allows multiple concurrent reads without blocking
 	configPath := sm.getConfigPath(volumeID)
 	if _, err := os.Stat(configPath); err == nil {
-		// Config exists, find its port
+		// Config file exists, get port from map with read lock
+		sm.mu.RLock()
 		for port, vid := range sm.allocatedPorts {
 			if vid == volumeID {
+				sm.mu.RUnlock()
 				sm.logger.Info("Tunnel already exists",
+					zap.String("volumeID", volumeID),
+					zap.Int("port", port))
+				return port, nil
+			}
+		}
+		sm.mu.RUnlock()
+		// Config file exists but not in map - fall through to create
+	}
+
+	// Slow path: Need to create new tunnel with write lock
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	// Double-check: another goroutine might have created it while we waited for lock
+	if _, err := os.Stat(configPath); err == nil {
+		for port, vid := range sm.allocatedPorts {
+			if vid == volumeID {
+				sm.logger.Info("Tunnel already exists (created by another goroutine)",
 					zap.String("volumeID", volumeID),
 					zap.Int("port", port))
 				return port, nil
@@ -305,13 +324,77 @@ func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 		zap.Int("port", tunnelPort),
 		zap.String("configPath", configPath))
 
-	// Send SIGHUP to stunnel to reload configuration immediately
-	if err := sm.reloadStunnel(); err != nil {
-		sm.logger.Warn("Failed to send SIGHUP to stunnel, will rely on auto-detection",
+	// Check if services directory is now empty (last tunnel removed)
+	isEmpty, err := sm.isServicesDirectoryEmpty()
+	if err != nil {
+		sm.logger.Warn("Failed to check if services directory is empty",
 			zap.Error(err))
-		// Don't fail - stunnel will pick it up via polling within 10 seconds
+		isEmpty = false // Fail-safe: don't restart if we can't verify
 	}
 
+	if isEmpty {
+		sm.logger.Info("Last tunnel removed (services directory empty), sending SIGINT to restart denali-stunnel container")
+		// Send SIGINT to trigger container restart (requires restartPolicy: Always)
+		if err := sm.terminateStunnel(); err != nil {
+			sm.logger.Warn("Failed to send SIGINT to stunnel container",
+				zap.Error(err))
+			// Don't fail - this is an optimization, not critical
+		}
+	} else {
+		// Send SIGHUP to stunnel to reload configuration immediately
+		if err := sm.reloadStunnel(); err != nil {
+			sm.logger.Warn("Failed to send SIGHUP to stunnel, will rely on auto-detection",
+				zap.Error(err))
+			// Don't fail - stunnel will pick it up via polling within 10 seconds
+		}
+	}
+
+	return nil
+}
+
+// isServicesDirectoryEmpty checks if the services directory has no .conf files
+func (sm *SimpleManager) isServicesDirectoryEmpty() (bool, error) {
+	files, err := os.ReadDir(sm.servicesDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return true, nil
+		}
+		return false, err
+	}
+
+	// Check if any .conf files exist
+	for _, file := range files {
+		if !file.IsDir() && filepath.Ext(file.Name()) == ".conf" {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// terminateStunnel sends SIGINT to run-stunnel.sh to trigger container restart
+// This is used when the last tunnel is removed to clean up resources
+func (sm *SimpleManager) terminateStunnel() error {
+	// Send SIGINT to run-stunnel.sh (container init process)
+	// This triggers the handle_sigint() function which exits with code 1
+	cmd := exec.Command("pgrep", "-f", "run-stunnel.sh")
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("run-stunnel.sh process not found (requires shareProcessNamespace: true): %w", err)
+	}
+
+	pidStr := strings.TrimSpace(string(output))
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return fmt.Errorf("invalid PID: %w", err)
+	}
+
+	// Send SIGINT to trigger handle_sigint() in the wrapper script
+	if err := syscall.Kill(pid, syscall.SIGINT); err != nil {
+		return fmt.Errorf("failed to send SIGINT to run-stunnel.sh: %w", err)
+	}
+
+	sm.logger.Info("Sent SIGINT to run-stunnel.sh for container restart", zap.Int("pid", pid))
 	return nil
 }
 
