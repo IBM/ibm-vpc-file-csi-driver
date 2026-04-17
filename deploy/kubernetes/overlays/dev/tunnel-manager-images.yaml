@@ -1,0 +1,5 @@
+# Deprecated: tunnel-manager now runs as a sidecar container in deploy/kubernetes/manifests/node-server.yaml.
+# Dev image overrides must be applied through deploy/kubernetes/overlays/dev/node-server-images.yaml.
+# This file is intentionally retained only to document the old separate-DaemonSet approach.
+
+# Made with Bob

@@ -1,0 +1,58 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ibmc-vpc-file-rfs-stunnel
+  labels:
+    app.kubernetes.io/name: ibm-vpc-file-csi-driver
+provisioner: vpc.file.csi.ibm.io
+parameters:
+  profile: "rfs"   # Remote File Storage profile for high-performance workloads
+  billingType: "hourly"  # The default billing policy used. The user can override this default.
+  throughput: "1000"    # Bandwidth in MB/s (25-8192 MB/s for RFS profile)
+  encrypted: "false"     # By default, encryption is managed by cloud provider. User can override this default.
+  encryptionKey: ""      # If encrypted is true, then a user must specify the CRK-CRN.
+  resourceGroup: ""      # By default resource group will be used from storage-secrete-store secret, User can override.
+  isENIEnabled: "true"   # VPC File Share ENI/VNI feature will be used by all PVCs created with this storage class.
+  isEITEnabled: "true"   # VPC File Share will have EIT (Encryption in Transit) enabled with Stunnel.
+  securityGroupIDs: ""   # By default cluster security group i.e kube-<clusterID> will be used. User can provide their own command separated SGs.
+  subnetID: ""    # User can provide subnetID in which the ENI/VNI will be created. If not provided CSI driver will use the subnetID available in the cluster' VPC.
+  region: ""             # By VPC CSI driver will select a region from cluster node's topology. The user can override this default.
+  primaryIPID: "" # Existing ID of reserved IP from the same subnet as the file share. Region is mandatory for this.
+  primaryIPAddress: "" # IPAddress for ENI/VNI to be created in the respective subnet. Region and subnetID are mandatory for this.
+  tags: ""             # User can add a list of tags "a, b, c" that will be used at the time of provisioning file share, by default CSI driver has its own tags.
+  uid: "0"             # The initial user identifier for the file share, by default its root.
+  gid: "0"             # The initial group identifier for the file share, by default its root.
+  classVersion: "1"
+reclaimPolicy: "Delete"
+allowVolumeExpansion: true
+---
+# Note: RFS profile does not support zone parameter - shares are accessible across all zones in the region
+# Note: RFS profile does not support iops parameter - use throughput instead
+# 
+# Throughput ranges for RFS profile:
+# - Minimum: 25 MB/s
+# - Maximum: 8192 MB/s
+#
+# Stunnel Configuration:
+# The CSI driver will automatically create per-volume Stunnel tunnels for RFS shares with EIT enabled.
+# Stunnel configuration can be customized via environment variables in the node server DaemonSet:
+#
+# Environment Variables:
+# - STUNNEL_BASE_PORT: Starting port for tunnel allocation (default: 20000)
+# - STUNNEL_PORT_RANGE: Number of ports available (default: 10000)
+# - STUNNEL_CONFIG_DIR: Directory for configurations (default: /var/lib/ibm-csi-driver/stunnel)
+# - STUNNEL_CA_FILE: CA bundle path (default: /etc/pki/tls/certs/ca-bundle.crt)
+# - STUNNEL_NFS_PORT: NFS port for RFS shares (default: 20049)
+# - STUNNEL_ENVIRONMENT: Environment for hostname verification (default: production, options: staging/production)
+# - STUNNEL_HEALTH_CHECK_INTERVAL: Health check interval (default: 30s)
+#
+# Example DaemonSet environment configuration:
+# env:
+#   - name: STUNNEL_BASE_PORT
+#     value: "20000"
+#   - name: STUNNEL_PORT_RANGE
+#     value: "10000"
+#   - name: STUNNEL_ENVIRONMENT
+#     value: "production"
+
+# Made with Bob

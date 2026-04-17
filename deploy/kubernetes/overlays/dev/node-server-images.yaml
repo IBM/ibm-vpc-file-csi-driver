@@ -17,3 +17,6 @@ spec:
         - name: iks-vpc-file-node-driver
           image: <UPDATE THIS> # Custom image built or use the images available from tags created https://cloud.ibm.com/docs/containers?topic=containers-cl-add-ons-vpc-file-csi-driver
           imagePullPolicy: Always
+        - name: tunnel-manager
+          image: <UPDATE THIS> # Same driver image used in tunnel-manager sidecar mode
+          imagePullPolicy: Always

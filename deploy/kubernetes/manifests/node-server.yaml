@@ -21,6 +21,7 @@ spec:
         app: ibm-vpc-file-csi-node
         app.kubernetes.io/name: ibm-vpc-file-csi-driver
     spec:
+      shareProcessNamespace: true
       hostNetwork: true
       priorityClassName: system-node-critical
       serviceAccountName: ibm-vpc-file-node-sa
@@ -103,9 +104,17 @@ spec:
                   fieldPath: spec.nodeName
             - name: SOCKET_PATH
               value: "/var/lib/ibmshare.sock"
+            - name: STUNNEL_SERVICES_DIR
+              value: "/etc/stunnel/services"
+            - name: IS_NODE_SERVER
+              value: "true"
+            # CA bundle path is auto-detected by checking if files exist:
+            # - RHEL/RHCOS: /etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+            # - Ubuntu: /etc/host-certs/ssl/certs/ca-certificates.crt
+            # Can be overridden by setting STUNNEL_CA_FILE environment variable
+            - name: STUNNEL_CA_FILE
+              value: ""
             # Not applicable to Red Hat OpenShift Container Platform Self-Managed
-            # - name: IS_NODE_SERVER
-            #   value: "true"
             # - name: SIDECAR_GROUP_ID
             #   value: "2121"
           resources:
@@ -155,6 +164,41 @@ spec:
               name: libpath
             - mountPath: /tmp/mount-helper
               name: mh-logs
+            - name: stunnel-services
+              mountPath: /etc/stunnel/services
+            - name: host-certs
+              mountPath: /etc/host-certs
+              readOnly: true
+        - name: denali-stunnel
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            runAsGroup: 0
+            privileged: true
+          image: genctl-acadia/denali-stunnel:latest
+          imagePullPolicy: Always
+          args:
+            - "--dynamic"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            limits:
+              cpu: 200m
+              memory: 250Mi
+            requests:
+              cpu: 20m
+              memory: 50Mi
+          volumeMounts:
+            - name: stunnel-services
+              mountPath: /etc/stunnel/services
+            - name: stunnel-logs
+              mountPath: /var/log/stunnel
+            - name: host-certs
+              mountPath: /etc/host-certs
+              readOnly: true
         - name: liveness-probe
           securityContext:
             runAsNonRoot: false # For IKS use true, for OCP use false
@@ -231,6 +275,10 @@ spec:
             - serviceAccountToken:
                 path: vault-token
                 expirationSeconds: 600
+        - name: stunnel-logs
+          hostPath:
+            path: /var/log/stunnel
+            type: DirectoryOrCreate
         - name: libpath
           hostPath:
             path: /var/lib
@@ -239,3 +287,12 @@ spec:
           hostPath:
             path: /opt/ibm/mount-ibmshare/
             type: DirectoryOrCreate
+        - name: stunnel-services
+          hostPath:
+            path: /etc/stunnel/services
+            type: DirectoryOrCreate
+        # Mount host /etc directory to access CA bundles for denali-stunnel
+        - name: host-certs
+          hostPath:
+            path: /etc
+            type: Directory
