@@ -287,11 +287,23 @@ verify = 0
 		zap.String("caFile", sm.caFile),
 		zap.Bool("tlsVerify", sm.caFile != ""))
 
-	// Send SIGHUP to stunnel to reload configuration immediately
-	if err := sm.reloadStunnel(); err != nil {
-		sm.logger.Warn("Failed to send SIGHUP to stunnel, will rely on auto-detection",
-			zap.Error(err))
-		// Don't fail - stunnel will pick it up via polling within 10 seconds
+	// Check if this is the first mount (first tunnel created)
+	// For first mount: let stunnel auto-detect (max 10 seconds)
+	// For subsequent mounts: send SIGHUP for immediate reload
+	isFirstMount := len(sm.allocatedPorts) == 1
+
+	if isFirstMount {
+		sm.logger.Info("First mount created, stunnel will auto-detect within 10 seconds",
+			zap.String("volumeID", volumeID),
+			zap.Int("port", port))
+	} else {
+		// stunnel is running, send SIGHUP for immediate reload
+		if err := sm.reloadStunnel(); err != nil {
+			sm.logger.Warn("Failed to send SIGHUP to stunnel, will rely on auto-detection",
+				zap.String("volumeID", volumeID),
+				zap.Error(err))
+			// Don't fail - stunnel will pick it up via polling within 10 seconds
+		}
 	}
 
 	return port, nil
