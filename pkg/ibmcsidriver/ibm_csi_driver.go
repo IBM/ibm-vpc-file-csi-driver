@@ -22,10 +22,12 @@ package ibmcsidriver
 import (
 	"context"
 	"fmt"
+	"os"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/stunnel"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -133,6 +135,36 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		icDriver.rfsEnabled = true
 		icDriver.logger.Info("RFS profile is supported")
 	}
+
+	// Initialize tunnel manager gRPC client only for node servers (not controllers)
+	// Initialize stunnel manager for node server (works with denali-stunnel sidecar)
+	if os.Getenv("IS_NODE_SERVER") == "true" {
+		servicesDir := os.Getenv("STUNNEL_SERVICES_DIR")
+		if servicesDir == "" {
+			servicesDir = stunnel.DefaultServicesDir
+		}
+
+		// Create simple stunnel manager
+		stunnelMgr, err := stunnel.NewSimpleManager(&stunnel.Config{
+			ServicesDir: servicesDir,
+			BasePort:    stunnel.DefaultBasePort,
+			PortRange:   stunnel.DefaultPortRange,
+			Logger:      icDriver.logger,
+		})
+		if err != nil {
+			icDriver.logger.Error("Failed to create stunnel manager", zap.Error(err))
+			return fmt.Errorf("failed to create stunnel manager: %w", err)
+		}
+		icDriver.ns.StunnelMgr = stunnelMgr
+		icDriver.logger.Info("Successfully initialized stunnel manager for node server",
+			zap.String("servicesDir", servicesDir),
+			zap.Int("basePort", stunnel.DefaultBasePort),
+			zap.Int("portRange", stunnel.DefaultPortRange),
+			zap.String("note", "Works with denali-stunnel sidecar container"))
+	} else {
+		icDriver.logger.Info("Skipping stunnel manager initialization (running as controller)")
+	}
+
 	return nil
 }
 
@@ -201,10 +233,11 @@ func NewIdentityServer(icDriver *IBMCSIDriver) *CSIIdentityServer {
 // NewNodeServer ...
 func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUtil StatsUtils, nodeMetadata nodeMetadata.NodeMetadata) *CSINodeServer {
 	return &CSINodeServer{
-		Driver:   icDriver,
-		Mounter:  mounter,
-		Stats:    statsUtil,
-		Metadata: nodeMetadata,
+		Driver:     icDriver,
+		Mounter:    mounter,
+		Stats:      statsUtil,
+		Metadata:   nodeMetadata,
+		StunnelMgr: nil, // Will be initialized in SetupIBMCSIDriver if IS_NODE_SERVER=true
 	}
 }
 

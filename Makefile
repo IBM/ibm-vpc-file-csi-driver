@@ -15,8 +15,10 @@
 #
 
 EXE_DRIVER_NAME=ibm-vpc-file-csi-driver
+EXE_TUNNEL_MANAGER_NAME=ibm-vpc-file-tunnel-manager
 DRIVER_NAME=vpcFileDriver
 IMAGE = ${EXE_DRIVER_NAME}
+TUNNEL_MANAGER_IMAGE = ${EXE_TUNNEL_MANAGER_NAME}
 GOPACKAGES=$(shell go list ./... | grep -v /vendor/ | grep -v /cmd | grep -v /tests | grep -v /pkg/ibmcsidriver/ibmcsidriverfakes)
 VERSION := latest
 GOPATH := $(shell go env GOPATH)
@@ -45,6 +47,16 @@ LINT_BIN=$(GOPATH)/bin/golangci-lint
 deps:
 	echo "Installing dependencies ..."
 	go mod download
+	command -v protoc-gen-go >/dev/null || go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	command -v protoc-gen-go-grpc >/dev/null || go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+.PHONY: proto
+proto:
+	@echo "Generating protobuf code..."
+	protoc --go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		pkg/tunnel/proto/tunnel.proto
+	@echo "Protobuf code generated successfully"
 	command -v gotestcover >/dev/null || go install github.com/pierrre/gotestcover@latest
 
 .PHONY: vet
@@ -74,6 +86,16 @@ build:
 		-o ${GOPATH}/bin/${EXE_DRIVER_NAME} \
 		./cmd/
 
+.PHONY: build-tunnel-manager
+build-tunnel-manager:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+		go mod vendor
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+		go build -mod=vendor -a \
+		-ldflags '-X main.vendorVersion='"tunnel-manager-${GIT_COMMIT_SHA}"' -extldflags "-static"' \
+		-o ${GOPATH}/bin/${EXE_TUNNEL_MANAGER_NAME} \
+		./cmd/tunnel-manager/
+
 # 'go test -race' requires cgo, set CGO_ENABLED=1
 .PHONY: test
 test:
@@ -99,11 +121,31 @@ buildimage: build-systemutil
         --build-arg BUILD_URL=${BUILD_URL} \
 	-t $(IMAGE):$(VERSION)-amd64 -f Dockerfile .
 
+.PHONY: buildimage-tunnel-manager
+buildimage-tunnel-manager: build-systemutil-tunnel-manager
+	docker build	\
+        --build-arg git_commit_id=${GIT_COMMIT_SHA} \
+        --build-arg git_remote_url=${GIT_REMOTE_URL} \
+        --build-arg build_date=${BUILD_DATE} \
+        --build-arg jenkins_build_number=${BUILD_NUMBER} \
+        --build-arg REPO_SOURCE_URL=${REPO_SOURCE_URL} \
+        --build-arg BUILD_URL=${BUILD_URL} \
+	-t $(TUNNEL_MANAGER_IMAGE):$(VERSION)-amd64 -f Dockerfile.tunnel-manager .
+
+.PHONY: buildimage-all
+buildimage-all: buildimage buildimage-tunnel-manager
+
 .PHONY: build-systemutil
 build-systemutil:
 	docker build --build-arg TAG=$(GIT_COMMIT_SHA) --build-arg OS=linux --build-arg ARCH=$(ARCH) -t csi-driver-builder --pull -f Dockerfile.builder .
 	docker run --env GHE_TOKEN=${GHE_TOKEN} csi-driver-builder
 	docker cp `docker ps -q -n=1`:/go/bin/${EXE_DRIVER_NAME} ./${EXE_DRIVER_NAME}
+
+.PHONY: build-systemutil-tunnel-manager
+build-systemutil-tunnel-manager:
+	docker build --build-arg TAG=$(GIT_COMMIT_SHA) --build-arg OS=linux --build-arg ARCH=$(ARCH) -t tunnel-manager-builder --pull -f Dockerfile.builder .
+	docker run --env GHE_TOKEN=${GHE_TOKEN} tunnel-manager-builder make build-tunnel-manager
+	docker cp `docker ps -q -n=1`:/go/bin/${EXE_TUNNEL_MANAGER_NAME} ./${EXE_TUNNEL_MANAGER_NAME}
 
 .PHONY: test-sanity
 test-sanity: deps
@@ -113,3 +155,5 @@ test-sanity: deps
 clean:
 	rm -rf ${EXE_DRIVER_NAME}
 	rm -rf $(GOPATH)/bin/${EXE_DRIVER_NAME}
+	rm -rf ${EXE_TUNNEL_MANAGER_NAME}
+	rm -rf $(GOPATH)/bin/${EXE_TUNNEL_MANAGER_NAME}
