@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -200,7 +201,7 @@ func (sm *SimpleManager) extractPortFromConfigFile(configPath string) (int, erro
 
 // EnsureTunnel creates or returns existing tunnel configuration
 // Optimized with double-checked locking to avoid blocking when tunnel already exists
-func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer string) (int, error) {
+func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (int, error) {
 	if volumeID == "" {
 		return 0, fmt.Errorf("volumeID is required")
 	}
@@ -219,6 +220,7 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer string) (int, error) {
 			if vid == volumeID {
 				sm.mu.RUnlock()
 				sm.logger.Info("Tunnel already exists",
+					zap.String("RequestID", requestID),
 					zap.String("volumeID", volumeID),
 					zap.Int("port", port))
 				return port, nil
@@ -237,6 +239,7 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer string) (int, error) {
 		for port, vid := range sm.allocatedPorts {
 			if vid == volumeID {
 				sm.logger.Info("Tunnel already exists (created by another goroutine)",
+					zap.String("RequestID", requestID),
 					zap.String("volumeID", volumeID),
 					zap.Int("port", port))
 				return port, nil
@@ -265,6 +268,7 @@ verify = 2
 	} else {
 		// Fallback: no CA verification (will accept self-signed certs)
 		sm.logger.Warn("No CA bundle configured, TLS verification disabled",
+			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID))
 		config = fmt.Sprintf(`[%s]
 client = yes
@@ -280,6 +284,7 @@ verify = 0
 	}
 
 	sm.logger.Info("Created tunnel config",
+		zap.String("RequestID", requestID),
 		zap.String("volumeID", volumeID),
 		zap.String("nfsServer", nfsServer),
 		zap.Int("port", port),
@@ -288,18 +293,31 @@ verify = 0
 		zap.Bool("tlsVerify", sm.caFile != ""))
 
 	// Check if this is the first mount (first tunnel created)
-	// For first mount: let stunnel auto-detect (max 10 seconds)
+	// For first mount: sleep 10 seconds to ensure stunnel is fully started and ready
 	// For subsequent mounts: send SIGHUP for immediate reload
 	isFirstMount := len(sm.allocatedPorts) == 1
 
 	if isFirstMount {
-		sm.logger.Info("First mount created, stunnel will auto-detect within 10 seconds",
+		sm.logger.Info("First mount created, waiting 10 seconds for stunnel to start and load config",
+			zap.String("RequestID", requestID),
+			zap.String("volumeID", volumeID),
+			zap.Int("port", port))
+		// Sleep to ensure stunnel container is fully started and has loaded the config
+		// This prevents exit code 129 when parallel mounts occur during stunnel startup
+		time.Sleep(10 * time.Second)
+		sm.logger.Info("First mount wait complete, stunnel should be ready",
+			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
 			zap.Int("port", port))
 	} else {
 		// stunnel is running, send SIGHUP for immediate reload
-		if err := sm.reloadStunnel(); err != nil {
+		sm.logger.Info("Subsequent mount, sending SIGHUP for immediate reload",
+			zap.String("RequestID", requestID),
+			zap.String("volumeID", volumeID),
+			zap.Int("port", port))
+		if err := sm.reloadStunnel(requestID); err != nil {
 			sm.logger.Warn("Failed to send SIGHUP to stunnel, will rely on auto-detection",
+				zap.String("RequestID", requestID),
 				zap.String("volumeID", volumeID),
 				zap.Error(err))
 			// Don't fail - stunnel will pick it up via polling within 10 seconds
@@ -311,7 +329,7 @@ verify = 0
 
 // reloadStunnel sends SIGHUP to stunnel process to reload configuration
 // This requires shareProcessNamespace: true in the pod spec to work across containers
-func (sm *SimpleManager) reloadStunnel() error {
+func (sm *SimpleManager) reloadStunnel(requestID string) error {
 	// Try to find stunnel process directly (most reliable)
 	cmd := exec.Command("pgrep", "-x", "stunnel")
 	output, err := cmd.Output()
@@ -319,7 +337,9 @@ func (sm *SimpleManager) reloadStunnel() error {
 		pidStr := strings.TrimSpace(string(output))
 		if pid, err := strconv.Atoi(pidStr); err == nil {
 			if err := syscall.Kill(pid, syscall.SIGHUP); err == nil {
-				sm.logger.Info("Sent SIGHUP to stunnel process", zap.Int("pid", pid))
+				sm.logger.Info("Sent SIGHUP to stunnel process",
+					zap.String("RequestID", requestID),
+					zap.Int("pid", pid))
 				return nil
 			}
 		}
@@ -343,12 +363,14 @@ func (sm *SimpleManager) reloadStunnel() error {
 		return fmt.Errorf("failed to send SIGHUP to container: %w", err)
 	}
 
-	sm.logger.Info("", zap.Int("pid", pid))
+	sm.logger.Info("Sent SIGHUP to stunnel wrapper script",
+		zap.String("RequestID", requestID),
+		zap.Int("pid", pid))
 	return nil
 }
 
 // RemoveTunnel removes tunnel configuration only if no active mounts use it
-func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
+func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -367,6 +389,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 
 	if tunnelPort == 0 {
 		sm.logger.Warn("No port found for volume, config may already be removed",
+			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID))
 		return nil
 	}
@@ -375,6 +398,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 	// This prevents premature deletion when multiple pods use the same volume
 	if sm.isTunnelPortInUse(tunnelPort) {
 		sm.logger.Info("Tunnel port still in use by active mounts, keeping config",
+			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
 			zap.Int("port", tunnelPort))
 		return nil
@@ -391,6 +415,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 	}
 
 	sm.logger.Info("Removed tunnel config (no active mounts)",
+		zap.String("RequestID", requestID),
 		zap.String("volumeID", volumeID),
 		zap.Int("port", tunnelPort),
 		zap.String("configPath", configPath))
@@ -399,22 +424,26 @@ func (sm *SimpleManager) RemoveTunnel(volumeID string) error {
 	isEmpty, err := sm.isServicesDirectoryEmpty()
 	if err != nil {
 		sm.logger.Warn("Failed to check if services directory is empty",
+			zap.String("RequestID", requestID),
 			zap.Error(err))
 		isEmpty = false // Fail-safe: don't restart if we can't verify
 	}
 
 	if isEmpty {
-		sm.logger.Info("Last tunnel removed (services directory empty), sending SIGINT to restart denali-stunnel container")
+		sm.logger.Info("Last tunnel removed (services directory empty), sending SIGINT to restart denali-stunnel container",
+			zap.String("RequestID", requestID))
 		// Send SIGINT to trigger container restart (requires restartPolicy: Always)
-		if err := sm.terminateStunnel(); err != nil {
+		if err := sm.terminateStunnel(requestID); err != nil {
 			sm.logger.Warn("Failed to send SIGINT to stunnel container",
+				zap.String("RequestID", requestID),
 				zap.Error(err))
 			// Don't fail - this is an optimization, not critical
 		}
 	} else {
 		// Send SIGHUP to stunnel to reload configuration immediately
-		if err := sm.reloadStunnel(); err != nil {
+		if err := sm.reloadStunnel(requestID); err != nil {
 			sm.logger.Warn("Failed to send SIGHUP to stunnel, will rely on auto-detection",
+				zap.String("RequestID", requestID),
 				zap.Error(err))
 			// Don't fail - stunnel will pick it up via polling within 10 seconds
 		}
@@ -445,7 +474,7 @@ func (sm *SimpleManager) isServicesDirectoryEmpty() (bool, error) {
 
 // terminateStunnel sends SIGTERM to stunnel process to trigger container restart
 // This is used when the last tunnel is removed to clean up resources
-func (sm *SimpleManager) terminateStunnel() error {
+func (sm *SimpleManager) terminateStunnel(requestID string) error {
 	// Find stunnel process (visible via shareProcessNamespace)
 	// Note: run-stunnel.sh is in a different PID namespace and not visible
 	cmd := exec.Command("pgrep", "-x", "stunnel")
@@ -466,7 +495,9 @@ func (sm *SimpleManager) terminateStunnel() error {
 		return fmt.Errorf("failed to send SIGTERM to stunnel: %w", err)
 	}
 
-	sm.logger.Info("Sent SIGTERM to stunnel for container restart", zap.Int("pid", pid))
+	sm.logger.Info("Sent SIGTERM to stunnel for container restart",
+		zap.String("RequestID", requestID),
+		zap.Int("pid", pid))
 	return nil
 }
 

@@ -207,7 +207,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		exportPath = parts[1]
 
 		// Ensure tunnel config exists for this volume (denali-stunnel auto-loads it)
-		tunnelPort, err := csiNS.StunnelMgr.EnsureTunnel(fileShareID, nfsServer)
+		tunnelPort, err := csiNS.StunnelMgr.EnsureTunnel(fileShareID, nfsServer, requestID)
 		if err != nil {
 			ctxLogger.Error("Failed to create tunnel config for volume",
 				zap.String("volumeID", volumeID),
@@ -218,12 +218,6 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		// Update mount source to use local tunnel endpoint with export path
 		// Format: 127.0.0.1:/<export_path>
 		mountSource = fmt.Sprintf("127.0.0.1:%s", exportPath)
-		ctxLogger.Info("Tunnel config created, using local endpoint",
-			zap.String("volumeID", volumeID),
-			zap.String("localEndpoint", mountSource),
-			zap.String("remoteServer", nfsServer),
-			zap.String("exportPath", exportPath),
-			zap.Int("tunnelPort", tunnelPort))
 
 		// For NFS4 mount through tunnel, use nfs4 fsType and add required options
 		fsType = "nfs4"
@@ -283,7 +277,7 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 					zap.String("shareID", shareID),
 					zap.Int("port", port))
 
-				if err := csiNS.StunnelMgr.RemoveTunnel(shareID); err != nil {
+				if err := csiNS.StunnelMgr.RemoveTunnel(shareID, requestID); err != nil {
 					ctxLogger.Warn("Failed to remove tunnel config, but unmount succeeded",
 						zap.String("shareID", shareID),
 						zap.Error(err))
