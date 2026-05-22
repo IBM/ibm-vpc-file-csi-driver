@@ -195,7 +195,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 			zap.String("nfsServer", source))
 
 		if csiNS.StunnelMgr == nil {
-			err := fmt.Errorf("stunnel manager is not configured")
+			err := fmt.Errorf("stunnel manager is not configured, please restart the node server which will try to initialize the stunnel manager")
 			ctxLogger.Error("Failed to ensure tunnel for volume",
 				zap.String("volumeID", volumeID),
 				zap.Error(err))
