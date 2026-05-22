@@ -184,6 +184,9 @@ const (
 	// SubnetID ...
 	SubnetID = "subnetID"
 
+	// VMState ... Parameter to identify VM persistent state volumes (vTPM)
+	VMState = "vmState"
+
 	// ConfigmapName ...
 	ConfigmapName = "ibm-cloud-provider-data"
 

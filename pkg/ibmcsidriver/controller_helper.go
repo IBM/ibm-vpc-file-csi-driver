@@ -259,6 +259,9 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			if gid < 0 {
 				err = fmt.Errorf("%v must be greater or equal than 0", gid)
 			}
+		case VMState:
+			// Accept vmState parameter - validation will be handled elsewhere
+			logger.Info("vmState parameter accepted", zap.String("value", value))
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
