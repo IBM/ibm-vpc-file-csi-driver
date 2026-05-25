@@ -900,11 +900,17 @@ func TestAllocatePort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Build portToVolume from allocatedPorts to maintain consistency
+			portToVolume := make(map[int]string)
+			for volID, port := range tt.allocatedPorts {
+				portToVolume[port] = volID
+			}
+
 			sm := &SimpleManager{
 				initialPort:    tt.initialPort,
 				portRange:      tt.portRange,
 				allocatedPorts: tt.allocatedPorts,
-				portToVolume:   make(map[int]string),
+				portToVolume:   portToVolume,
 				logger:         logger,
 			}
 
