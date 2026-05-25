@@ -853,6 +853,119 @@ func TestGetVolumeParameters(t *testing.T) {
 			expectedStatus: true,
 			expectedError:  fmt.Errorf("volume capabilities are empty"),
 		},
+		{
+			testCaseName: "vmState parameter with true value",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 11811160064,
+					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER,
+					}},
+				},
+				Parameters: map[string]string{
+					Profile:       "dp2",
+					Zone:          "us-south-1",
+					Region:        "us-south",
+					VMState:       "true",
+					IsENIEnabled:  "true",
+					ResourceGroup: "myresourcegroups",
+				},
+			},
+			expectedVolume: &provider.Volume{
+				Name:     &volumeName,
+				Capacity: &volumeSize,
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "dp2"},
+					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						AccessControlMode: SecurityGroup,
+					},
+				},
+				Az:     "us-south-1",
+				Region: "us-south",
+			},
+			expectedStatus: true,
+			expectedError:  nil,
+		},
+		{
+			testCaseName: "vmState parameter with false value",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 11811160064,
+					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+				Parameters: map[string]string{
+					Profile:       "dp2",
+					Zone:          "us-south-1",
+					Region:        "us-south",
+					VMState:       "false",
+					IsENIEnabled:  "true",
+					ResourceGroup: "myresourcegroups",
+				},
+			},
+			expectedVolume: &provider.Volume{
+				Name:     &volumeName,
+				Capacity: &volumeSize,
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "dp2"},
+					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						AccessControlMode: SecurityGroup,
+					},
+				},
+				Az:     "us-south-1",
+				Region: "us-south",
+			},
+			expectedStatus: true,
+			expectedError:  nil,
+		},
+		{
+			testCaseName: "vmState parameter not provided",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 11811160064,
+					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+				Parameters: map[string]string{
+					Profile:       "dp2",
+					Zone:          "us-south-1",
+					Region:        "us-south",
+					IsENIEnabled:  "true",
+					ResourceGroup: "myresourcegroups",
+				},
+			},
+			expectedVolume: &provider.Volume{
+				Name:     &volumeName,
+				Capacity: &volumeSize,
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "dp2"},
+					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						AccessControlMode: SecurityGroup,
+					},
+				},
+				Az:     "us-south-1",
+				Region: "us-south",
+			},
+			expectedStatus: true,
+			expectedError:  nil,
+		},
 	}
 
 	// Set up
