@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -234,28 +235,26 @@ func TestNodePublishVolume(t *testing.T) {
 func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 	// Create a temporary directory for stunnel configs
 	tempDir := t.TempDir()
+	servicesDir := filepath.Join(tempDir, "services")
+
+	// Create the services directory that stunnel manager will use
+	if err := os.MkdirAll(servicesDir, 0755); err != nil {
+		t.Fatalf("Failed to create services dir: %v", err)
+	}
 
 	// Create a mock CA file
-	caFile := tempDir + "/ca-bundle.crt"
+	caFile := filepath.Join(tempDir, "ca-bundle.crt")
 	if err := os.WriteFile(caFile, []byte("mock CA cert"), 0644); err != nil {
 		t.Fatalf("Failed to create mock CA file: %v", err)
 	}
 
-	// Initialize stunnel manager
+	// Initialize stunnel manager with test-specific configuration
 	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
 
-	stunnelMgr, err := stunnel.NewSimpleManager(logger)
+	stunnelMgr, err := stunnel.NewSimpleManagerForTesting(servicesDir, caFile, logger)
 	if err != nil {
 		t.Fatalf("Failed to create stunnel manager: %v", err)
-	}
-
-	// Create directories
-	if err := os.MkdirAll(tempDir+"/services", 0755); err != nil {
-		t.Fatalf("Failed to create services dir: %v", err)
-	}
-	if err := os.MkdirAll(tempDir+"/logs", 0755); err != nil {
-		t.Fatalf("Failed to create logs dir: %v", err)
 	}
 
 	// Initialize IBM CSI Driver with stunnel manager

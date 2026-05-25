@@ -37,8 +37,6 @@ import (
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"k8s.io/kubernetes/pkg/volume/util/fs"
 	mount "k8s.io/mount-utils"
 )
@@ -185,12 +183,8 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	// Get volume context
 	volumeContext := req.GetVolumeContext()
 
-	// Validate required fields
-	profileName, ok := volumeContext[ProfileLabel]
-	if !ok || profileName == "" {
-		return nil, status.Error(codes.InvalidArgument, "missing or empty profile name")
-	}
-
+	// Get profile name from volume context (optional)
+	profileName := volumeContext[ProfileLabel]
 	fileShareID := volumeContext[FileShareIDLabel]
 	isEITEnabled := volumeContext[IsEITEnabled]
 
