@@ -139,18 +139,8 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	// Initialize tunnel manager gRPC client only for node servers (not controllers)
 	// Initialize stunnel manager for node server (works with denali-stunnel sidecar)
 	if os.Getenv("IS_NODE_SERVER") == "true" {
-		servicesDir := os.Getenv("STUNNEL_SERVICES_DIR")
-		if servicesDir == "" {
-			servicesDir = stunnel.DefaultServicesDir
-		}
-
-		// Create simple stunnel manager
-		stunnelMgr, err := stunnel.NewSimpleManager(&stunnel.Config{
-			ServicesDir: servicesDir,
-			BasePort:    stunnel.DefaultBasePort,
-			PortRange:   stunnel.DefaultPortRange,
-			Logger:      icDriver.logger,
-		})
+		// Create simple stunnel manager with hardcoded defaults
+		stunnelMgr, err := stunnel.NewSimpleManager(icDriver.logger)
 		if err != nil {
 			// Log warning but don't fail - node server can still handle non-RFS EIT mounts
 			icDriver.logger.Warn("Failed to create stunnel manager - RFS EIT mounts will not work",
@@ -159,10 +149,10 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 			icDriver.ns.StunnelMgr = nil
 		} else {
 			icDriver.ns.StunnelMgr = stunnelMgr
-			icDriver.logger.Info("Successfully initialized stunnel manager for node server",
-				zap.String("servicesDir", servicesDir),
-				zap.Int("basePort", stunnel.DefaultBasePort),
-				zap.Int("portRange", stunnel.DefaultPortRange),
+			icDriver.logger.Info("Successfully initialized stunnel manager for node server with hardcoded defaults",
+				zap.String("servicesDir", stunnel.DefaultServicesDir),
+				zap.Int("basePort", stunnel.InitialPort),
+				zap.Int("portRange", stunnel.PortRange),
 				zap.String("note", "Works with denali-stunnel sidecar container"))
 		}
 	} else {

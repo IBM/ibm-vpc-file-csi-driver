@@ -245,15 +245,7 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
 
-	stunnelMgr, err := stunnel.NewSimpleManager(&stunnel.Config{
-		ServicesDir: tempDir + "/services",
-		BasePort:    10001,
-		PortRange:   100,
-		CAFile:      caFile,
-		LogDir:      tempDir + "/logs",
-		DebugLevel:  4,
-		Logger:      logger,
-	})
+	stunnelMgr, err := stunnel.NewSimpleManager(logger)
 	if err != nil {
 		t.Fatalf("Failed to create stunnel manager: %v", err)
 	}
@@ -685,3 +677,120 @@ func TestIsDevicePathNotExist(t *testing.T) {
 // 		return command
 // 	}
 // }
+
+func TestSplitNFSSource(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      string
+		wantServer  string
+		wantPath    string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:       "valid NFS source with simple path",
+			source:     "192.168.1.100:/share",
+			wantServer: "192.168.1.100",
+			wantPath:   "/share",
+			wantErr:    false,
+		},
+		{
+			name:       "valid NFS source with nested path",
+			source:     "nfs.example.com:/exports/data/volume1",
+			wantServer: "nfs.example.com",
+			wantPath:   "/exports/data/volume1",
+			wantErr:    false,
+		},
+		{
+			name:       "valid NFS source with root path",
+			source:     "10.0.0.5:/",
+			wantServer: "10.0.0.5",
+			wantPath:   "/",
+			wantErr:    false,
+		},
+		{
+			name:        "empty source",
+			source:      "",
+			wantErr:     true,
+			errContains: "cannot be empty",
+		},
+		{
+			name:        "missing colon separator",
+			source:      "192.168.1.100/share",
+			wantErr:     true,
+			errContains: "missing ':' separator",
+		},
+		{
+			name:        "empty server",
+			source:      ":/share",
+			wantErr:     true,
+			errContains: "server cannot be empty",
+		},
+		{
+			name:        "empty export path",
+			source:      "192.168.1.100:",
+			wantErr:     true,
+			errContains: "export path cannot be empty",
+		},
+		{
+			name:        "export path without leading slash",
+			source:      "192.168.1.100:share",
+			wantErr:     true,
+			errContains: "must start with '/'",
+		},
+		{
+			name:        "export path with double slashes",
+			source:      "192.168.1.100://share",
+			wantErr:     true,
+			errContains: "invalid double slashes",
+		},
+		{
+			name:        "export path with double slashes in middle",
+			source:      "192.168.1.100:/exports//data",
+			wantErr:     true,
+			errContains: "invalid double slashes",
+		},
+		{
+			name:       "hostname with hyphen and numbers",
+			source:     "nfs-server-01.example.com:/vol/data",
+			wantServer: "nfs-server-01.example.com",
+			wantPath:   "/vol/data",
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := splitNFSSource(tt.source)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("splitNFSSource() expected error but got none")
+					return
+				}
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("splitNFSSource() error = %v, want error containing %q", err, tt.errContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("splitNFSSource() unexpected error = %v", err)
+				return
+			}
+
+			if result == nil {
+				t.Errorf("splitNFSSource() returned nil result")
+				return
+			}
+
+			if result.Server != tt.wantServer {
+				t.Errorf("splitNFSSource() Server = %v, want %v", result.Server, tt.wantServer)
+			}
+
+			if result.ExportPath != tt.wantPath {
+				t.Errorf("splitNFSSource() ExportPath = %v, want %v", result.ExportPath, tt.wantPath)
+			}
+		})
+	}
+}

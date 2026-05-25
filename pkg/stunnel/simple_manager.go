@@ -1,8 +1,28 @@
+/**
+ *
+ * Copyright 2026- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 // Package stunnel provides a simple manager for denali-stunnel service configurations
 package stunnel
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -21,30 +41,43 @@ const (
 	// DefaultServicesDir is where denali-stunnel reads service configs
 	DefaultServicesDir = "/etc/stunnel/services"
 
-	// DefaultBasePort is the starting port for tunnel allocation
-	DefaultBasePort = 10001
+	// InitialPort is the starting port for tunnel allocation
+	InitialPort = 10001
 
-	// DefaultPortRange is the number of ports available
-	DefaultPortRange = 20000
+	// PortRange is the number of ports available
+	PortRange = 20000
 
 	// DefaultLogDir is where stunnel writes per-volume log files
 	DefaultLogDir = "/var/log/stunnel"
 
+	// PgrepTimeout is the maximum time to wait for pgrep command
+	PgrepTimeout = 5 * time.Second
+
 	// DefaultDebugLevel is the stunnel debug verbosity (0-7, 5 recommended for production)
-	DefaultDebugLevel = 4
+	DefaultDebugLevel = 5
+
+	// NFSOverTLSPort is the standard port for NFS over TLS (VPC File Share)
+	NFSOverTLSPort = 20049
+
+	// StunnelStartupWaitTime is the time to wait for stunnel to start before first config load
+	StunnelStartupWaitTime = 10 * time.Second
+
+	// StunnelReloadWaitTime is the time to wait for stunnel to complete reload after SIGHUP
+	// Based on empirical testing, stunnel takes ~4 seconds to reload configurations
+	StunnelReloadWaitTime = 5 * time.Second
 )
 
 // SimpleManager manages stunnel service configs for denali-stunnel
 type SimpleManager struct {
 	mu             sync.RWMutex
 	servicesDir    string
-	basePort       int
+	initialPort    int
 	portRange      int
 	allocatedPorts map[string]int // volumeID -> port (O(1) lookup by volumeID)
+	portToVolume   map[int]string // port -> volumeID (O(1) reverse lookup for port availability check)
 	caFile         string         // Path to CA bundle file
 	checkHost      string         // Hostname for TLS certificate verification
 	stunnelStarted bool           // Tracks if stunnel has been confirmed running
-	logDir         string         // Directory for stunnel log files
 	debugLevel     int            // Stunnel debug level (0-7)
 	logger         *zap.Logger
 
@@ -58,7 +91,7 @@ type SimpleManager struct {
 // Config holds configuration for SimpleManager
 type Config struct {
 	ServicesDir    string
-	BasePort       int
+	InitialPort    int
 	PortRange      int
 	CAFile         string // Path to CA bundle file for TLS verification
 	LogDir         string // Directory for stunnel log files (default: /var/log/stunnel)
@@ -67,134 +100,86 @@ type Config struct {
 	DebounceWindow time.Duration // Time window to collect multiple SIGHUPs (default: 2s)
 }
 
-// NewSimpleManager creates a new SimpleManager
-func NewSimpleManager(cfg *Config) (*SimpleManager, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config is required")
-	}
-
-	if cfg.Logger == nil {
+// NewSimpleManager creates a new SimpleManager with hardcoded defaults
+func NewSimpleManager(logger *zap.Logger) (*SimpleManager, error) {
+	if logger == nil {
 		return nil, fmt.Errorf("logger is required")
 	}
 
-	servicesDir := cfg.ServicesDir
-	if servicesDir == "" {
-		servicesDir = DefaultServicesDir
-	}
+	// Hardcoded configuration defaults
+	servicesDir := DefaultServicesDir
+	initialPort := InitialPort
+	portRange := PortRange
+	debugLevel := DefaultDebugLevel
+	debounceWindow := 2 * time.Second
 
-	basePort := cfg.BasePort
-	if basePort == 0 {
-		basePort = DefaultBasePort
-	}
-
-	portRange := cfg.PortRange
-	if portRange == 0 {
-		portRange = DefaultPortRange
-	}
-
-	// Auto-detect CA bundle if not provided
-	// Use OS_TYPE environment variable to determine the correct path
-	caFile := cfg.CAFile
-	if caFile == "" {
-		caFile = detectCABundle(cfg.Logger)
+	// Auto-detect CA bundle based on OS_TYPE environment variable
+	caFile, err := detectCABundle(logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect CA bundle: %w", err)
 	}
 
 	// Determine checkHost based on CLUSTER_ENV environment variable
-	checkHost := getCheckHost(cfg.Logger)
+	checkHost := getCheckHost(logger)
 
-	// Set log directory (created by Kubernetes hostPath with DirectoryOrCreate)
-	logDir := cfg.LogDir
-	if logDir == "" {
-		logDir = DefaultLogDir
-	}
-
-	// Set debug level
-	debugLevel := cfg.DebugLevel
-	if debugLevel == 0 {
-		debugLevel = DefaultDebugLevel
-	}
-	// Validate debug level (0-7)
-	if debugLevel < 0 || debugLevel > 7 {
-		cfg.Logger.Warn("Invalid stunnel debug level, using default",
-			zap.Int("provided", debugLevel),
-			zap.Int("default", DefaultDebugLevel))
-		debugLevel = DefaultDebugLevel
-	}
-
-	// Note: Both servicesDir and logDir are created by Kubernetes hostPath with DirectoryOrCreate
-	// No need to create them here
-
-	// Set default debounce window if not provided
-	debounceWindow := cfg.DebounceWindow
-	if debounceWindow == 0 {
-		debounceWindow = 2 * time.Second // Default: 2 seconds
-	}
+	// Note: servicesDir is created by Kubernetes hostPath with DirectoryOrCreate
+	// No need to create it here
 
 	sm := &SimpleManager{
 		servicesDir:    servicesDir,
-		basePort:       basePort,
+		initialPort:    initialPort,
 		portRange:      portRange,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		caFile:         caFile,
 		checkHost:      checkHost,
-		logDir:         logDir,
 		debugLevel:     debugLevel,
-		logger:         cfg.Logger,
+		logger:         logger,
 		debounceWindow: debounceWindow,
 	}
 
 	// Recover existing tunnels from service configs
 	if err := sm.recoverExistingTunnels(); err != nil {
-		cfg.Logger.Warn("Failed to recover existing tunnels", zap.Error(err))
+		logger.Warn("Failed to recover existing tunnels if any. Please restart the CSI node server POD to refresh again.", zap.Error(err))
 	}
 
-	cfg.Logger.Info("SimpleManager initialized with SIGHUP debouncing",
+	logger.Info("SimpleManager initialized with hardcoded defaults and SIGHUP debouncing",
+		zap.String("servicesDir", servicesDir),
+		zap.Int("initialPort", initialPort),
+		zap.Int("portRange", portRange),
+		zap.Int("debugLevel", debugLevel),
 		zap.Duration("debounceWindow", debounceWindow),
-		zap.String("logDir", logDir),
-		zap.Int("debugLevel", debugLevel))
+		zap.String("caFile", caFile),
+		zap.String("checkHost", checkHost))
 
 	return sm, nil
 }
 
-// detectCABundle attempts to find the system CA bundle based on OS_TYPE environment variable
-func detectCABundle(logger *zap.Logger) string {
-	// Check for explicit override first
-	if caFile := os.Getenv("STUNNEL_CA_FILE"); caFile != "" {
-		if _, err := os.Stat(caFile); err == nil {
-			logger.Info("Using CA bundle from STUNNEL_CA_FILE env var", zap.String("path", caFile))
-			return caFile
-		}
-		logger.Warn("STUNNEL_CA_FILE specified but file not found",
-			zap.String("path", caFile))
-	}
-
-	// Use OS_TYPE environment variable to determine CA bundle path
+// detectCABundle determines the system CA bundle path based on OS_TYPE environment variable
+// Returns error if OS_TYPE is not set or is unknown
+func detectCABundle(logger *zap.Logger) (string, error) {
+	// OS_TYPE environment variable is mandatory
 	osType := os.Getenv("OS_TYPE")
 	if osType == "" {
-		osType = "RHCOS" // Default to RHCOS if not specified
+		return "", fmt.Errorf("OS_TYPE environment variable is required but not set")
 	}
-
-	logger.Info("Detecting CA bundle based on OS type",
-		zap.String("osType", osType))
 
 	var caPath string
 	switch osType {
 	case "RHCOS", "RHEL":
 		// RHEL/RHCOS path (most common in enterprise/OpenShift)
 		caPath = "/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
-	case "Ubuntu", "Debian":
-		// Ubuntu/Debian path
+	case "Ubuntu":
+		// Ubuntu path
 		caPath = "/etc/host-certs/ssl/certs/ca-certificates.crt"
 	default:
-		logger.Warn("Unknown OS_TYPE, trying RHCOS path",
-			zap.String("osType", osType))
-		caPath = "/etc/host-certs/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
+		return "", fmt.Errorf("unknown OS_TYPE: %s (supported: RHCOS, RHEL, Ubuntu)", osType)
 	}
 
-	logger.Info("Using CA bundle path",
+	logger.Info("Detected CA bundle path based on OS type",
 		zap.String("path", caPath),
 		zap.String("osType", osType))
-	return caPath
+	return caPath, nil
 }
 
 // getCheckHost determines the hostname for TLS certificate verification based on CLUSTER_ENV
@@ -252,6 +237,7 @@ func (sm *SimpleManager) recoverExistingTunnels() error {
 
 		if port > 0 {
 			sm.allocatedPorts[volumeID] = port
+			sm.portToVolume[port] = volumeID
 			sm.logger.Info("Recovered tunnel",
 				zap.String("volumeID", volumeID),
 				zap.Int("port", port))
@@ -265,10 +251,15 @@ func (sm *SimpleManager) recoverExistingTunnels() error {
 }
 
 // extractPortFromConfigFile extracts port from stunnel config file
+// Supports various formats:
+//   - accept = 127.0.0.1:PORT
+//   - accept=127.0.0.1:PORT (no spaces)
+//   - accept = 0.0.0.0:PORT (any IP)
+//   - accept = [::1]:PORT (IPv6)
 func (sm *SimpleManager) extractPortFromConfigFile(configPath string) (int, error) {
 	file, err := os.Open(configPath)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to open config file %s: %w", configPath, err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
@@ -277,21 +268,82 @@ func (sm *SimpleManager) extractPortFromConfigFile(configPath string) (int, erro
 	}()
 
 	scanner := bufio.NewScanner(file)
+	lineNum := 0
 	for scanner.Scan() {
+		lineNum++
 		line := strings.TrimSpace(scanner.Text())
-		// Look for "accept = 127.0.0.1:PORT"
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+
+		// Look for "accept" directive (with or without spaces around =)
 		if strings.HasPrefix(line, "accept") {
-			parts := strings.Split(line, ":")
-			if len(parts) == 2 {
-				portStr := strings.TrimSpace(parts[1])
-				if port, err := strconv.Atoi(portStr); err == nil {
-					return port, nil
-				}
+			// Extract the value after "accept" and optional "="
+			// Handles: "accept = value" or "accept=value"
+			acceptValue := strings.TrimSpace(strings.TrimPrefix(line, "accept"))
+			acceptValue = strings.TrimSpace(strings.TrimPrefix(acceptValue, "="))
+
+			// Extract port from the address:port format
+			port, err := sm.extractPortFromAddress(acceptValue, lineNum)
+			if err != nil {
+				return 0, fmt.Errorf("line %d: %w", lineNum, err)
 			}
+
+			// Validate port range (1-65535)
+			if port < 1 || port > 65535 {
+				return 0, fmt.Errorf("line %d: invalid port %d (must be 1-65535)", lineNum, port)
+			}
+
+			// Return immediately after finding the first valid port
+			return port, nil
 		}
 	}
 
-	return 0, fmt.Errorf("port not found in config")
+	// Check for scanner errors (I/O errors during read)
+	if err := scanner.Err(); err != nil {
+		return 0, fmt.Errorf("error reading config file %s: %w", configPath, err)
+	}
+
+	return 0, fmt.Errorf("no 'accept' directive found in config file %s", configPath)
+}
+
+// extractPortFromAddress extracts port number from various address formats
+// Supports: IPv4 (127.0.0.1:PORT), IPv6 ([::1]:PORT), hostname (host:PORT)
+func (sm *SimpleManager) extractPortFromAddress(address string, lineNum int) (int, error) {
+	// Handle IPv6 format: [::1]:PORT or [2001:db8::1]:PORT
+	if strings.HasPrefix(address, "[") {
+		closeBracket := strings.Index(address, "]")
+		if closeBracket == -1 {
+			return 0, fmt.Errorf("malformed IPv6 address (missing closing bracket): %s", address)
+		}
+		// Extract port after ]:
+		if closeBracket+1 >= len(address) || address[closeBracket+1] != ':' {
+			return 0, fmt.Errorf("malformed IPv6 address (missing port after ]): %s", address)
+		}
+		portStr := strings.TrimSpace(address[closeBracket+2:])
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return 0, fmt.Errorf("invalid port in IPv6 address %s: %w", address, err)
+		}
+		return port, nil
+	}
+
+	// Handle IPv4 or hostname format: 127.0.0.1:PORT or hostname:PORT
+	// Find the last colon to handle cases like "host:port" correctly
+	lastColon := strings.LastIndex(address, ":")
+	if lastColon == -1 {
+		return 0, fmt.Errorf("no port found in address (missing colon): %s", address)
+	}
+
+	portStr := strings.TrimSpace(address[lastColon+1:])
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid port format in address %s: %w", address, err)
+	}
+
+	return port, nil
 }
 
 // EnsureTunnel creates or returns existing tunnel configuration
@@ -307,20 +359,16 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 
 	// Fast path: Check if tunnel already exists with read lock
 	// This allows multiple concurrent reads without blocking
-	configPath := sm.getConfigPath(volumeID)
-	if _, err := os.Stat(configPath); err == nil {
-		// Config file exists, get port from map with read lock (O(1) lookup)
-		sm.mu.RLock()
-		port, exists := sm.allocatedPorts[volumeID]
-		sm.mu.RUnlock()
-		if exists {
-			sm.logger.Info("Tunnel already exists",
-				zap.String("RequestID", requestID),
-				zap.String("volumeID", volumeID),
-				zap.Int("port", port))
-			return port, nil
-		}
-		// Config file exists but not in map - fall through to create
+	sm.mu.RLock()
+	port, exists := sm.allocatedPorts[volumeID]
+	sm.mu.RUnlock()
+
+	if exists {
+		sm.logger.Info("Tunnel already exists",
+			zap.String("RequestID", requestID),
+			zap.String("volumeID", volumeID),
+			zap.Int("port", port))
+		return port, nil
 	}
 
 	// Slow path: Need to create new tunnel with write lock
@@ -328,14 +376,12 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 	defer sm.mu.Unlock()
 
 	// Double-check: another goroutine might have created it while we waited for lock (O(1) lookup)
-	if _, err := os.Stat(configPath); err == nil {
-		if port, exists := sm.allocatedPorts[volumeID]; exists {
-			sm.logger.Info("Tunnel already exists (created by another goroutine)",
-				zap.String("RequestID", requestID),
-				zap.String("volumeID", volumeID),
-				zap.Int("port", port))
-			return port, nil
-		}
+	if port, exists := sm.allocatedPorts[volumeID]; exists {
+		sm.logger.Info("Tunnel already exists (created by another goroutine)",
+			zap.String("RequestID", requestID),
+			zap.String("volumeID", volumeID),
+			zap.Int("port", port))
+		return port, nil
 	}
 
 	// Allocate new port
@@ -344,8 +390,11 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 		return 0, fmt.Errorf("failed to allocate port: %w", err)
 	}
 
+	// Get config path for this volume
+	configPath := sm.getConfigPath(volumeID)
+
 	// Create service config for denali-stunnel
-	// VPC File Share uses TLS on port 20049
+	// VPC File Share uses TLS on NFSOverTLSPort
 	// SECURITY: Always require proper TLS verification - fail if CA bundle or checkHost not configured
 	if sm.caFile == "" || sm.checkHost == "" {
 		sm.releasePort(port)
@@ -356,15 +405,21 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 	config := fmt.Sprintf(`[%s]
 client = yes
 accept = 127.0.0.1:%d
-connect = %s:20049
+connect = %s:%d
 CAfile = %s
 checkHost = %s
 verify = 2
 debug = %d
-`, volumeID, port, nfsServer, sm.caFile, sm.checkHost, sm.debugLevel)
+`, volumeID, port, nfsServer, NFSOverTLSPort, sm.caFile, sm.checkHost, sm.debugLevel)
 
 	if err := os.WriteFile(configPath, []byte(config), 0600); err != nil {
 		sm.releasePort(port)
+		// Clean up config file if it was partially written
+		if removeErr := os.Remove(configPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			sm.logger.Warn("Failed to clean up config file after write error",
+				zap.String("configPath", configPath),
+				zap.Error(removeErr))
+		}
 		return 0, fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -394,14 +449,15 @@ debug = %d
 	}
 
 	if needsWait {
-		sm.logger.Info("Stunnel not running, waiting 10 seconds for stunnel to start and load config",
+		sm.logger.Info("Stunnel not running, waiting for stunnel to start and load config",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
 			zap.Int("port", port),
-			zap.Int("allocatedPorts", len(sm.allocatedPorts)))
+			zap.Int("allocatedPorts", len(sm.allocatedPorts)),
+			zap.Duration("waitTime", StunnelStartupWaitTime))
 		// Sleep to ensure stunnel container is fully started and has loaded the config
 		// This prevents exit code 129 when trying to signal a non-existent process
-		time.Sleep(10 * time.Second)
+		time.Sleep(StunnelStartupWaitTime)
 		sm.stunnelStarted = true
 		sm.logger.Info("Wait complete, stunnel should be ready",
 			zap.String("RequestID", requestID),
@@ -429,10 +485,24 @@ func (sm *SimpleManager) scheduleDebouncedSIGHUP(requestID string) {
 	// Mark that we have a pending SIGHUP
 	sm.pendingSIGHUP = true
 
-	// If timer already exists, reset it
+	// Stop existing timer and drain its channel to prevent goroutine leak
+	// When Stop() returns false, the timer has already fired and sent to the channel
+	// We must drain the channel to prevent the goroutine from blocking forever
 	if sm.debounceTimer != nil {
-		sm.debounceTimer.Stop()
+		if !sm.debounceTimer.Stop() {
+			// Timer already fired, drain the channel
+			// Use non-blocking select to avoid deadlock if channel is already empty
+			select {
+			case <-sm.debounceTimer.C:
+			default:
+			}
+		}
 	}
+
+	// Capture requestID in local variable to avoid closure capturing the outer scope variable
+	// This ensures each timer callback logs the correct requestID that scheduled it,
+	// preventing confusion when multiple rapid calls overwrite the outer requestID
+	capturedRequestID := requestID
 
 	// Create new timer that will send SIGHUP after debounce window
 	sm.debounceTimer = time.AfterFunc(sm.debounceWindow, func() {
@@ -446,17 +516,17 @@ func (sm *SimpleManager) scheduleDebouncedSIGHUP(requestID string) {
 
 		sm.pendingSIGHUP = false
 		sm.logger.Info("Debounce window expired, sending SIGHUP",
-			zap.String("RequestID", requestID),
+			zap.String("RequestID", capturedRequestID),
 			zap.Duration("debounceWindow", sm.debounceWindow))
 
-		if err := sm.reloadStunnel(requestID); err != nil {
+		if err := sm.reloadStunnel(capturedRequestID); err != nil {
 			sm.logger.Warn("Failed to send debounced SIGHUP to stunnel",
-				zap.String("RequestID", requestID),
+				zap.String("RequestID", capturedRequestID),
 				zap.Error(err))
 			// Don't fail - stunnel will pick it up via next debounce SIGHUP window
 		} else {
 			sm.logger.Info("Successfully sent debounced SIGHUP to stunnel",
-				zap.String("RequestID", requestID))
+				zap.String("RequestID", capturedRequestID))
 		}
 	})
 
@@ -467,8 +537,11 @@ func (sm *SimpleManager) scheduleDebouncedSIGHUP(requestID string) {
 
 // isStunnelRunning checks if stunnel process is currently running
 func (sm *SimpleManager) isStunnelRunning() bool {
-	// Try to find stunnel process
-	cmd := exec.Command("pgrep", "-x", "stunnel")
+	// Try to find stunnel process with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), PgrepTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "pgrep", "-x", "stunnel")
 	err := cmd.Run()
 	return err == nil
 }
@@ -477,22 +550,65 @@ func (sm *SimpleManager) isStunnelRunning() bool {
 // This requires shareProcessNamespace: true in the pod spec to work across containers
 // NOTE: Only signals the stunnel process directly, NOT the wrapper script (run-stunnel.sh)
 // Signaling the wrapper script causes exit code 129 and container restart
+// Returns an error if multiple stunnel processes are detected (abnormal state requiring restart)
+
 func (sm *SimpleManager) reloadStunnel(requestID string) error {
-	// Find stunnel process directly
-	cmd := exec.Command("pgrep", "-x", "stunnel")
+	// Find stunnel process directly with timeout
+	// REQUIREMENT: Pod must have shareProcessNamespace: true to see stunnel container's processes
+	ctx, cancel := context.WithTimeout(context.Background(), PgrepTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "pgrep", "-x", "stunnel")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("stunnel process not found (requires shareProcessNamespace: true): %w", err)
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("pgrep command timed out after %v (system may be under load)", PgrepTimeout)
+		}
+		// Provide clear error message about configuration requirement
+		return fmt.Errorf("stunnel process not found - this typically means shareProcessNamespace is not enabled in the pod spec. Ensure the node server pod has 'shareProcessNamespace: true' configured: %w", err)
 	}
 
 	pidStr := strings.TrimSpace(string(output))
-	pid, err := strconv.Atoi(pidStr)
-	if err != nil {
-		return fmt.Errorf("invalid stunnel PID: %w", err)
+	if len(pidStr) == 0 {
+		return fmt.Errorf("no stunnel PIDs found in pgrep output")
 	}
 
+	// Check for multiple PIDs (pgrep returns one PID per line)
+	// If there's a newline, we have multiple processes
+	if strings.Contains(pidStr, "\n") {
+		pidLines := strings.Split(pidStr, "\n")
+		var pids []string
+		for _, line := range pidLines {
+			if trimmed := strings.TrimSpace(line); trimmed != "" {
+				pids = append(pids, trimmed)
+			}
+		}
+		sm.logger.Error("Multiple stunnel processes detected - abnormal state, restart required",
+			zap.String("RequestID", requestID),
+			zap.Strings("pids", pids),
+			zap.Int("count", len(pids)))
+		return fmt.Errorf("multiple stunnel processes detected (%d PIDs: %v) - this is an abnormal state, please restart the node server pod to recover", len(pids), pids)
+	}
+
+	// Parse the single PID
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return fmt.Errorf("invalid stunnel PID '%s': %w", pidStr, err)
+	}
+
+	// Send SIGHUP to the stunnel process
 	if err := syscall.Kill(pid, syscall.SIGHUP); err != nil {
-		return fmt.Errorf("failed to send SIGHUP to stunnel process: %w", err)
+		// Handle race condition: process exited between pgrep and kill
+		if err == syscall.ESRCH {
+			sm.logger.Warn("Stunnel process no longer exists (race condition or restart)",
+				zap.String("RequestID", requestID),
+				zap.Int("pid", pid),
+				zap.Error(err))
+			// Don't fail - stunnel will pick up configs on next reload cycle
+			return nil
+		}
+		// Other errors (EPERM, etc.) are real problems
+		return fmt.Errorf("failed to send SIGHUP to stunnel process (PID %d): %w", pid, err)
 	}
 
 	sm.logger.Info("Sent SIGHUP to stunnel process",
@@ -540,7 +656,11 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 	// If this is the last tunnel, force any pending debounced SIGHUP to fire immediately
 	// This ensures stunnel reloads with just this one config, cleaning up all other listeners
 	// BEFORE we remove the last config file
+	// LOCK ORDERING: Must release sm.mu before acquiring sm.debounceMu to avoid deadlock
 	if isLastTunnel {
+		// Release sm.mu temporarily to avoid deadlock when acquiring sm.debounceMu
+		sm.mu.Unlock()
+
 		sm.debounceMu.Lock()
 		if sm.pendingSIGHUP && sm.debounceTimer != nil {
 			sm.logger.Info("Last tunnel being removed, forcing pending debounced SIGHUP to fire immediately",
@@ -558,12 +678,16 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 					zap.Error(err))
 			}
 
-			// Wait for stunnel to complete the reload (~4 seconds)
+			// Wait for stunnel to complete the reload
 			// This ensures all old listeners are cleaned up before we remove the last config
-			time.Sleep(5 * time.Second)
+			// Note: This sleep occurs with NO locks held, so it doesn't block other operations
+			time.Sleep(StunnelReloadWaitTime)
 		} else {
 			sm.debounceMu.Unlock()
 		}
+
+		// Re-acquire sm.mu before continuing
+		sm.mu.Lock()
 	}
 
 	// Remove config file (denali-stunnel will auto-unload the service)
@@ -580,18 +704,23 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 
 	// Use debounced SIGHUP for tunnel removal (same as add operations)
 	// This batches multiple remove operations and prevents SIGHUP storm during scale down
+	// LOCK ORDERING: Release sm.mu before calling scheduleDebouncedSIGHUP to avoid deadlock
 	if !isLastTunnel {
 		sm.logger.Info("Scheduling debounced SIGHUP for tunnel removal",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
 			zap.Int("remainingTunnels", len(sm.allocatedPorts)))
+
+		// Release sm.mu before acquiring sm.debounceMu in scheduleDebouncedSIGHUP
+		sm.mu.Unlock()
 		sm.scheduleDebouncedSIGHUP(requestID)
-	} else {
-		sm.logger.Info("Last tunnel removed, skipping final SIGHUP",
-			zap.String("RequestID", requestID))
-		// Note: stunnel process keeps running (not killed/restarted)
-		// stunnelStarted remains true, so next mount will use debounced SIGHUP route
+		return nil
 	}
+
+	sm.logger.Info("Last tunnel removed, skipping final SIGHUP",
+		zap.String("RequestID", requestID))
+	// Note: stunnel process keeps running (not killed/restarted)
+	// stunnelStarted remains true, so next mount will use debounced SIGHUP route
 
 	return nil
 }
@@ -602,19 +731,21 @@ func (sm *SimpleManager) isTunnelPortInUse(port int) bool {
 	// Read /proc/mounts directly - doesn't stat the filesystem, so won't hang
 	data, err := os.ReadFile("/proc/mounts")
 	if err != nil {
-		sm.logger.Warn("Failed to read /proc/mounts, assuming port not in use",
+		sm.logger.Warn("Failed to read /proc/mounts, assuming port IS in use for safety",
 			zap.Int("port", port),
 			zap.Error(err))
-		return false // Fail-safe: allow tunnel removal if we can't check
+		return true // Fail-safe: prevent tunnel removal if we can't verify it's safe
 	}
 
 	// Search for mounts using this port
 	// Mount entries look like: 127.0.0.1:/EXPORT /mountpoint nfs4 rw,...,port=20000,... 0 0
 	portStr := fmt.Sprintf("port=%d", port)
-	lines := strings.Split(string(data), "\n")
 	mountCount := 0
 
-	for _, line := range lines {
+	// Use bytes.Contains to avoid string conversion - more efficient for large files
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := scanner.Text()
 		// Check if this is an NFS4 mount using our tunnel port
 		if strings.Contains(line, "nfs4") &&
 			strings.Contains(line, "127.0.0.1:") &&
@@ -640,6 +771,10 @@ func (sm *SimpleManager) isTunnelPortInUse(port int) bool {
 
 // GetTunnelPort returns the port for a volume if it exists (O(1) lookup)
 func (sm *SimpleManager) GetTunnelPort(volumeID string) (int, bool) {
+	if volumeID == "" {
+		return 0, false
+	}
+
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
@@ -649,19 +784,13 @@ func (sm *SimpleManager) GetTunnelPort(volumeID string) (int, bool) {
 
 // allocatePort finds an available port
 // Checks both internal map and actual port availability on the system
+// Uses reverse map for O(1) port lookup instead of O(n) iteration
 func (sm *SimpleManager) allocatePort(volumeID string) (int, error) {
 	for i := 0; i < sm.portRange; i++ {
-		port := sm.basePort + i
+		port := sm.initialPort + i
 
-		// Check if port is already allocated to any volume (O(n) check, but only during allocation)
-		portInUse := false
-		for _, allocatedPort := range sm.allocatedPorts {
-			if allocatedPort == port {
-				portInUse = true
-				break
-			}
-		}
-		if portInUse {
+		// Check if port is already allocated using reverse map (O(1) lookup)
+		if _, portInUse := sm.portToVolume[port]; portInUse {
 			continue
 		}
 
@@ -674,43 +803,61 @@ func (sm *SimpleManager) allocatePort(volumeID string) (int, error) {
 			continue
 		}
 
-		// Port is available both in map and on system
+		// Port is available both in map and on system - update both maps
 		sm.allocatedPorts[volumeID] = port
+		sm.portToVolume[port] = volumeID
 		sm.logger.Debug("Allocated port",
 			zap.Int("port", port),
 			zap.String("volumeID", volumeID))
 		return port, nil
 	}
-	return 0, fmt.Errorf("no available ports in range %d-%d (all ports in use or allocated)", sm.basePort, sm.basePort+sm.portRange-1)
+	return 0, fmt.Errorf("no available ports in range %d-%d (all ports in use or allocated)", sm.initialPort, sm.initialPort+sm.portRange-1)
 }
 
 // isPortAvailable checks if a port is actually available on the system
-// by attempting to bind to it. This prevents conflicts with other processes.
+// Uses DialContext (connection attempt) instead of Listen (bind) for faster check with timeout
+// This prevents conflicts with other processes while being more efficient
 func (sm *SimpleManager) isPortAvailable(port int) bool {
-	// Try to bind to the port to verify it's available
-	// Use net.Listen which will fail if port is in use
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		// Port is in use or unavailable
+	// Fast validation of port range
+	if port < 1024 || port > 65535 {
 		return false
 	}
 
-	// Port is available, close the listener immediately
-	if err := listener.Close(); err != nil {
-		sm.logger.Warn("Failed to close test listener", zap.Int("port", port), zap.Error(err))
+	// Use DialContext for faster check with timeout (doesn't bind, just attempts connection)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err == nil {
+		// Something is listening on this port - not available
+		conn.Close()
+		return false
 	}
-	return true
+
+	// Check if error is "connection refused" (port available)
+	// vs timeout or other errors (uncertain state)
+	if opErr, ok := err.(*net.OpError); ok {
+		if sysErr, ok := opErr.Err.(*os.SyscallError); ok {
+			if sysErr.Err == syscall.ECONNREFUSED {
+				return true // Port available - nothing listening
+			}
+		}
+	}
+
+	// Uncertain state (timeout, network error, etc.) - assume unavailable for safety
+	sm.logger.Debug("Port availability check uncertain, assuming unavailable",
+		zap.Int("port", port),
+		zap.Error(err))
+	return false
 }
 
-// releasePort frees a port by removing the volumeID mapping
+// releasePort frees a port by removing both forward and reverse mappings
 func (sm *SimpleManager) releasePort(port int) {
-	// Find and delete the volumeID that has this port
-	for volumeID, allocatedPort := range sm.allocatedPorts {
-		if allocatedPort == port {
-			delete(sm.allocatedPorts, volumeID)
-			return
-		}
+	// Use reverse map for O(1) lookup of volumeID
+	if volumeID, exists := sm.portToVolume[port]; exists {
+		delete(sm.allocatedPorts, volumeID)
+		delete(sm.portToVolume, port)
 	}
 }
 

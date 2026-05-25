@@ -22,6 +22,7 @@ package ibmcsidriver
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"time"
 
@@ -36,6 +37,8 @@ import (
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"k8s.io/kubernetes/pkg/volume/util/fs"
 	mount "k8s.io/mount-utils"
 )
@@ -78,33 +81,50 @@ const (
 	eitFsType = "ibmshare"
 )
 
+// NFSSource represents a parsed NFS source with server and export path
+type NFSSource struct {
+	Server     string
+	ExportPath string
+}
+
 // splitNFSSource splits an NFS source string into server and export path
 // Input format: <nfs_server>:/<export_path>
-// Returns: [nfs_server, /<export_path>]
-func splitNFSSource(source string) []string {
-	// Find the first colon which separates server from path
-	colonIndex := -1
-	for i, c := range source {
-		if c == ':' {
-			colonIndex = i
-			break
-		}
+// Returns: NFSSource struct with Server and ExportPath fields, or error if invalid
+func splitNFSSource(source string) (*NFSSource, error) {
+	if source == "" {
+		return nil, fmt.Errorf("NFS source cannot be empty")
 	}
 
+	// Find the first colon which separates server from path
+	colonIndex := strings.Index(source, ":")
 	if colonIndex == -1 {
-		// No colon found, return source as server with empty path
-		return []string{source, "/"}
+		return nil, fmt.Errorf("invalid NFS source format: missing ':' separator (expected format: server:/path)")
 	}
 
 	server := source[:colonIndex]
 	exportPath := source[colonIndex+1:]
 
-	// Ensure export path starts with /
-	if len(exportPath) == 0 || exportPath[0] != '/' {
-		exportPath = "/" + exportPath
+	// Validate server is non-empty
+	if server == "" {
+		return nil, fmt.Errorf("NFS server cannot be empty")
 	}
 
-	return []string{server, exportPath}
+	// Validate export path format
+	if exportPath == "" {
+		return nil, fmt.Errorf("NFS export path cannot be empty")
+	}
+	if exportPath[0] != '/' {
+		return nil, fmt.Errorf("NFS export path must start with '/' (got: %s)", exportPath)
+	}
+	// Additional validation: ensure path doesn't contain invalid characters or patterns
+	if strings.Contains(exportPath, "//") {
+		return nil, fmt.Errorf("NFS export path contains invalid double slashes: %s", exportPath)
+	}
+
+	return &NFSSource{
+		Server:     server,
+		ExportPath: exportPath,
+	}, nil
 }
 
 var _ csi.NodeServer = &CSINodeServer{}
@@ -162,15 +182,21 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	mnt := volumeCapability.GetMount()
 	options := mnt.MountFlags
 	transitEncryption := STUNNEL
-	profileName := req.GetVolumeContext()[ProfileLabel]
-	fileShareID := req.GetVolumeContext()[FileShareIDLabel]
+	// Get volume context
+	volumeContext := req.GetVolumeContext()
+
+	// Validate required fields
+	profileName, ok := volumeContext[ProfileLabel]
+	if !ok || profileName == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing or empty profile name")
+	}
+
+	fileShareID := volumeContext[FileShareIDLabel]
+	isEITEnabled := volumeContext[IsEITEnabled]
 
 	// find  FS type
 	fsType := defaultFsType
-
-	// In case EIT is enabled
-	var transitEncryption string
-	isEITEnabled := req.GetVolumeContext()[IsEITEnabled]
+	// In case EIT is enabled, use eitFsType
 	if isEITEnabled == TrueStr {
 		if profileName == DP2Profile {
 			transitEncryption = IPSEC
@@ -189,7 +215,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	// Handle RFS profile with Stunnel encryption
 	mountSource := source
 	var exportPath string
-	if profileName == RFSProfile && isEITEnabled == TrueStr && transitEncryption == STUNNEL {
+	if profileName == RFSProfile && isEITEnabled == TrueStr {
 		ctxLogger.Info("Setting up Stunnel for RFS volume",
 			zap.String("volumeID", volumeID),
 			zap.String("nfsServer", source))
@@ -204,9 +230,15 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 
 		// Parse the NFS server and export path from source
 		// Source format: <nfs_server>:/<export_path>
-		parts := splitNFSSource(source)
-		nfsServer := parts[0]
-		exportPath = parts[1]
+		nfsSource, err := splitNFSSource(source)
+		if err != nil {
+			ctxLogger.Error("Failed to parse NFS source",
+				zap.String("source", source),
+				zap.Error(err))
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
+		}
+		nfsServer := nfsSource.Server
+		exportPath = nfsSource.ExportPath
 
 		// Ensure tunnel config exists for this volume (denali-stunnel auto-loads it)
 		tunnelPort, err := csiNS.StunnelMgr.EnsureTunnel(fileShareID, nfsServer, requestID)

@@ -1,3 +1,21 @@
+/**
+ *
+ * Copyright 2026- IBM Inc. All rights reserved
+ * SPDX-License-Identifier: Apache2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package stunnel
 
 import (
@@ -10,79 +28,34 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
-// TestNewSimpleManager tests the constructor
+// TestNewSimpleManager tests the constructor with hardcoded defaults
 func TestNewSimpleManager(t *testing.T) {
 	tests := []struct {
 		name        string
-		cfg         *Config
+		logger      *zap.Logger
 		wantErr     bool
 		errContains string
 	}{
 		{
-			name:        "nil config",
-			cfg:         nil,
-			wantErr:     true,
-			errContains: "config is required",
-		},
-		{
-			name: "nil logger",
-			cfg: &Config{
-				Logger: nil,
-			},
+			name:        "nil logger",
+			logger:      nil,
 			wantErr:     true,
 			errContains: "logger is required",
 		},
 		{
-			name: "valid config with defaults",
-			cfg: &Config{
-				Logger: zaptest.NewLogger(t),
-			},
+			name:    "valid logger",
+			logger:  zaptest.NewLogger(t),
 			wantErr: false,
-		},
-		{
-			name: "valid config with custom values",
-			cfg: &Config{
-				ServicesDir:    "/tmp/test-services",
-				BasePort:       15000,
-				PortRange:      5000,
-				CAFile:         "/tmp/ca.pem",
-				LogDir:         "/tmp/test-logs",
-				DebugLevel:     6,
-				Logger:         zaptest.NewLogger(t),
-				DebounceWindow: 3 * time.Second,
-			},
-			wantErr: false,
-		},
-		{
-			name: "invalid debug level - too low",
-			cfg: &Config{
-				Logger:     zaptest.NewLogger(t),
-				DebugLevel: -1,
-			},
-			wantErr: false, // Should use default
-		},
-		{
-			name: "invalid debug level - too high",
-			cfg: &Config{
-				Logger:     zaptest.NewLogger(t),
-				DebugLevel: 10,
-			},
-			wantErr: false, // Should use default
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create temp directory for services
-			if tt.cfg != nil && tt.cfg.ServicesDir == "" {
-				tmpDir := t.TempDir()
-				tt.cfg.ServicesDir = tmpDir
-			}
-
-			sm, err := NewSimpleManager(tt.cfg)
+			sm, err := NewSimpleManager(tt.logger)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("NewSimpleManager() expected error containing %q, got nil", tt.errContains)
@@ -102,118 +75,96 @@ func TestNewSimpleManager(t *testing.T) {
 				return
 			}
 
-			// Verify defaults were applied
-			if tt.cfg.ServicesDir == "" && sm.servicesDir != DefaultServicesDir {
+			// Verify hardcoded defaults were applied
+			if sm.servicesDir != DefaultServicesDir {
 				t.Errorf("servicesDir = %v, want %v", sm.servicesDir, DefaultServicesDir)
 			}
-			if tt.cfg.BasePort == 0 && sm.basePort != DefaultBasePort {
-				t.Errorf("basePort = %v, want %v", sm.basePort, DefaultBasePort)
+			if sm.initialPort != InitialPort {
+				t.Errorf("initialPort = %v, want %v", sm.initialPort, InitialPort)
 			}
-			if tt.cfg.PortRange == 0 && sm.portRange != DefaultPortRange {
-				t.Errorf("portRange = %v, want %v", sm.portRange, DefaultPortRange)
+			if sm.portRange != PortRange {
+				t.Errorf("portRange = %v, want %v", sm.portRange, PortRange)
 			}
-			if tt.cfg.DebounceWindow == 0 && sm.debounceWindow != 2*time.Second {
+			if sm.debounceWindow != 2*time.Second {
 				t.Errorf("debounceWindow = %v, want %v", sm.debounceWindow, 2*time.Second)
+			}
+			if sm.debugLevel != DefaultDebugLevel {
+				t.Errorf("debugLevel = %v, want %v", sm.debugLevel, DefaultDebugLevel)
 			}
 		})
 	}
 }
 
-// TestDetectCABundle tests CA bundle detection
+// TestDetectCABundle tests CA bundle detection based on OS_TYPE
 func TestDetectCABundle(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 
 	tests := []struct {
 		name        string
-		envVars     map[string]string
-		createFile  bool
+		osType      string
+		wantErr     bool
 		wantContain string
 	}{
 		{
-			name: "STUNNEL_CA_FILE override with existing file",
-			envVars: map[string]string{
-				"STUNNEL_CA_FILE": "/tmp/test-ca-bundle.pem",
-			},
-			createFile:  true,
-			wantContain: "/tmp/test-ca-bundle.pem",
-		},
-		{
-			name: "STUNNEL_CA_FILE override with non-existent file",
-			envVars: map[string]string{
-				"STUNNEL_CA_FILE": "/custom/ca.pem",
-			},
-			createFile:  false,
-			wantContain: "pki/ca-trust", // Falls back to default
-		},
-		{
-			name: "RHCOS OS type",
-			envVars: map[string]string{
-				"OS_TYPE": "RHCOS",
-			},
+			name:        "RHCOS OS type",
+			osType:      "RHCOS",
+			wantErr:     false,
 			wantContain: "pki/ca-trust",
 		},
 		{
-			name: "RHEL OS type",
-			envVars: map[string]string{
-				"OS_TYPE": "RHEL",
-			},
+			name:        "RHEL OS type",
+			osType:      "RHEL",
+			wantErr:     false,
 			wantContain: "pki/ca-trust",
 		},
 		{
-			name: "Ubuntu OS type",
-			envVars: map[string]string{
-				"OS_TYPE": "Ubuntu",
-			},
+			name:        "Ubuntu OS type",
+			osType:      "Ubuntu",
+			wantErr:     false,
 			wantContain: "ca-certificates.crt",
 		},
 		{
-			name: "Debian OS type",
-			envVars: map[string]string{
-				"OS_TYPE": "Debian",
-			},
-			wantContain: "ca-certificates.crt",
+			name:    "no OS_TYPE set",
+			osType:  "",
+			wantErr: true,
 		},
 		{
-			name:        "default (no OS_TYPE)",
-			envVars:     map[string]string{},
-			wantContain: "pki/ca-trust", // Defaults to RHCOS
-		},
-		{
-			name: "unknown OS type",
-			envVars: map[string]string{
-				"OS_TYPE": "Unknown",
-			},
-			wantContain: "pki/ca-trust", // Falls back to RHCOS
+			name:    "unknown OS type",
+			osType:  "Unknown",
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create test file if needed
-			if tt.createFile {
-				if err := os.WriteFile("/tmp/test-ca-bundle.pem", []byte("test"), 0644); err != nil {
-					t.Fatalf("Failed to create test file: %v", err)
+			// Set OS_TYPE environment variable
+			if tt.osType != "" {
+				if err := os.Setenv("OS_TYPE", tt.osType); err != nil {
+					t.Fatalf("Failed to set OS_TYPE: %v", err)
 				}
 				defer func() {
-					if err := os.Remove("/tmp/test-ca-bundle.pem"); err != nil {
-						t.Logf("Failed to remove test file: %v", err)
+					if err := os.Unsetenv("OS_TYPE"); err != nil {
+						t.Logf("Failed to unset OS_TYPE: %v", err)
 					}
 				}()
+			} else {
+				// Ensure OS_TYPE is not set
+				_ = os.Unsetenv("OS_TYPE")
 			}
 
-			// Set environment variables
-			for k, v := range tt.envVars {
-				if err := os.Setenv(k, v); err != nil {
-					t.Fatalf("Failed to set env var %s: %v", k, err)
+			result, err := detectCABundle(logger)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("detectCABundle() expected error, got nil")
 				}
-				defer func(key string) {
-					if err := os.Unsetenv(key); err != nil {
-						t.Logf("Failed to unset env var %s: %v", key, err)
-					}
-				}(k)
+				return
 			}
 
-			result := detectCABundle(logger)
+			if err != nil {
+				t.Errorf("detectCABundle() unexpected error = %v", err)
+				return
+			}
+
 			if !strings.Contains(result, tt.wantContain) {
 				t.Errorf("detectCABundle() = %v, want to contain %v", result, tt.wantContain)
 			}
@@ -362,7 +313,7 @@ func TestExtractPortFromConfigFile(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid config",
+			name: "valid config with spaces",
 			content: `[test]
 accept = 127.0.0.1:10001
 connect = server:20049
@@ -371,12 +322,61 @@ connect = server:20049
 			wantErr: false,
 		},
 		{
-			name: "port with spaces",
+			name: "valid config without spaces",
 			content: `[test]
-accept = 127.0.0.1: 10002
-connect = server:20049
+accept=127.0.0.1:10002
+connect=server:20049
 `,
 			want:    10002,
+			wantErr: false,
+		},
+		{
+			name: "port with trailing spaces",
+			content: `[test]
+accept = 127.0.0.1: 10003
+connect = server:20049
+`,
+			want:    10003,
+			wantErr: false,
+		},
+		{
+			name: "different IP address",
+			content: `[test]
+accept = 0.0.0.0:10004
+connect = server:20049
+`,
+			want:    10004,
+			wantErr: false,
+		},
+		{
+			name: "IPv6 address",
+			content: `[test]
+accept = [::1]:10005
+connect = server:20049
+`,
+			want:    10005,
+			wantErr: false,
+		},
+		{
+			name: "IPv6 full address",
+			content: `[test]
+accept = [2001:db8::1]:10006
+connect = server:20049
+`,
+			want:    10006,
+			wantErr: false,
+		},
+		{
+			name: "with comments and empty lines",
+			content: `# Configuration file
+[test]
+# Accept connections
+accept = 127.0.0.1:10007
+
+; Connect to server
+connect = server:20049
+`,
+			want:    10007,
 			wantErr: false,
 		},
 		{
@@ -391,6 +391,60 @@ connect = server:20049
 			name: "invalid port format",
 			content: `[test]
 accept = 127.0.0.1:invalid
+connect = server:20049
+`,
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name: "port out of range - too high",
+			content: `[test]
+accept = 127.0.0.1:99999
+connect = server:20049
+`,
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name: "port out of range - zero",
+			content: `[test]
+accept = 127.0.0.1:0
+connect = server:20049
+`,
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name: "port out of range - negative",
+			content: `[test]
+accept = 127.0.0.1:-1
+connect = server:20049
+`,
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name: "malformed IPv6 - missing bracket",
+			content: `[test]
+accept = [::1:10008
+connect = server:20049
+`,
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name: "malformed IPv6 - missing port",
+			content: `[test]
+accept = [::1]
+connect = server:20049
+`,
+			want:    0,
+			wantErr: true,
+		},
+		{
+			name: "missing colon separator",
+			content: `[test]
+accept = 127.0.0.1
 connect = server:20049
 `,
 			want:    0,
@@ -436,7 +490,7 @@ func TestEnsureTunnel(t *testing.T) {
 
 	sm := &SimpleManager{
 		servicesDir:    tmpDir,
-		basePort:       10001,
+		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
 		caFile:         "/tmp/ca.pem",
@@ -493,8 +547,8 @@ func TestEnsureTunnel(t *testing.T) {
 				return
 			}
 
-			if port < sm.basePort || port >= sm.basePort+sm.portRange {
-				t.Errorf("EnsureTunnel() port %d out of range [%d, %d)", port, sm.basePort, sm.basePort+sm.portRange)
+			if port < sm.initialPort || port >= sm.initialPort+sm.portRange {
+				t.Errorf("EnsureTunnel() port %d out of range [%d, %d)", port, sm.initialPort, sm.initialPort+sm.portRange)
 			}
 
 			// Verify config file was created
@@ -546,7 +600,7 @@ func TestEnsureTunnel_NoTLSConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sm := &SimpleManager{
 				servicesDir:    tmpDir,
-				basePort:       10001,
+				initialPort:    10001,
 				portRange:      100,
 				allocatedPorts: make(map[string]int),
 				caFile:         tt.caFile,
@@ -574,7 +628,7 @@ func TestEnsureTunnel_Concurrent(t *testing.T) {
 
 	sm := &SimpleManager{
 		servicesDir:    tmpDir,
-		basePort:       10001,
+		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
 		caFile:         "/tmp/ca.pem",
@@ -626,7 +680,7 @@ func TestRemoveTunnel(t *testing.T) {
 
 	sm := &SimpleManager{
 		servicesDir:    tmpDir,
-		basePort:       10001,
+		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
 		caFile:         "/tmp/ca.pem",
@@ -794,7 +848,7 @@ func TestAllocatePort(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		basePort       int
+		initialPort    int
 		portRange      int
 		allocatedPorts map[string]int
 		volumeID       string
@@ -802,16 +856,16 @@ func TestAllocatePort(t *testing.T) {
 	}{
 		{
 			name:           "allocate first port",
-			basePort:       10001,
+			initialPort:    10001,
 			portRange:      10,
 			allocatedPorts: make(map[string]int),
 			volumeID:       "vol1",
 			wantErr:        false,
 		},
 		{
-			name:      "allocate with existing ports",
-			basePort:  10001,
-			portRange: 10,
+			name:        "allocate with existing ports",
+			initialPort: 10001,
+			portRange:   10,
 			allocatedPorts: map[string]int{
 				"vol1": 10001,
 				"vol2": 10002,
@@ -820,9 +874,9 @@ func TestAllocatePort(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:      "no available ports",
-			basePort:  10001,
-			portRange: 2,
+			name:        "no available ports",
+			initialPort: 10001,
+			portRange:   2,
 			allocatedPorts: map[string]int{
 				"vol1": 10001,
 				"vol2": 10002,
@@ -835,7 +889,7 @@ func TestAllocatePort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sm := &SimpleManager{
-				basePort:       tt.basePort,
+				initialPort:    tt.initialPort,
 				portRange:      tt.portRange,
 				allocatedPorts: tt.allocatedPorts,
 				logger:         logger,
@@ -854,8 +908,8 @@ func TestAllocatePort(t *testing.T) {
 				return
 			}
 
-			if port < tt.basePort || port >= tt.basePort+tt.portRange {
-				t.Errorf("allocatePort() port %d out of range [%d, %d)", port, tt.basePort, tt.basePort+tt.portRange)
+			if port < tt.initialPort || port >= tt.initialPort+tt.portRange {
+				t.Errorf("allocatePort() port %d out of range [%d, %d)", port, tt.initialPort, tt.initialPort+tt.portRange)
 			}
 
 			// Verify port was added to map
@@ -1058,7 +1112,7 @@ func TestRemoveTunnel_LastTunnel(t *testing.T) {
 
 	sm := &SimpleManager{
 		servicesDir:    tmpDir,
-		basePort:       10001,
+		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
 		caFile:         "/tmp/ca.pem",
@@ -1104,7 +1158,7 @@ func TestEnsureTunnel_StunnelNotStarted(t *testing.T) {
 
 	sm := &SimpleManager{
 		servicesDir:    tmpDir,
-		basePort:       10001,
+		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
 		caFile:         "/tmp/ca.pem",
@@ -1191,7 +1245,7 @@ func TestEnsureTunnel_WriteConfigError(t *testing.T) {
 
 	sm := &SimpleManager{
 		servicesDir:    tmpDir,
-		basePort:       10001,
+		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
 		caFile:         "/tmp/ca.pem",
@@ -1223,7 +1277,7 @@ func TestRemoveTunnel_PortStillInUse(t *testing.T) {
 
 	sm := &SimpleManager{
 		servicesDir:    tmpDir,
-		basePort:       10001,
+		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: map[string]int{"vol1": 10001},
 		logger:         logger,
@@ -1319,7 +1373,7 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 
 	sm := &SimpleManager{
 		servicesDir:    tmpDir,
-		basePort:       10001,
+		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
 		caFile:         "/tmp/ca.pem",
@@ -1366,8 +1420,8 @@ func TestAllocatePort_AllPortsInUse(t *testing.T) {
 
 	// Create manager with very small port range
 	sm := &SimpleManager{
-		basePort:  50000,
-		portRange: 2,
+		initialPort: 50000,
+		portRange:   2,
 		allocatedPorts: map[string]int{
 			"vol1": 50000,
 			"vol2": 50001,
@@ -1401,7 +1455,7 @@ func TestAllocatePort_PortInUseBySystem(t *testing.T) {
 	}()
 
 	sm := &SimpleManager{
-		basePort:       50010,
+		initialPort:    50010,
 		portRange:      5,
 		allocatedPorts: make(map[string]int),
 		logger:         logger,
