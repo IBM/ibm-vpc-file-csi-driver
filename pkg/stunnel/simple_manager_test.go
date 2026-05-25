@@ -972,6 +972,11 @@ func TestReleasePort(t *testing.T) {
 			"vol2": 10002,
 			"vol3": 10003,
 		},
+		portToVolume: map[int]string{
+			10001: "vol1",
+			10002: "vol2",
+			10003: "vol3",
+		},
 		logger: logger,
 	}
 
@@ -1443,6 +1448,10 @@ func TestAllocatePort_AllPortsInUse(t *testing.T) {
 		allocatedPorts: map[string]int{
 			"vol1": 50000,
 			"vol2": 50001,
+		},
+		portToVolume: map[int]string{
+			50000: "vol1",
+			50001: "vol2",
 		},
 		logger: logger,
 	}
