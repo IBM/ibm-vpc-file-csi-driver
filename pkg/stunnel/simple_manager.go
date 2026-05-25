@@ -616,9 +616,9 @@ func (sm *SimpleManager) reloadStunnel(requestID string) error {
 // RemoveTunnel removes tunnel configuration only if no active mounts use it
 func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 	sm.mu.Lock()
-	defer sm.mu.Unlock()
 
 	if volumeID == "" {
+		sm.mu.Unlock()
 		return fmt.Errorf("volumeID is required")
 	}
 
@@ -628,6 +628,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 		sm.logger.Warn("No port found for volume, config may already be removed",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID))
+		sm.mu.Unlock()
 		return nil
 	}
 
@@ -638,6 +639,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
 			zap.Int("port", tunnelPort))
+		sm.mu.Unlock()
 		return nil
 	}
 
@@ -688,6 +690,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 
 	// Remove config file (denali-stunnel will auto-unload the service)
 	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+		sm.mu.Unlock()
 		return fmt.Errorf("failed to remove config: %w", err)
 	}
 
@@ -706,10 +709,9 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 			zap.String("volumeID", volumeID),
 			zap.Int("remainingTunnels", len(sm.allocatedPorts)))
 
-		// Unlock will be handled by defer at function exit
-		// We need to schedule SIGHUP after releasing the lock to avoid deadlock
-		// So we'll unlock via defer, then schedule
-		defer sm.scheduleDebouncedSIGHUP(requestID)
+		// Must unlock before calling scheduleDebouncedSIGHUP to avoid deadlock
+		sm.mu.Unlock()
+		sm.scheduleDebouncedSIGHUP(requestID)
 		return nil
 	}
 
@@ -718,6 +720,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 	// Note: stunnel process keeps running (not killed/restarted)
 	// stunnelStarted remains true, so next mount will use debounced SIGHUP route
 
+	sm.mu.Unlock()
 	return nil
 }
 

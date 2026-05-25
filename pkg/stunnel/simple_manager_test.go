@@ -32,6 +32,52 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+// NewSimpleManagerForTesting creates a SimpleManager with custom configuration for testing
+// This allows tests to use temporary directories instead of hardcoded system paths
+func NewSimpleManagerForTesting(servicesDir, caFile string, logger *zap.Logger) (*SimpleManager, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger is required")
+	}
+	if servicesDir == "" {
+		return nil, fmt.Errorf("servicesDir is required")
+	}
+	if caFile == "" {
+		return nil, fmt.Errorf("caFile is required")
+	}
+
+	// Use hardcoded defaults for other settings
+	initialPort := InitialPort
+	portRange := PortRange
+	debugLevel := DefaultDebugLevel
+	debounceWindow := 2 * time.Second
+	checkHost := "production.is-share.appdomain.cloud"
+
+	sm := &SimpleManager{
+		servicesDir:    servicesDir,
+		initialPort:    initialPort,
+		portRange:      portRange,
+		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
+		caFile:         caFile,
+		checkHost:      checkHost,
+		debugLevel:     debugLevel,
+		logger:         logger,
+		debounceWindow: debounceWindow,
+	}
+
+	// Skip recovery of existing tunnels in test mode
+	logger.Info("SimpleManager initialized for testing",
+		zap.String("servicesDir", servicesDir),
+		zap.Int("initialPort", initialPort),
+		zap.Int("portRange", portRange),
+		zap.Int("debugLevel", debugLevel),
+		zap.Duration("debounceWindow", debounceWindow),
+		zap.String("caFile", caFile),
+		zap.String("checkHost", checkHost))
+
+	return sm, nil
+}
+
 // TestNewSimpleManager tests the constructor with hardcoded defaults
 func TestNewSimpleManager(t *testing.T) {
 	tests := []struct {
