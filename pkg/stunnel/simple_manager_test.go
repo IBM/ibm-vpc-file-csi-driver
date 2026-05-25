@@ -499,6 +499,7 @@ func TestEnsureTunnel(t *testing.T) {
 		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		caFile:         "/tmp/ca.pem",
 		checkHost:      "test.example.com",
 		logger:         logger,
@@ -609,6 +610,7 @@ func TestEnsureTunnel_NoTLSConfig(t *testing.T) {
 				initialPort:    10001,
 				portRange:      100,
 				allocatedPorts: make(map[string]int),
+				portToVolume:   make(map[int]string),
 				caFile:         tt.caFile,
 				checkHost:      tt.checkHost,
 				logger:         logger,
@@ -637,6 +639,7 @@ func TestEnsureTunnel_Concurrent(t *testing.T) {
 		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		caFile:         "/tmp/ca.pem",
 		checkHost:      "test.example.com",
 		logger:         logger,
@@ -689,6 +692,7 @@ func TestRemoveTunnel(t *testing.T) {
 		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		caFile:         "/tmp/ca.pem",
 		checkHost:      "test.example.com",
 		logger:         logger,
@@ -738,6 +742,7 @@ func TestRemoveTunnel_EmptyVolumeID(t *testing.T) {
 	sm := &SimpleManager{
 		servicesDir:    t.TempDir(),
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		logger:         logger,
 	}
 
@@ -753,6 +758,7 @@ func TestRemoveTunnel_NonExistent(t *testing.T) {
 	sm := &SimpleManager{
 		servicesDir:    t.TempDir(),
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		logger:         logger,
 	}
 
@@ -898,6 +904,7 @@ func TestAllocatePort(t *testing.T) {
 				initialPort:    tt.initialPort,
 				portRange:      tt.portRange,
 				allocatedPorts: tt.allocatedPorts,
+				portToVolume:   make(map[int]string),
 				logger:         logger,
 			}
 
@@ -1121,6 +1128,7 @@ func TestRemoveTunnel_LastTunnel(t *testing.T) {
 		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		caFile:         "/tmp/ca.pem",
 		checkHost:      "test.example.com",
 		logger:         logger,
@@ -1167,6 +1175,7 @@ func TestEnsureTunnel_StunnelNotStarted(t *testing.T) {
 		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		caFile:         "/tmp/ca.pem",
 		checkHost:      "test.example.com",
 		logger:         logger,
@@ -1255,6 +1264,7 @@ func TestEnsureTunnel_WriteConfigError(t *testing.T) {
 		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		caFile:         "/tmp/ca.pem",
 		checkHost:      "test.example.com",
 		logger:         logger,
@@ -1383,6 +1393,7 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		caFile:         "/tmp/ca.pem",
 		checkHost:      "test.example.com",
 		logger:         logger,
@@ -1465,6 +1476,7 @@ func TestAllocatePort_PortInUseBySystem(t *testing.T) {
 		initialPort:    50010,
 		portRange:      5,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		logger:         logger,
 	}
 
