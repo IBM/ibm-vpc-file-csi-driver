@@ -47,9 +47,6 @@ const (
 	// PortRange is the number of ports available
 	PortRange = 20000
 
-	// DefaultLogDir is where stunnel writes per-volume log files
-	DefaultLogDir = "/var/log/stunnel"
-
 	// PgrepTimeout is the maximum time to wait for pgrep command
 	PgrepTimeout = 5 * time.Second
 
@@ -94,7 +91,6 @@ type Config struct {
 	InitialPort    int
 	PortRange      int
 	CAFile         string // Path to CA bundle file for TLS verification
-	LogDir         string // Directory for stunnel log files (default: /var/log/stunnel)
 	DebugLevel     int    // Stunnel debug level 0-7 (default: 5)
 	Logger         *zap.Logger
 	DebounceWindow time.Duration // Time window to collect multiple SIGHUPs (default: 2s)
