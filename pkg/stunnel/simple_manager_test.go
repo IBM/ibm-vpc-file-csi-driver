@@ -32,52 +32,6 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-// NewSimpleManagerForTesting creates a SimpleManager with custom configuration for testing
-// This allows tests to use temporary directories instead of hardcoded system paths
-func NewSimpleManagerForTesting(servicesDir, caFile string, logger *zap.Logger) (*SimpleManager, error) {
-	if logger == nil {
-		return nil, fmt.Errorf("logger is required")
-	}
-	if servicesDir == "" {
-		return nil, fmt.Errorf("servicesDir is required")
-	}
-	if caFile == "" {
-		return nil, fmt.Errorf("caFile is required")
-	}
-
-	// Use hardcoded defaults for other settings
-	initialPort := InitialPort
-	portRange := PortRange
-	debugLevel := DefaultDebugLevel
-	debounceWindow := 2 * time.Second
-	checkHost := "production.is-share.appdomain.cloud"
-
-	sm := &SimpleManager{
-		servicesDir:    servicesDir,
-		initialPort:    initialPort,
-		portRange:      portRange,
-		allocatedPorts: make(map[string]int),
-		portToVolume:   make(map[int]string),
-		caFile:         caFile,
-		checkHost:      checkHost,
-		debugLevel:     debugLevel,
-		logger:         logger,
-		debounceWindow: debounceWindow,
-	}
-
-	// Skip recovery of existing tunnels in test mode
-	logger.Info("SimpleManager initialized for testing",
-		zap.String("servicesDir", servicesDir),
-		zap.Int("initialPort", initialPort),
-		zap.Int("portRange", portRange),
-		zap.Int("debugLevel", debugLevel),
-		zap.Duration("debounceWindow", debounceWindow),
-		zap.String("caFile", caFile),
-		zap.String("checkHost", checkHost))
-
-	return sm, nil
-}
-
 // TestNewSimpleManager tests the constructor with hardcoded defaults
 func TestNewSimpleManager(t *testing.T) {
 	tests := []struct {
@@ -1551,5 +1505,250 @@ func TestAllocatePort_PortInUseBySystem(t *testing.T) {
 	}
 	if port != 50011 {
 		t.Errorf("allocatePort() = %d, want 50011", port)
+	}
+}
+
+// TestNewSimpleManagerForTesting tests the test helper function
+func TestNewSimpleManagerForTesting(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	tempDir := t.TempDir()
+	servicesDir := filepath.Join(tempDir, "services")
+	caFile := filepath.Join(tempDir, "ca.pem")
+
+	// Create required files
+	if err := os.MkdirAll(servicesDir, 0755); err != nil {
+		t.Fatalf("Failed to create services dir: %v", err)
+	}
+	if err := os.WriteFile(caFile, []byte("mock CA"), 0644); err != nil {
+		t.Fatalf("Failed to create CA file: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		servicesDir string
+		caFile      string
+		logger      *zap.Logger
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "valid parameters",
+			servicesDir: servicesDir,
+			caFile:      caFile,
+			logger:      logger,
+			wantErr:     false,
+		},
+		{
+			name:        "nil logger",
+			servicesDir: servicesDir,
+			caFile:      caFile,
+			logger:      nil,
+			wantErr:     true,
+			errContains: "logger is required",
+		},
+		{
+			name:        "empty servicesDir",
+			servicesDir: "",
+			caFile:      caFile,
+			logger:      logger,
+			wantErr:     true,
+			errContains: "servicesDir is required",
+		},
+		{
+			name:        "empty caFile",
+			servicesDir: servicesDir,
+			caFile:      "",
+			logger:      logger,
+			wantErr:     true,
+			errContains: "caFile is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sm, err := NewSimpleManagerForTesting(tt.servicesDir, tt.caFile, tt.logger)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("NewSimpleManagerForTesting() expected error containing %q, got nil", tt.errContains)
+				} else if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("NewSimpleManagerForTesting() error = %v, want error containing %q", err, tt.errContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("NewSimpleManagerForTesting() unexpected error = %v", err)
+				return
+			}
+
+			if sm == nil {
+				t.Error("NewSimpleManagerForTesting() returned nil manager")
+				return
+			}
+
+			// Verify the manager was initialized correctly
+			if sm.servicesDir != tt.servicesDir {
+				t.Errorf("servicesDir = %v, want %v", sm.servicesDir, tt.servicesDir)
+			}
+			if sm.caFile != tt.caFile {
+				t.Errorf("caFile = %v, want %v", sm.caFile, tt.caFile)
+			}
+			if sm.initialPort != InitialPort {
+				t.Errorf("initialPort = %v, want %v", sm.initialPort, InitialPort)
+			}
+			if sm.portRange != PortRange {
+				t.Errorf("portRange = %v, want %v", sm.portRange, PortRange)
+			}
+			if sm.debugLevel != DefaultDebugLevel {
+				t.Errorf("debugLevel = %v, want %v", sm.debugLevel, DefaultDebugLevel)
+			}
+			if sm.debounceWindow != 2*time.Second {
+				t.Errorf("debounceWindow = %v, want %v", sm.debounceWindow, 2*time.Second)
+			}
+			if sm.checkHost != "production.is-share.appdomain.cloud" {
+				t.Errorf("checkHost = %v, want production.is-share.appdomain.cloud", sm.checkHost)
+			}
+		})
+	}
+}
+
+// TestReloadStunnel_ErrorCases tests error handling in reloadStunnel
+func TestReloadStunnel_ErrorCases(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	tempDir := t.TempDir()
+	servicesDir := filepath.Join(tempDir, "services")
+	caFile := filepath.Join(tempDir, "ca.pem")
+
+	// Create required files
+	if err := os.MkdirAll(servicesDir, 0755); err != nil {
+		t.Fatalf("Failed to create services dir: %v", err)
+	}
+	if err := os.WriteFile(caFile, []byte("mock CA"), 0644); err != nil {
+		t.Fatalf("Failed to create CA file: %v", err)
+	}
+
+	sm, err := NewSimpleManagerForTesting(servicesDir, caFile, logger)
+	if err != nil {
+		t.Fatalf("Failed to create SimpleManager: %v", err)
+	}
+
+	// Test reloadStunnel - will fail on macOS because stunnel isn't running
+	// but we're testing that the function handles errors gracefully
+	err = sm.reloadStunnel("test-request")
+	if err == nil {
+		t.Error("reloadStunnel() expected error when stunnel is not running, got nil")
+	}
+
+	// Verify error message is helpful
+	if !strings.Contains(err.Error(), "stunnel process not found") &&
+		!strings.Contains(err.Error(), "shareProcessNamespace") {
+		t.Errorf("reloadStunnel() error should mention stunnel or shareProcessNamespace, got: %v", err)
+	}
+}
+
+// TestIsTunnelPortInUse_ErrorHandling tests isTunnelPortInUse error handling
+func TestIsTunnelPortInUse_ErrorHandling(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	tempDir := t.TempDir()
+	servicesDir := filepath.Join(tempDir, "services")
+	caFile := filepath.Join(tempDir, "ca.pem")
+
+	// Create required files
+	if err := os.MkdirAll(servicesDir, 0755); err != nil {
+		t.Fatalf("Failed to create services dir: %v", err)
+	}
+	if err := os.WriteFile(caFile, []byte("mock CA"), 0644); err != nil {
+		t.Fatalf("Failed to create CA file: %v", err)
+	}
+
+	sm, err := NewSimpleManagerForTesting(servicesDir, caFile, logger)
+	if err != nil {
+		t.Fatalf("Failed to create SimpleManager: %v", err)
+	}
+
+	// On macOS, /proc/mounts doesn't exist, so this should return true (fail-safe)
+	inUse := sm.isTunnelPortInUse(10001)
+
+	// The function should return true when it can't read /proc/mounts (fail-safe behavior)
+	if !inUse {
+		t.Error("isTunnelPortInUse() should return true (fail-safe) when /proc/mounts is not available")
+	}
+}
+
+// TestRemoveTunnel_AdditionalCases tests additional RemoveTunnel scenarios
+func TestRemoveTunnel_AdditionalCases(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	tempDir := t.TempDir()
+	servicesDir := filepath.Join(tempDir, "services")
+	caFile := filepath.Join(tempDir, "ca.pem")
+
+	// Create required files
+	if err := os.MkdirAll(servicesDir, 0755); err != nil {
+		t.Fatalf("Failed to create services dir: %v", err)
+	}
+	if err := os.WriteFile(caFile, []byte("mock CA"), 0644); err != nil {
+		t.Fatalf("Failed to create CA file: %v", err)
+	}
+
+	sm, err := NewSimpleManagerForTesting(servicesDir, caFile, logger)
+	if err != nil {
+		t.Fatalf("Failed to create SimpleManager: %v", err)
+	}
+
+	// Mark stunnel as started so we can test the debounced SIGHUP path
+	sm.mu.Lock()
+	sm.stunnelStarted = true
+	sm.mu.Unlock()
+
+	tests := []struct {
+		name      string
+		volumeID  string
+		setupFunc func()
+		wantErr   bool
+	}{
+		{
+			name:     "remove non-existent volume",
+			volumeID: "non-existent-vol",
+			setupFunc: func() {
+				// No setup needed
+			},
+			wantErr: false, // Should not error, just log warning
+		},
+		{
+			name:     "remove volume with config file",
+			volumeID: "vol-with-config",
+			setupFunc: func() {
+				// Allocate a port and create config
+				sm.mu.Lock()
+				sm.allocatedPorts["vol-with-config"] = 10005
+				sm.portToVolume[10005] = "vol-with-config"
+				sm.mu.Unlock()
+
+				// Create the config file
+				configPath := sm.getConfigPath("vol-with-config")
+				if err := os.WriteFile(configPath, []byte("[vol-with-config]\naccept = 127.0.0.1:10005\n"), 0644); err != nil {
+					t.Fatalf("Failed to create config file: %v", err)
+				}
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupFunc != nil {
+				tt.setupFunc()
+			}
+
+			err := sm.RemoveTunnel(tt.volumeID, "test-request")
+
+			if tt.wantErr && err == nil {
+				t.Error("RemoveTunnel() expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("RemoveTunnel() unexpected error: %v", err)
+			}
+		})
 	}
 }
