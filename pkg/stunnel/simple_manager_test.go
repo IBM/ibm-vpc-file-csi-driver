@@ -55,6 +55,10 @@ func TestNewSimpleManager(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Set OS_TYPE environment variable for valid test case
+			if !tt.wantErr {
+				t.Setenv("OS_TYPE", "RHCOS")
+			}
 			sm, err := NewSimpleManager(tt.logger)
 			if tt.wantErr {
 				if err == nil {
@@ -266,6 +270,7 @@ connect = server3:20049
 	sm := &SimpleManager{
 		servicesDir:    tmpDir,
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		logger:         logger,
 	}
 
@@ -292,6 +297,7 @@ func TestRecoverExistingTunnels_NonExistentDir(t *testing.T) {
 	sm := &SimpleManager{
 		servicesDir:    "/non/existent/directory",
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		logger:         logger,
 	}
 
@@ -1206,6 +1212,7 @@ func TestRecoverExistingTunnels_ReadError(t *testing.T) {
 	sm := &SimpleManager{
 		servicesDir:    tmpFile, // This is a file, not a directory
 		allocatedPorts: make(map[string]int),
+		portToVolume:   make(map[int]string),
 		logger:         logger,
 	}
 
