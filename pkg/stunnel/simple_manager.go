@@ -831,7 +831,7 @@ func (sm *SimpleManager) isPortAvailable(port int) bool {
 	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err == nil {
 		// Something is listening on this port - not available
-		conn.Close()
+		_ = conn.Close() // #nosec G104: Best effort close, error not actionable
 		return false
 	}
 
