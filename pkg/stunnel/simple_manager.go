@@ -700,16 +700,16 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 
 	// Use debounced SIGHUP for tunnel removal (same as add operations)
 	// This batches multiple remove operations and prevents SIGHUP storm during scale down
-	// LOCK ORDERING: Release sm.mu before calling scheduleDebouncedSIGHUP to avoid deadlock
 	if !isLastTunnel {
 		sm.logger.Info("Scheduling debounced SIGHUP for tunnel removal",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
 			zap.Int("remainingTunnels", len(sm.allocatedPorts)))
 
-		// Release sm.mu before acquiring sm.debounceMu in scheduleDebouncedSIGHUP
-		sm.mu.Unlock()
-		sm.scheduleDebouncedSIGHUP(requestID)
+		// Unlock will be handled by defer at function exit
+		// We need to schedule SIGHUP after releasing the lock to avoid deadlock
+		// So we'll unlock via defer, then schedule
+		defer sm.scheduleDebouncedSIGHUP(requestID)
 		return nil
 	}
 
