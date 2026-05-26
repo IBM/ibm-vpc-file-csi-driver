@@ -76,9 +76,10 @@ func (su *MockStatUtils) IsDevicePathNotExist(devicePath string) bool {
 
 func TestNodePublishVolume(t *testing.T) {
 	testCases := []struct {
-		name       string
-		req        *csi.NodePublishVolumeRequest
-		expErrCode codes.Code
+		name          string
+		req           *csi.NodePublishVolumeRequest
+		expErrCode    codes.Code
+		expErrMessage string
 	}{
 		{
 			name: "Valid request",
@@ -111,14 +112,25 @@ func TestNodePublishVolume(t *testing.T) {
 				TargetPath:        defaultTargetPath,
 				StagingTargetPath: defaultSourcePath,
 				Readonly:          false,
-				VolumeCapability:  stdVolCap[0],
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs4", // Must be nfs4 for RFS with stunnel
+							MountFlags: []string{"vers=4.1", "proto=tcp"},
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
 				VolumeContext: map[string]string{
 					NFSServerPath: "10.240.0.5:/share123",
 					IsEITEnabled:  "true",
 					ProfileLabel:  "rfs",
 				},
 			},
-			expErrCode: codes.Internal, // Should fail - stunnel manager required for RFS+EIT
+			expErrCode:    codes.Internal, // Should fail - stunnel manager required for RFS+EIT
+			expErrMessage: "stunnel manager is not configured, please restart the node server which will try to initialize the stunnel manager",
 		},
 		{
 			name: "Valid request with DP2 profile and EIT enabled",
@@ -222,6 +234,12 @@ func TestNodePublishVolume(t *testing.T) {
 			if serverError.Code() != tc.expErrCode {
 				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
 			}
+			// Validate error message if expected
+			if tc.expErrMessage != "" {
+				if !strings.Contains(serverError.Message(), tc.expErrMessage) {
+					t.Fatalf("Expected error message to contain: %q, got: %q", tc.expErrMessage, serverError.Message())
+				}
+			}
 			continue
 		}
 		if tc.expErrCode != codes.OK {
@@ -272,7 +290,17 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 				TargetPath:        defaultTargetPath,
 				StagingTargetPath: defaultSourcePath,
 				Readonly:          false,
-				VolumeCapability:  stdVolCap[0],
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs4",
+							MountFlags: []string{"vers=4.1", "proto=tcp"}, // Storage class provides these
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
 				VolumeContext: map[string]string{
 					NFSServerPath:    "10.240.0.5:/share123",
 					IsEITEnabled:     "true",
@@ -289,7 +317,17 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 				TargetPath:        "/mnt/test2",
 				StagingTargetPath: defaultSourcePath,
 				Readonly:          false,
-				VolumeCapability:  stdVolCap[0],
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs4",
+							MountFlags: []string{"vers=4.1", "proto=tcp"}, // Storage class provides these
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
 				VolumeContext: map[string]string{
 					NFSServerPath:    "10.240.0.6:/share456",
 					IsEITEnabled:     "true",
@@ -298,6 +336,114 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 				},
 			},
 			expErrCode: codes.OK, // Should succeed and allocate different port
+		},
+		{
+			name: "RFS profile with missing mount options",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-003",
+				TargetPath:        "/mnt/test3",
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs4",
+							MountFlags: []string{}, // Missing required mount options
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.7:/share789",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-003",
+				},
+			},
+			expErrCode: codes.InvalidArgument, // Should fail - missing required mount options
+		},
+		{
+			name: "RFS profile with invalid fsType",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-004",
+				TargetPath:        "/mnt/test4",
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "ext4", // Invalid fsType for RFS with stunnel
+							MountFlags: []string{"vers=4.1", "proto=tcp"},
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.8:/share999",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-004",
+				},
+			},
+			expErrCode: codes.InvalidArgument, // Should fail - invalid fsType
+		},
+		{
+			name: "RFS profile with fsType 'nfs' instead of 'nfs4'",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-005",
+				TargetPath:        "/mnt/test5",
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs", // Should fail - must be nfs4 for stunnel
+							MountFlags: []string{"vers=4.1", "proto=tcp"},
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.9:/share111",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-005",
+				},
+			},
+			expErrCode: codes.InvalidArgument, // Should fail - must be nfs4
+		},
+		{
+			name: "RFS profile with empty fsType (defaults to nfs4)",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-006",
+				TargetPath:        "/mnt/test6",
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "", // Empty - should default to nfs4
+							MountFlags: []string{"vers=4.1", "proto=tcp"},
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.10:/share222",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-006",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed - defaults to nfs4
 		},
 	}
 
