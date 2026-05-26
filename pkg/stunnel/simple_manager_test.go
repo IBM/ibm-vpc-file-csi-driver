@@ -203,7 +203,7 @@ func TestGetCheckHost(t *testing.T) {
 		{
 			name:       "stage",
 			clusterEnv: "stage",
-			want:       "staging.is-share.appdomain.cloud",
+			want:       "production.is-share.appdomain.cloud",
 		},
 		{
 			name:       "default (empty)",
