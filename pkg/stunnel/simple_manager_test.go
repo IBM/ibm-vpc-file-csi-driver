@@ -710,32 +710,29 @@ func TestRemoveTunnel(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Remove the tunnel
-	// In test environment, /proc/mounts doesn't exist or can't be read,
-	// so isTunnelPortInUse() returns true (fail-safe behavior)
-	// This means RemoveTunnel will return nil (keeping the config)
 	err = sm.RemoveTunnel("vol1", "test-request")
 	if err != nil {
 		t.Errorf("RemoveTunnel() unexpected error = %v", err)
 	}
 
-	// Verify config file still exists (not removed due to safety check)
+	// Verify config file was removed
 	configPath := filepath.Join(tmpDir, "vol1.conf")
-	if _, statErr := os.Stat(configPath); os.IsNotExist(statErr) {
-		t.Error("Config file should still exist when port appears in use")
+	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+		t.Error("Config file should be removed")
 	}
 
-	// Verify port was NOT released (safety check kept it)
-	if _, exists := sm.allocatedPorts["vol1"]; !exists {
-		t.Error("Port should still be allocated when port appears in use")
+	// Verify port was released
+	if _, exists := sm.allocatedPorts["vol1"]; exists {
+		t.Error("Port should be released from allocatedPorts map")
 	}
 
-	// Verify port is NOT reused (previous port still allocated)
+	// Verify port can be reused
 	newPort, err := sm.EnsureTunnel("vol2", "server2.example.com", "test-request")
 	if err != nil {
-		t.Errorf("Failed to create new tunnel: %v", err)
+		t.Errorf("Failed to reuse port: %v", err)
 	}
-	if newPort == port {
-		t.Errorf("Port should not be reused (previous port still in use), got %d", newPort)
+	if newPort != port {
+		t.Errorf("Port not reused, got %d, want %d", newPort, port)
 	}
 }
 
@@ -1133,8 +1130,6 @@ func TestReloadStunnel(t *testing.T) {
 }
 
 // TestRemoveTunnel_LastTunnel tests last tunnel removal behavior
-// Note: This test verifies the mount-in-use safety check behavior
-// The actual SIGHUP failure path cannot be tested without mocking /proc/mounts
 func TestRemoveTunnel_LastTunnel(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
@@ -1161,29 +1156,19 @@ func TestRemoveTunnel_LastTunnel(t *testing.T) {
 	// Schedule a debounced SIGHUP
 	sm.scheduleDebouncedSIGHUP("test-request")
 
-	// Remove the last tunnel
-	// In test environment, /proc/mounts doesn't exist or can't be read,
-	// so isTunnelPortInUse() returns true (fail-safe behavior)
-	// This means RemoveTunnel will return nil (keeping the config)
+	// Remove the last tunnel (should force pending SIGHUP)
 	err = sm.RemoveTunnel("vol1", "test-request")
 	if err != nil {
-		t.Errorf("RemoveTunnel() should return nil when port appears in use: %v", err)
+		t.Errorf("RemoveTunnel() unexpected error = %v", err)
 	}
 
-	// Verify config still exists (not removed due to safety check)
-	configPath := filepath.Join(tmpDir, "vol1.conf")
-	if _, statErr := os.Stat(configPath); os.IsNotExist(statErr) {
-		t.Error("Config file should still exist when port appears in use")
-	}
+	// Verify pending SIGHUP was cleared
+	sm.debounceMu.Lock()
+	stillPending := sm.pendingSIGHUP
+	sm.debounceMu.Unlock()
 
-	// Verify allocatedPorts still has the entry (not removed due to safety check)
-	if len(sm.allocatedPorts) != 1 {
-		t.Errorf("allocatedPorts should have 1 entry when port appears in use, got %d entries", len(sm.allocatedPorts))
-	}
-
-	// Verify port is still mapped
-	if port, exists := sm.allocatedPorts["vol1"]; !exists || port != 10001 {
-		t.Error("Port should still be allocated to vol1 when port appears in use")
+	if stillPending {
+		t.Error("pendingSIGHUP should be cleared after forced SIGHUP")
 	}
 }
 
@@ -1408,8 +1393,6 @@ func TestScheduleDebouncedSIGHUP_AlreadyPending(t *testing.T) {
 }
 
 // TestRemoveTunnel_WithPendingSIGHUP tests last tunnel removal with pending SIGHUP
-// Note: This test verifies the mount-in-use safety check behavior
-// The actual SIGHUP failure path cannot be tested without mocking /proc/mounts
 func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
@@ -1442,29 +1425,19 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 		t.Error("Should have pending SIGHUP after tunnel creation")
 	}
 
-	// Remove the last tunnel
-	// In test environment, /proc/mounts doesn't exist or can't be read,
-	// so isTunnelPortInUse() returns true (fail-safe behavior)
-	// This means RemoveTunnel will return nil (keeping the config)
+	// Remove the last tunnel (should force pending SIGHUP)
 	err = sm.RemoveTunnel("vol1", "test-request")
 	if err != nil {
-		t.Errorf("RemoveTunnel() should return nil when port appears in use: %v", err)
+		t.Errorf("RemoveTunnel() unexpected error = %v", err)
 	}
 
-	// Verify config still exists (not removed due to safety check)
-	configPath := filepath.Join(tmpDir, "vol1.conf")
-	if _, statErr := os.Stat(configPath); os.IsNotExist(statErr) {
-		t.Error("Config file should still exist when port appears in use")
-	}
+	// Verify pending SIGHUP was cleared
+	sm.debounceMu.Lock()
+	stillPending := sm.pendingSIGHUP
+	sm.debounceMu.Unlock()
 
-	// Verify allocatedPorts still has the entry (not removed due to safety check)
-	if len(sm.allocatedPorts) != 1 {
-		t.Errorf("allocatedPorts should have 1 entry when port appears in use, got %d entries", len(sm.allocatedPorts))
-	}
-
-	// Verify port is still mapped
-	if port, exists := sm.allocatedPorts["vol1"]; !exists || port != 10001 {
-		t.Error("Port should still be allocated to vol1 when port appears in use")
+	if stillPending {
+		t.Error("pendingSIGHUP should be cleared after forced SIGHUP")
 	}
 }
 
