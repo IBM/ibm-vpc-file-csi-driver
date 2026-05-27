@@ -102,6 +102,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: CLUSTER_ENV
+              value: "production" # staging/production
+            - name: OS_TYPE
+              value: "RHCOS" # Ubuntu/RHCOS/RHEL
             - name: SOCKET_PATH
               value: "/var/lib/ibmshare.sock"
             - name: IS_NODE_SERVER

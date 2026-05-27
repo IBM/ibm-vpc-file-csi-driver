@@ -361,13 +361,17 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 					zap.Int("port", port))
 
 				if err := csiNS.StunnelMgr.RemoveTunnel(shareID, requestID); err != nil {
-					ctxLogger.Warn("Failed to remove tunnel config, but unmount succeeded",
+					ctxLogger.Error("Failed to remove tunnel config after unmount, will trigger retry",
 						zap.String("shareID", shareID),
 						zap.Error(err))
-					// Don't fail the unmount operation if tunnel cleanup fails
-				} else {
-					ctxLogger.Info("Tunnel config removed successfully", zap.String("shareID", shareID))
+					// Return error to trigger Kubernetes retry
+					// The rollback logic in RemoveTunnel ensures port maps stay consistent
+					// K8s will retry NodeUnpublishVolume, which will:
+					// 1. Try to unmount again (will succeed as already unmounted or be idempotent)
+					// 2. Retry tunnel cleanup until it succeeds
+					return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 				}
+				ctxLogger.Info("Tunnel config removed successfully", zap.String("shareID", shareID))
 			} else {
 				ctxLogger.Info("No tunnel config found for volume (may not be RFS or already cleaned up)",
 					zap.String("shareID", shareID))

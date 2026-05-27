@@ -725,10 +725,23 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 			// Fire SIGHUP immediately to reload with just this last config
 			// This cleans up all other listeners before we remove the last config
 			if err := sm.reloadStunnel(requestID); err != nil {
-				sm.logger.Error("Failed to reload stunnel for last tunnel removal",
+				sm.logger.Error("Failed to send SIGHUP for last tunnel removal, aborting removal",
 					zap.String("requestID", requestID),
+					zap.String("volumeID", volumeID),
 					zap.Error(err))
+				// Re-acquire sm.mu before returning (debounceMu already unlocked at line 723)
+				sm.mu.Lock()
+				// Rollback: Re-add port to maps since SIGHUP failed
+				sm.allocatedPorts[volumeID] = tunnelPort
+				sm.portToVolume[tunnelPort] = volumeID
+				sm.mu.Unlock()
+				return fmt.Errorf("failed to send SIGHUP before removing last config: %w", err)
 			}
+
+			sm.logger.Info("SIGHUP sent successfully for last tunnel, waiting for reload to complete",
+				zap.String("requestID", requestID),
+				zap.String("volumeID", volumeID),
+				zap.Duration("waitTime", StunnelReloadWaitTime))
 
 			// Wait for stunnel to complete the reload
 			// This ensures all old listeners are cleaned up before we remove the last config
@@ -744,6 +757,19 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 
 	// Remove config file (denali-stunnel will auto-unload the service)
 	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+		// CRITICAL: Rollback port release to maintain consistency
+		// Port was released at line 703, but file deletion failed
+		// We must restore the port mapping to prevent port reuse collision
+		sm.allocatedPorts[volumeID] = tunnelPort
+		sm.portToVolume[tunnelPort] = volumeID
+
+		sm.logger.Error("Failed to remove config file, rolled back port release",
+			zap.String("RequestID", requestID),
+			zap.String("volumeID", volumeID),
+			zap.Int("port", tunnelPort),
+			zap.String("configPath", configPath),
+			zap.Error(err))
+
 		sm.mu.Unlock()
 		return fmt.Errorf("failed to remove config: %w", err)
 	}
