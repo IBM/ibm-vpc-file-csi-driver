@@ -262,6 +262,15 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		// Set fsType to nfs4 for stunnel
 		fsType = nfs4FsType
 
+		// Validate that storage class provides required NFS mount options
+		if err := validateNFSMountOptions(options); err != nil {
+			ctxLogger.Error("Invalid mount options for RFS with stunnel",
+				zap.String("volumeID", volumeID),
+				zap.Strings("options", options),
+				zap.Error(err))
+			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
+		}
+
 		if csiNS.StunnelMgr == nil {
 			err := fmt.Errorf("stunnel manager is not configured, please restart the node server which will try to initialize the stunnel manager")
 			ctxLogger.Error("Failed to ensure tunnel for volume",
@@ -294,15 +303,6 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		// Update mount source to use local tunnel endpoint with export path
 		// Format: 127.0.0.1:/<export_path>
 		mountSource = fmt.Sprintf("127.0.0.1:%s", exportPath)
-
-		// Validate that storage class provides required NFS mount options
-		if err := validateNFSMountOptions(options); err != nil {
-			ctxLogger.Error("Invalid mount options for RFS with stunnel",
-				zap.String("volumeID", volumeID),
-				zap.Strings("options", options),
-				zap.Error(err))
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
-		}
 
 		// Append port to existing mount options (storage class provides vers, proto, etc.)
 		// Storage class must include mount options like: vers=4.1,proto=tcp
