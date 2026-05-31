@@ -670,9 +670,9 @@ func (sm *SimpleManager) reloadStunnel(requestID string) error {
 // RemoveTunnel removes tunnel configuration only if no active mounts use it
 func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 	sm.mu.Lock()
+	defer sm.mu.Unlock()
 
 	if volumeID == "" {
-		sm.mu.Unlock()
 		return fmt.Errorf("volumeID is required")
 	}
 
@@ -682,7 +682,6 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 		sm.logger.Warn("No port found for volume, config may already be removed",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID))
-		sm.mu.Unlock()
 		return nil
 	}
 
@@ -693,7 +692,6 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
 			zap.Int("port", tunnelPort))
-		sm.mu.Unlock()
 		return nil
 	}
 
@@ -720,16 +718,16 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 				zap.String("volumeID", volumeID))
 			sm.debounceTimer.Stop()
 			sm.pendingSIGHUP = false
-			sm.debounceMu.Unlock()
 
 			// Fire SIGHUP immediately to reload with just this last config
 			// This cleans up all other listeners before we remove the last config
 			if err := sm.reloadStunnel(requestID); err != nil {
+				sm.debounceMu.Unlock()
 				sm.logger.Error("Failed to send SIGHUP for last tunnel removal, aborting removal",
 					zap.String("requestID", requestID),
 					zap.String("volumeID", volumeID),
 					zap.Error(err))
-				// Re-acquire sm.mu before returning (debounceMu already unlocked at line 723)
+				// Re-acquire sm.mu before returning
 				sm.mu.Lock()
 				// Rollback: Re-add port to maps since SIGHUP failed
 				sm.allocatedPorts[volumeID] = tunnelPort
@@ -738,6 +736,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 				return fmt.Errorf("failed to send SIGHUP before removing last config: %w", err)
 			}
 
+			sm.debounceMu.Unlock()
 			sm.logger.Info("SIGHUP sent successfully for last tunnel, waiting for reload to complete",
 				zap.String("requestID", requestID),
 				zap.String("volumeID", volumeID),
@@ -745,14 +744,15 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 
 			// Wait for stunnel to complete the reload
 			// This ensures all old listeners are cleaned up before we remove the last config
-			// Note: This sleep occurs with NO locks held, so it doesn't block other operations
+			// Re-acquire sm.mu before sleep to prevent race conditions
+			sm.mu.Lock()
 			time.Sleep(StunnelReloadWaitTime)
+			// sm.mu remains locked after sleep, will continue to file removal
 		} else {
 			sm.debounceMu.Unlock()
+			// Re-acquire sm.mu before continuing
+			sm.mu.Lock()
 		}
-
-		// Re-acquire sm.mu before continuing
-		sm.mu.Lock()
 	}
 
 	// Remove config file (denali-stunnel will auto-unload the service)
@@ -789,9 +789,11 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 			zap.String("volumeID", volumeID),
 			zap.Int("remainingTunnels", len(sm.allocatedPorts)))
 
-		// Must unlock before calling scheduleDebouncedSIGHUP to avoid deadlock
+		// Unlock before calling scheduleDebouncedSIGHUP to avoid deadlock
 		sm.mu.Unlock()
 		sm.scheduleDebouncedSIGHUP(requestID)
+		// Re-lock before return so defer can unlock properly
+		sm.mu.Lock()
 		return nil
 	}
 
@@ -800,7 +802,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 	// Note: stunnel process keeps running (not killed/restarted)
 	// stunnelStarted remains true, so next mount will use debounced SIGHUP route
 
-	sm.mu.Unlock()
+	// Defer will unlock sm.mu
 	return nil
 }
 
