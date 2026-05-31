@@ -721,6 +721,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 
 			// Fire SIGHUP immediately to reload with just this last config
 			// This cleans up all other listeners before we remove the last config
+			// reloadStunnel is called while holding debounceMu lock
 			if err := sm.reloadStunnel(requestID); err != nil {
 				sm.debounceMu.Unlock()
 				sm.logger.Error("Failed to send SIGHUP for last tunnel removal, aborting removal",
@@ -732,7 +733,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 				// Rollback: Re-add port to maps since SIGHUP failed
 				sm.allocatedPorts[volumeID] = tunnelPort
 				sm.portToVolume[tunnelPort] = volumeID
-				sm.mu.Unlock()
+				// Defer will unlock sm.mu
 				return fmt.Errorf("failed to send SIGHUP before removing last config: %w", err)
 			}
 
@@ -770,7 +771,6 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 			zap.String("configPath", configPath),
 			zap.Error(err))
 
-		sm.mu.Unlock()
 		return fmt.Errorf("failed to remove config: %w", err)
 	}
 
