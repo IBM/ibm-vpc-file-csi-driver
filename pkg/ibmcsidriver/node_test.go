@@ -130,7 +130,7 @@ func TestNodePublishVolume(t *testing.T) {
 				},
 			},
 			expErrCode:    codes.Internal, // Should fail - stunnel manager required for RFS+EIT
-			expErrMessage: "stunnel manager is not configured, please restart the node server which will try to initialize the stunnel manager",
+			expErrMessage: "stunnel manager is not initialized",
 		},
 		{
 			name: "Valid request with DP2 profile and EIT enabled",
