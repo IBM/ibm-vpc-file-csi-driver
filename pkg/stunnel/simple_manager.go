@@ -602,18 +602,10 @@ func (sm *SimpleManager) reloadStunnel(requestID string) error {
 	// Check for multiple PIDs (pgrep returns one PID per line)
 	// If there's a newline, we have multiple processes
 	if strings.Contains(pidStr, "\n") {
-		pidLines := strings.Split(pidStr, "\n")
-		var pids []string
-		for _, line := range pidLines {
-			if trimmed := strings.TrimSpace(line); trimmed != "" {
-				pids = append(pids, trimmed)
-			}
-		}
 		sm.logger.Error("Multiple stunnel processes detected - abnormal state, restart required",
 			zap.String("RequestID", requestID),
-			zap.Strings("pids", pids),
-			zap.Int("count", len(pids)))
-		return fmt.Errorf("multiple stunnel processes detected (%d PIDs: %v) - this is an abnormal state, please restart the node server pod to recover", len(pids), pids)
+			zap.String("pidStr", pidStr))
+		return fmt.Errorf("multiple stunnel processes detected - this is an abnormal state, please restart the node server pod to recover")
 	}
 
 	// Parse the single PID
