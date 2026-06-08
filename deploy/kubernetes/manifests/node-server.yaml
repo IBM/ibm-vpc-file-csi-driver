@@ -163,7 +163,7 @@ spec:
             - name: host-certs
               mountPath: /etc/host-certs
               readOnly: true
-        - name: denali-stunnel
+        - name: stunnel
           securityContext:
             runAsNonRoot: false
             runAsUser: 0

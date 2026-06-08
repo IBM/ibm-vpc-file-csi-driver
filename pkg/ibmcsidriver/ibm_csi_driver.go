@@ -137,7 +137,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	}
 
 	// Initialize tunnel manager gRPC client only for node servers (not controllers)
-	// Initialize stunnel manager for node server (works with denali-stunnel sidecar)
+	// Initialize stunnel manager for node server (works with stunnel sidecar)
 	if os.Getenv("IS_NODE_SERVER") == "true" {
 		// Create simple stunnel manager with hardcoded defaults
 		stunnelMgr, err := stunnel.NewSimpleManager(icDriver.logger)
@@ -165,7 +165,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 				zap.Int("basePort", stunnel.InitialPort),
 				zap.Int("portRange", stunnel.PortRange),
 				zap.Bool("rfsEnabled", icDriver.rfsEnabled),
-				zap.String("note", "Works with denali-stunnel sidecar container"))
+				zap.String("note", "Works with stunnel sidecar container"))
 		}
 	} else {
 		icDriver.logger.Info("Skipping stunnel manager initialization (running as controller)")

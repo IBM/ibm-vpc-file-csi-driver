@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-// Package stunnel provides a simple manager for denali-stunnel service configurations
+// Package stunnel provides a simple manager for stunnel service configurations
 package stunnel
 
 import (
@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	// DefaultServicesDir is where denali-stunnel reads service configs
+	// DefaultServicesDir is where stunnel reads service configs
 	DefaultServicesDir = "/etc/stunnel/services"
 
 	// InitialPort is the starting port for tunnel allocation
@@ -82,7 +82,7 @@ const (
 	ConfigFilePermissions = 0600
 )
 
-// SimpleManager manages stunnel service configs for denali-stunnel
+// SimpleManager manages stunnel service configs
 type SimpleManager struct {
 	mu             sync.RWMutex
 	servicesDir    string
@@ -420,7 +420,7 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 		return 0, fmt.Errorf("TLS verification required but CA bundle or checkHost not configured (caFile=%s, checkHost=%s) - refusing to create insecure tunnel", sm.caFile, sm.checkHost)
 	}
 
-	// Create service config for denali-stunnel
+	// Create service config for stunnel
 	// VPC File Share uses TLS on NFSOverTLSPort
 	config := fmt.Sprintf(`[%s]
 client = %s
@@ -727,7 +727,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 		}
 	}
 
-	// Remove config file (denali-stunnel will auto-unload the service)
+	// Remove config file (stunnel will auto-unload the service)
 	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
 		// CRITICAL: Rollback port release to maintain consistency
 		// Port was released at line 703, but file deletion failed

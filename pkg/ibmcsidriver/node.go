@@ -384,7 +384,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		nfsServer := nfsSource.Server
 		exportPath = nfsSource.ExportPath
 
-		// Ensure tunnel config exists for this volume (denali-stunnel auto-loads it)
+		// Ensure tunnel config exists for this volume (stunnel auto-loads it)
 		tunnelPort, err := csiNS.StunnelMgr.EnsureTunnel(fileShareID, nfsServer, requestID)
 		if err != nil {
 			ctxLogger.Error("Failed to create tunnel config for volume",

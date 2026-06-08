@@ -616,7 +616,7 @@ kubectl run curl-test --image=curlimages/curl:latest --rm -it --restart=Never \
 **Priority**: 🔴 **CRITICAL**
 
 **Actions Required**:
-1. Security scan of denali-stunnel Docker image
+1. Security scan of stunnel Docker image
 2. Review TLS configuration (verify = 2, checkHost, CAfile)
 3. Review port binding security (127.0.0.1 only)
 4. Review file permissions for service configs
@@ -646,7 +646,7 @@ kubectl run curl-test --image=curlimages/curl:latest --rm -it --restart=Never \
 **Priority**: 🔴 **CRITICAL**
 
 **Actions Required**:
-1. Transfer denali-stunnel image ownership to VPC IaaS team
+1. Transfer stunnel image ownership to VPC IaaS team
 2. Push image to icr.io/ibm namespace (official IBM registry)
 3. Run security scan and fix vulnerabilities
 4. Establish maintenance and update process
