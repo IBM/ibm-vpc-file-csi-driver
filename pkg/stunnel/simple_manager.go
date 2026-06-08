@@ -66,9 +66,6 @@ const (
 	// DefaultDebounceWindow is the default time window to collect multiple SIGHUPs
 	DefaultDebounceWindow = 2 * time.Second
 
-	// DefaultClusterEnv is the default cluster environment when CLUSTER_ENV is not set
-	DefaultClusterEnv = "production"
-
 	// ProductionCheckHost is the hostname for TLS verification in production
 	ProductionCheckHost = "production.is-share.appdomain.cloud"
 
@@ -81,41 +78,8 @@ const (
 	// UbuntuCAPath is the CA bundle path for Ubuntu systems
 	UbuntuCAPath = "/etc/host-certs/ssl/certs/ca-certificates.crt"
 
-	// ConfigFileExtension is the extension for stunnel config files
-	ConfigFileExtension = ".conf"
-
 	// ConfigFilePermissions is the file permissions for stunnel config files (owner read/write only)
 	ConfigFilePermissions = 0600
-
-	// LocalhostIP is the loopback IP address for tunnel accept connections
-	LocalhostIP = "127.0.0.1"
-
-	// ProcMountsPath is the path to the kernel mounts information
-	ProcMountsPath = "/proc/mounts"
-
-	// MinValidPort is the minimum valid port number (above well-known ports)
-	MinValidPort = 1024
-
-	// MaxValidPort is the maximum valid port number
-	MaxValidPort = 65535
-
-	// MinPortRange is the minimum port number in valid range
-	MinPortRange = 1
-
-	// PortCheckTimeout is the timeout for checking if a port is available
-	PortCheckTimeout = 50 * time.Millisecond
-
-	// StunnelProcessName is the name of the stunnel process for pgrep
-	StunnelProcessName = "stunnel"
-
-	// StunnelClientMode indicates stunnel should run in client mode
-	StunnelClientMode = "yes"
-
-	// StunnelVerifyLevel is the TLS verification level (2 = verify peer certificate)
-	StunnelVerifyLevel = 2
-
-	// NFSv4Protocol is the NFS protocol version for mounts
-	NFSv4Protocol = "nfs4"
 )
 
 // SimpleManager manages stunnel service configs for denali-stunnel
@@ -277,11 +241,11 @@ func (sm *SimpleManager) recoverExistingTunnels() error {
 	}
 
 	for _, file := range files {
-		if file.IsDir() || filepath.Ext(file.Name()) != ConfigFileExtension {
+		if file.IsDir() || filepath.Ext(file.Name()) != ".conf" {
 			continue
 		}
 
-		volumeID := strings.TrimSuffix(file.Name(), ConfigFileExtension)
+		volumeID := strings.TrimSuffix(file.Name(), ".conf")
 
 		// Read the config to extract port
 		configPath := filepath.Join(sm.servicesDir, file.Name())
@@ -350,8 +314,8 @@ func (sm *SimpleManager) extractPortFromConfigFile(configPath string) (int, erro
 			}
 
 			// Validate port range (1-65535)
-			if port < MinPortRange || port > MaxValidPort {
-				return 0, fmt.Errorf("line %d: invalid port %d (must be %d-%d)", lineNum, port, MinPortRange, MaxValidPort)
+			if port < 1 || port > 65535 {
+				return 0, fmt.Errorf("line %d: invalid port %d (must be 1-65535)", lineNum, port)
 			}
 
 			// Return immediately after finding the first valid port
@@ -449,7 +413,7 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 	}
 
 	// Get config path for this volume
-	configPath := sm.getConfigPath(volumeID)
+	configPath := filepath.Join(sm.servicesDir, volumeID+".conf")
 
 	// SECURITY: Always require proper TLS verification - fail if CA bundle or checkHost not configured
 	if sm.caFile == "" || sm.checkHost == "" {
@@ -466,7 +430,7 @@ CAfile = %s
 checkHost = %s
 verify = %d
 debug = %d
-`, volumeID, StunnelClientMode, LocalhostIP, port, nfsServer, NFSOverTLSPort, sm.caFile, sm.checkHost, StunnelVerifyLevel, sm.debugLevel)
+`, volumeID, "yes", "127.0.0.1", port, nfsServer, NFSOverTLSPort, sm.caFile, sm.checkHost, 2, sm.debugLevel)
 
 	// Phase 2: Write to temporary file first (atomic operation)
 	tempPath := configPath + ".tmp"
@@ -603,7 +567,7 @@ func (sm *SimpleManager) isStunnelRunning() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), PgrepTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "pgrep", "-x", StunnelProcessName)
+	cmd := exec.CommandContext(ctx, "pgrep", "-x", "stunnel")
 	err := cmd.Run()
 	return err == nil
 }
@@ -707,10 +671,13 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 		return nil
 	}
 
-	configPath := sm.getConfigPath(volumeID)
+	configPath := filepath.Join(sm.servicesDir, volumeID+".conf")
 
-	// Release port
-	sm.releasePort(tunnelPort)
+	// Release port from both maps
+	// Note: We already verified tunnelPort exists in allocatedPorts at line 656,
+	// so we know both maps are in sync. Go's delete() is safe for non-existent keys.
+	delete(sm.allocatedPorts, volumeID)
+	delete(sm.portToVolume, tunnelPort)
 
 	// Check if this is the last tunnel BEFORE removing the file
 	isLastTunnel := len(sm.allocatedPorts) == 0
@@ -822,7 +789,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 // by reading /proc/mounts. This is fast (~2ms) and won't hang even if NFS is unresponsive.
 func (sm *SimpleManager) isTunnelPortInUse(port int) bool {
 	// Read /proc/mounts directly - doesn't stat the filesystem, so won't hang
-	data, err := os.ReadFile(ProcMountsPath)
+	data, err := os.ReadFile("/proc/mounts")
 	if err != nil {
 		sm.logger.Warn("Failed to read /proc/mounts, assuming port IS in use for safety",
 			zap.Int("port", port),
@@ -840,8 +807,8 @@ func (sm *SimpleManager) isTunnelPortInUse(port int) bool {
 	for scanner.Scan() {
 		line := scanner.Text()
 		// Check if this is an NFS4 mount using our tunnel port
-		if strings.Contains(line, NFSv4Protocol) &&
-			strings.Contains(line, LocalhostIP+":") &&
+		if strings.Contains(line, "nfs4") &&
+			strings.Contains(line, "127.0.0.1:") &&
 			strings.Contains(line, portStr) {
 			mountCount++
 			sm.logger.Debug("Found mount using tunnel port",
@@ -909,16 +876,16 @@ func (sm *SimpleManager) findAvailablePort(volumeID string) (int, error) {
 // This prevents conflicts with other processes while being more efficient
 func (sm *SimpleManager) isPortAvailable(port int) bool {
 	// Fast validation of port range
-	if port < MinValidPort || port > MaxValidPort {
+	if port < 1024 || port > 65535 {
 		return false
 	}
 
 	// Use DialContext for faster check with timeout (doesn't bind, just attempts connection)
-	ctx, cancel := context.WithTimeout(context.Background(), PortCheckTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", LocalhostIP, port))
+	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err == nil {
 		// Something is listening on this port - not available
 		_ = conn.Close() // #nosec G104: Best effort close, error not actionable
@@ -940,27 +907,6 @@ func (sm *SimpleManager) isPortAvailable(port int) bool {
 		zap.Int("port", port),
 		zap.Error(err))
 	return false
-}
-
-// releasePort frees a port by removing both forward and reverse mappings
-func (sm *SimpleManager) releasePort(port int) {
-	// Use reverse map for O(1) lookup of volumeID
-	if volumeID, exists := sm.portToVolume[port]; exists {
-		delete(sm.allocatedPorts, volumeID)
-		delete(sm.portToVolume, port)
-	}
-}
-
-// getConfigPath returns the path to the config file for a volume
-func (sm *SimpleManager) getConfigPath(volumeID string) string {
-	return filepath.Join(sm.servicesDir, volumeID+ConfigFileExtension)
-}
-
-// GetAllocatedPortsCount returns the number of currently allocated ports
-func (sm *SimpleManager) GetAllocatedPortsCount() int {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-	return len(sm.allocatedPorts)
 }
 
 // Made with Bob

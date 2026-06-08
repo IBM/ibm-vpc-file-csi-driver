@@ -539,6 +539,89 @@ func TestNodeUnpublishVolume(t *testing.T) {
 	}
 }
 
+// TestNodeUnpublishVolume_BoundsCheck tests that NodeUnpublishVolume handles
+// invalid volume ID formats gracefully without panicking on array access.
+// This test validates the bounds check at node.go:443 (if len(fileShareID) > 0)
+// which prevents panic when accessing fileShareID[0].
+func TestNodeUnpublishVolume_BoundsCheck(t *testing.T) {
+	testCases := []struct {
+		name        string
+		volumeID    string
+		expectPanic bool
+		description string
+	}{
+		{
+			name:        "Valid volume ID with # separator",
+			volumeID:    "share123#target456",
+			expectPanic: false,
+			description: "Normal case: shareID#targetID format - getTokens returns [share123, target456]",
+		},
+		{
+			name:        "Valid volume ID with : separator",
+			volumeID:    "share123:target456",
+			expectPanic: false,
+			description: "Deprecated format: shareID:targetID - getTokens returns [share123, target456]",
+		},
+		{
+			name:        "Volume ID without separator",
+			volumeID:    "share123",
+			expectPanic: false,
+			description: "Edge case: no separator - getTokens returns [share123]",
+		},
+		{
+			name:        "Just separator #",
+			volumeID:    "#",
+			expectPanic: false,
+			description: "Edge case: just # - getTokens returns ['', ''] (2 empty strings)",
+		},
+		{
+			name:        "Just separator :",
+			volumeID:    ":",
+			expectPanic: false,
+			description: "Edge case: just : - getTokens returns ['', ''] (2 empty strings)",
+		},
+	}
+
+	icDriver := initIBMCSIDriver(t)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &csi.NodeUnpublishVolumeRequest{
+				VolumeId:   tc.volumeID,
+				TargetPath: defaultTargetPath,
+			}
+
+			// Test that no panic occurs - the bounds check prevents it
+			defer func() {
+				if r := recover(); r != nil {
+					if !tc.expectPanic {
+						t.Errorf("BOUNDS CHECK FAILED: Unexpected panic for %s: %v", tc.description, r)
+						t.Errorf("The bounds check at node.go:443 should prevent panic on fileShareID[0] access")
+					}
+				}
+			}()
+
+			// Call NodeUnpublishVolume - should not panic due to bounds check
+			resp, err := icDriver.ns.NodeUnpublishVolume(context.Background(), req)
+
+			// Verify no panic occurred
+			if !tc.expectPanic {
+				// Should succeed or fail gracefully without panicking
+				if err != nil {
+					// Check it's not a panic-related error
+					assert.NotContains(t, err.Error(), "index out of range",
+						"Bounds check failed: accessing fileShareID[0] caused panic")
+					assert.NotContains(t, err.Error(), "runtime error",
+						"Bounds check failed: runtime error occurred")
+				} else {
+					assert.NotNil(t, resp, "Expected non-nil response for valid request")
+				}
+				t.Logf("✓ %s: No panic occurred, bounds check working correctly", tc.description)
+			}
+		})
+	}
+}
+
 func TestNodeGetCapabilities(t *testing.T) {
 	req := &csi.NodeGetCapabilitiesRequest{}
 
@@ -934,6 +1017,140 @@ func TestSplitNFSSource(t *testing.T) {
 
 			if result.ExportPath != tt.wantPath {
 				t.Errorf("splitNFSSource() ExportPath = %v, want %v", result.ExportPath, tt.wantPath)
+			}
+		})
+	}
+}
+
+// TestSplitNFSSource_SecurityAttacks tests malicious input handling
+func TestSplitNFSSource_SecurityAttacks(t *testing.T) {
+	maliciousInputs := []struct {
+		name        string
+		input       string
+		desc        string
+		errContains string
+	}{
+		{
+			name:        "path traversal single",
+			input:       "server:/../etc/passwd",
+			desc:        "Should reject parent directory references",
+			errContains: "parent directory references",
+		},
+		{
+			name:        "path traversal multiple",
+			input:       "server:/path/../../../etc",
+			desc:        "Should reject multiple parent references",
+			errContains: "parent directory references",
+		},
+		{
+			name:        "path traversal at end",
+			input:       "server:/path/..",
+			desc:        "Should reject parent reference at end",
+			errContains: "parent directory references",
+		},
+		{
+			name:        "current directory reference",
+			input:       "server:/./path",
+			desc:        "Should reject current directory references",
+			errContains: "current directory references",
+		},
+		{
+			name:        "current directory at end",
+			input:       "server:/path/.",
+			desc:        "Should reject current directory at end",
+			errContains: "current directory references",
+		},
+		{
+			name:        "null byte injection",
+			input:       "server:/path\x00/hidden",
+			desc:        "Should reject null bytes",
+			errContains: "null bytes",
+		},
+		{
+			name:        "newline injection",
+			input:       "server:/path\n/data",
+			desc:        "Should reject control characters",
+			errContains: "control character",
+		},
+		{
+			name:        "carriage return injection",
+			input:       "server:/path\r/data",
+			desc:        "Should reject control characters",
+			errContains: "control character",
+		},
+		{
+			name:        "tab injection",
+			input:       "server:/path\t/data",
+			desc:        "Should reject control characters",
+			errContains: "control character",
+		},
+		{
+			name:        "length attack on source",
+			input:       strings.Repeat("a", 5000) + ":/path",
+			desc:        "Should reject excessive source length",
+			errContains: "exceeds maximum length",
+		},
+		{
+			name:        "length attack on server",
+			input:       strings.Repeat("a", 300) + ".com:/path",
+			desc:        "Should reject excessive server length",
+			errContains: "exceeds maximum length",
+		},
+		{
+			name:        "length attack on path",
+			input:       "server:/" + strings.Repeat("a", 5000),
+			desc:        "Should reject excessive path length",
+			errContains: "exceeds maximum length",
+		},
+		{
+			name:        "double slash in path",
+			input:       "server://path",
+			desc:        "Should reject double slashes",
+			errContains: "double slashes",
+		},
+		{
+			name:        "double slash in middle",
+			input:       "server:/path//data",
+			desc:        "Should reject double slashes in middle",
+			errContains: "double slashes",
+		},
+		{
+			name:        "command injection attempt",
+			input:       "server;rm -rf /:/path",
+			desc:        "Should reject invalid server format",
+			errContains: "invalid hostname format",
+		},
+		{
+			name:        "path with spaces",
+			input:       "server:/path with spaces",
+			desc:        "Should accept paths with spaces (valid NFS)",
+			errContains: "", // This should actually succeed
+		},
+	}
+
+	for _, tt := range maliciousInputs {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := splitNFSSource(tt.input)
+
+			// Special case: paths with spaces are actually valid in NFS
+			if tt.name == "path with spaces" {
+				if err != nil {
+					t.Errorf("%s: Expected success for valid path with spaces, got error: %v", tt.desc, err)
+				}
+				if result == nil || result.ExportPath != "/path with spaces" {
+					t.Errorf("%s: Expected path '/path with spaces', got: %v", tt.desc, result)
+				}
+				return
+			}
+
+			// All other cases should fail
+			if err == nil {
+				t.Errorf("%s: Expected error for malicious input, got none", tt.desc)
+				return
+			}
+
+			if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("%s: Error = %v, want error containing %q", tt.desc, err, tt.errContains)
 			}
 		})
 	}
