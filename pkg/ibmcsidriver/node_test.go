@@ -969,13 +969,13 @@ func TestSplitNFSSource(t *testing.T) {
 			name:        "export path with double slashes",
 			source:      "192.168.1.100://share",
 			wantErr:     true,
-			errContains: "invalid double slashes",
+			errContains: "double slashes",
 		},
 		{
 			name:        "export path with double slashes in middle",
 			source:      "192.168.1.100:/exports//data",
 			wantErr:     true,
-			errContains: "invalid double slashes",
+			errContains: "double slashes",
 		},
 		{
 			name:       "hostname with hyphen and numbers",
