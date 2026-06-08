@@ -21,7 +21,9 @@ package ibmcsidriver
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"regexp"
 	"strings"
 
 	"time"
@@ -87,12 +89,18 @@ type NFSSource struct {
 	ExportPath string
 }
 
-// splitNFSSource splits an NFS source string into server and export path
+// splitNFSSource splits an NFS source string into server and export path with comprehensive validation
 // Input format: <nfs_server>:/<export_path>
 // Returns: NFSSource struct with Server and ExportPath fields, or error if invalid
 func splitNFSSource(source string) (*NFSSource, error) {
 	if source == "" {
 		return nil, fmt.Errorf("NFS source cannot be empty")
+	}
+
+	// Length validation to prevent DoS
+	const maxNFSSourceLength = 4096 // Reasonable limit for NFS source string
+	if len(source) > maxNFSSourceLength {
+		return nil, fmt.Errorf("NFS source exceeds maximum length of %d characters", maxNFSSourceLength)
 	}
 
 	// Find the first colon which separates server from path
@@ -104,27 +112,110 @@ func splitNFSSource(source string) (*NFSSource, error) {
 	server := source[:colonIndex]
 	exportPath := source[colonIndex+1:]
 
-	// Validate server is non-empty
+	// Validate server is non-empty and within reasonable length
+	const maxServerLength = 253 // RFC 1035 max hostname length
 	if server == "" {
 		return nil, fmt.Errorf("NFS server cannot be empty")
 	}
+	if len(server) > maxServerLength {
+		return nil, fmt.Errorf("NFS server exceeds maximum length of %d characters", maxServerLength)
+	}
+
+	// Validate server format (hostname or IP address)
+	if err := validateNFSServer(server); err != nil {
+		return nil, fmt.Errorf("invalid NFS server: %w", err)
+	}
 
 	// Validate export path format
+	const maxPathLength = 4096 // Linux PATH_MAX
 	if exportPath == "" {
 		return nil, fmt.Errorf("NFS export path cannot be empty")
+	}
+	if len(exportPath) > maxPathLength {
+		return nil, fmt.Errorf("NFS export path exceeds maximum length of %d characters", maxPathLength)
 	}
 	if exportPath[0] != '/' {
 		return nil, fmt.Errorf("NFS export path must start with '/' (got: %s)", exportPath)
 	}
-	// Additional validation: ensure path doesn't contain invalid characters or patterns
-	if strings.Contains(exportPath, "//") {
-		return nil, fmt.Errorf("NFS export path contains invalid double slashes: %s", exportPath)
+
+	// Security validations for export path
+	if err := validateExportPath(exportPath); err != nil {
+		return nil, fmt.Errorf("invalid NFS export path: %w", err)
 	}
 
 	return &NFSSource{
 		Server:     server,
 		ExportPath: exportPath,
 	}, nil
+}
+
+// validHostnameRegex validates RFC 1123 compliant hostnames
+// Allows alphanumeric characters, hyphens, and dots
+var validHostnameRegex = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$`)
+
+// validateNFSServer validates that the server is a valid hostname or IP address
+func validateNFSServer(server string) error {
+	// Try parsing as IP address first (IPv4 or IPv6)
+	if ip := net.ParseIP(server); ip != nil {
+		return nil // Valid IP address
+	}
+
+	// Check if it's an IPv6 address with brackets (shouldn't happen after split, but be safe)
+	if strings.HasPrefix(server, "[") && strings.HasSuffix(server, "]") {
+		ipv6 := server[1 : len(server)-1]
+		if ip := net.ParseIP(ipv6); ip != nil {
+			return nil
+		}
+	}
+
+	// Validate as hostname (RFC 1123)
+	if !validHostnameRegex.MatchString(server) {
+		return fmt.Errorf("invalid hostname format: %s (must be valid hostname or IP address)", server)
+	}
+
+	return nil
+}
+
+// validateExportPath performs comprehensive security validation on the export path
+func validateExportPath(path string) error {
+	// Check for null bytes (path truncation attack)
+	if strings.Contains(path, "\x00") {
+		return fmt.Errorf("path contains null bytes")
+	}
+
+	// Check for path traversal patterns
+	if strings.Contains(path, "/../") || strings.HasSuffix(path, "/..") {
+		return fmt.Errorf("path contains parent directory references (..)")
+	}
+	if strings.Contains(path, "/./") || strings.HasSuffix(path, "/.") {
+		return fmt.Errorf("path contains current directory references (.)")
+	}
+
+	// Check for double slashes (can cause issues with some NFS implementations)
+	if strings.Contains(path, "//") {
+		return fmt.Errorf("path contains double slashes")
+	}
+
+	// Check for control characters (ASCII 0-31 and 127)
+	for i, r := range path {
+		if r < 32 || r == 127 {
+			return fmt.Errorf("path contains control character at position %d", i)
+		}
+	}
+
+	// Validate each path component length (max 255 per component for most filesystems)
+	const maxComponentLength = 255
+	components := strings.Split(path, "/")
+	for i, comp := range components {
+		if comp == "" {
+			continue // Skip empty components (from leading/trailing slashes)
+		}
+		if len(comp) > maxComponentLength {
+			return fmt.Errorf("path component %d exceeds maximum length of %d characters: %s", i, maxComponentLength, comp)
+		}
+	}
+
+	return nil
 }
 
 // validateNFSMountOptions validates that required NFS mount options are present for stunnel
@@ -272,9 +363,11 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		}
 
 		if csiNS.StunnelMgr == nil {
-			err := fmt.Errorf("stunnel manager is not configured, please restart the node server which will try to initialize the stunnel manager")
-			ctxLogger.Error("Failed to ensure tunnel for volume",
+			err := fmt.Errorf("stunnel manager is not initialized - this indicates a configuration error. Troubleshooting steps: 1) Check node server pod logs for stunnel initialization errors, 2) Verify OS_TYPE environment variable is set correctly (RHCOS/RHEL/Ubuntu), 3) Verify CLUSTER_ENV is set (production/staging), 4) Ensure CA bundle file exists at expected path, 5) Restart the node server pod to retry initialization")
+			ctxLogger.Error("Stunnel manager not available for RFS EIT mount - initialization failed at startup",
 				zap.String("volumeID", volumeID),
+				zap.String("profileName", profileName),
+				zap.String("action", "Check node server pod logs and restart pod after fixing configuration"),
 				zap.Error(err))
 			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 		}
@@ -354,28 +447,25 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 				zap.String("volumeID", volID),
 				zap.String("shareID", shareID))
 
-			// Check if tunnel config exists
-			if port, exists := csiNS.StunnelMgr.GetTunnelPort(shareID); exists {
-				ctxLogger.Info("Found tunnel config for volume, attempting removal",
+			// RemoveTunnel is idempotent and handles race conditions internally
+			// It will return nil if tunnel doesn't exist or was already removed
+			if err := csiNS.StunnelMgr.RemoveTunnel(shareID, requestID); err != nil {
+				ctxLogger.Error("Failed to remove tunnel config after unmount, will trigger retry",
 					zap.String("shareID", shareID),
-					zap.Int("port", port))
-
-				if err := csiNS.StunnelMgr.RemoveTunnel(shareID, requestID); err != nil {
-					ctxLogger.Error("Failed to remove tunnel config after unmount, will trigger retry",
-						zap.String("shareID", shareID),
-						zap.Error(err))
-					// Return error to trigger Kubernetes retry
-					// The rollback logic in RemoveTunnel ensures port maps stay consistent
-					// K8s will retry NodeUnpublishVolume, which will:
-					// 1. Try to unmount again (will succeed as already unmounted or be idempotent)
-					// 2. Retry tunnel cleanup until it succeeds
-					return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
-				}
-				ctxLogger.Info("Tunnel config removed successfully", zap.String("shareID", shareID))
-			} else {
-				ctxLogger.Info("No tunnel config found for volume (may not be RFS or already cleaned up)",
-					zap.String("shareID", shareID))
+					zap.Error(err))
+				// Return error to trigger Kubernetes retry
+				// The rollback logic in RemoveTunnel ensures port maps stay consistent
+				// K8s will retry NodeUnpublishVolume, which will:
+				// 1. Try to unmount again (will succeed as already unmounted or be idempotent)
+				// 2. Retry tunnel cleanup until it succeeds
+				return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 			}
+			ctxLogger.Info("Tunnel config removed successfully", zap.String("shareID", shareID))
+		} else {
+			ctxLogger.Error("Invalid volume ID format, cannot extract share ID",
+				zap.String("volumeID", volID))
+			// Don't fail unmount - volume is already unmounted
+			// Just log the error and continue
 		}
 	}
 

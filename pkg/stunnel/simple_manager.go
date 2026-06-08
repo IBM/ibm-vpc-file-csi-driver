@@ -170,7 +170,10 @@ func NewSimpleManager(logger *zap.Logger) (*SimpleManager, error) {
 	}
 
 	// Determine checkHost based on CLUSTER_ENV environment variable
-	checkHost := getCheckHost(logger)
+	checkHost, err := getCheckHost(logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine checkHost: %w", err)
+	}
 
 	// Note: servicesDir is created by Kubernetes hostPath with DirectoryOrCreate
 	// No need to create it here
@@ -223,21 +226,28 @@ func detectCABundle(logger *zap.Logger) (string, error) {
 		// Ubuntu path
 		caPath = UbuntuCAPath
 	default:
-		return "", fmt.Errorf("unknown OS_TYPE: %s (supported: RHCOS, RHEL, Ubuntu)", osType)
+		return "", fmt.Errorf("unknown OS_TYPE: %s (supported: RHCOS, RHEL, Ubuntu) - refusing to proceed with unknown CA configuration", osType)
+
 	}
 
-	logger.Info("Detected CA bundle path based on OS type",
+	// Verify CA file actually exists before returning
+	if _, err := os.Stat(caPath); err != nil {
+		return "", fmt.Errorf("CA bundle file not found at %s: %w - cannot establish secure TLS connections", caPath, err)
+	}
+
+	logger.Info("Detected and verified CA bundle path",
 		zap.String("path", caPath),
 		zap.String("osType", osType))
 	return caPath, nil
 }
 
 // getCheckHost determines the hostname for TLS certificate verification based on CLUSTER_ENV
-func getCheckHost(logger *zap.Logger) string {
-	// Use CLUSTER_ENV environment variable to determine checkHost
+// Returns error if CLUSTER_ENV is not set or is unknown - NO DEFAULTS for security
+func getCheckHost(logger *zap.Logger) (string, error) {
+	// CLUSTER_ENV environment variable is MANDATORY - no defaults for security
 	clusterEnv := os.Getenv("CLUSTER_ENV")
 	if clusterEnv == "" {
-		clusterEnv = DefaultClusterEnv // Default to production if not specified
+		return "", fmt.Errorf("CLUSTER_ENV environment variable is REQUIRED for TLS verification but not set - refusing to proceed without explicit environment configuration")
 	}
 
 	var checkHost string
@@ -247,15 +257,13 @@ func getCheckHost(logger *zap.Logger) string {
 	case "staging":
 		checkHost = StagingCheckHost
 	default:
-		logger.Warn("Unknown CLUSTER_ENV, defaulting to production",
-			zap.String("clusterEnv", clusterEnv))
-		checkHost = ProductionCheckHost
+		return "", fmt.Errorf("unknown CLUSTER_ENV: %s (supported: production, staging) - refusing to proceed with unknown environment", clusterEnv)
 	}
 
 	logger.Info("Determined checkHost for TLS verification",
 		zap.String("checkHost", checkHost),
 		zap.String("clusterEnv", clusterEnv))
-	return checkHost
+	return checkHost, nil
 }
 
 // recoverExistingTunnels scans the services directory and rebuilds port allocation map
@@ -434,24 +442,22 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 		return port, nil
 	}
 
-	// Allocate new port
-	port, err := sm.allocatePort(volumeID)
+	// Phase 1: Find available port (doesn't commit to maps yet)
+	port, err := sm.findAvailablePort(volumeID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to allocate port: %w", err)
+		return 0, fmt.Errorf("failed to find available port: %w", err)
 	}
 
 	// Get config path for this volume
 	configPath := sm.getConfigPath(volumeID)
 
-	// Create service config for denali-stunnel
-	// VPC File Share uses TLS on NFSOverTLSPort
 	// SECURITY: Always require proper TLS verification - fail if CA bundle or checkHost not configured
 	if sm.caFile == "" || sm.checkHost == "" {
-		sm.releasePort(port)
 		return 0, fmt.Errorf("TLS verification required but CA bundle or checkHost not configured (caFile=%s, checkHost=%s) - refusing to create insecure tunnel", sm.caFile, sm.checkHost)
 	}
 
-	// Use CA bundle and checkHost for proper TLS verification
+	// Create service config for denali-stunnel
+	// VPC File Share uses TLS on NFSOverTLSPort
 	config := fmt.Sprintf(`[%s]
 client = %s
 accept = %s:%d
@@ -462,16 +468,22 @@ verify = %d
 debug = %d
 `, volumeID, StunnelClientMode, LocalhostIP, port, nfsServer, NFSOverTLSPort, sm.caFile, sm.checkHost, StunnelVerifyLevel, sm.debugLevel)
 
-	if err := os.WriteFile(configPath, []byte(config), ConfigFilePermissions); err != nil {
-		sm.releasePort(port)
-		// Clean up config file if it was partially written
-		if removeErr := os.Remove(configPath); removeErr != nil && !os.IsNotExist(removeErr) {
-			sm.logger.Warn("Failed to clean up config file after write error",
-				zap.String("configPath", configPath),
-				zap.Error(removeErr))
-		}
-		return 0, fmt.Errorf("failed to write config: %w", err)
+	// Phase 2: Write to temporary file first (atomic operation)
+	tempPath := configPath + ".tmp"
+	if err := os.WriteFile(tempPath, []byte(config), ConfigFilePermissions); err != nil {
+		return 0, fmt.Errorf("failed to write temp config: %w", err)
 	}
+
+	// Atomically rename temp file to final name
+	if err := os.Rename(tempPath, configPath); err != nil {
+		// Clean up temp file on failure
+		_ = os.Remove(tempPath)
+		return 0, fmt.Errorf("failed to rename config file: %w", err)
+	}
+
+	// Phase 3: NOW commit the port allocation (file write succeeded)
+	sm.allocatedPorts[volumeID] = port
+	sm.portToVolume[port] = volumeID
 
 	sm.logger.Info("Created tunnel config",
 		zap.String("RequestID", requestID),
@@ -679,7 +691,7 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 	// Find the port for this volume (O(1) lookup)
 	tunnelPort, exists := sm.allocatedPorts[volumeID]
 	if !exists {
-		sm.logger.Warn("No port found for volume, config may already be removed",
+		sm.logger.Warn("No port found for volume, config may already be removed, may not be RFS or already cleaned up",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID))
 		return nil
@@ -863,10 +875,10 @@ func (sm *SimpleManager) GetTunnelPort(volumeID string) (int, bool) {
 	return port, exists
 }
 
-// allocatePort finds an available port
-// Checks both internal map and actual port availability on the system
-// Uses reverse map for O(1) port lookup instead of O(n) iteration
-func (sm *SimpleManager) allocatePort(volumeID string) (int, error) {
+// findAvailablePort finds an available port without allocating it
+// This allows for two-phase commit: find port, write file, then commit to maps
+// Returns the port number if available, or error if no ports available
+func (sm *SimpleManager) findAvailablePort(volumeID string) (int, error) {
 	for i := 0; i < sm.portRange; i++ {
 		port := sm.initialPort + i
 
@@ -876,7 +888,6 @@ func (sm *SimpleManager) allocatePort(volumeID string) (int, error) {
 		}
 
 		// Verify port is actually available on the system
-		// This prevents conflicts with other processes or stale state
 		if !sm.isPortAvailable(port) {
 			sm.logger.Warn("Port in use by another process, skipping",
 				zap.Int("port", port),
@@ -884,10 +895,8 @@ func (sm *SimpleManager) allocatePort(volumeID string) (int, error) {
 			continue
 		}
 
-		// Port is available both in map and on system - update both maps
-		sm.allocatedPorts[volumeID] = port
-		sm.portToVolume[port] = volumeID
-		sm.logger.Debug("Allocated port",
+		// Port is available - return it WITHOUT updating maps
+		sm.logger.Debug("Found available port",
 			zap.Int("port", port),
 			zap.String("volumeID", volumeID))
 		return port, nil

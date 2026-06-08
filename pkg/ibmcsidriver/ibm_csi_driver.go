@@ -142,10 +142,21 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		// Create simple stunnel manager with hardcoded defaults
 		stunnelMgr, err := stunnel.NewSimpleManager(icDriver.logger)
 		if err != nil {
-			// Log warning but don't fail - node server can still handle non-RFS EIT mounts
-			icDriver.logger.Warn("Failed to create stunnel manager - RFS EIT mounts will not work",
-				zap.Error(err),
-				zap.String("note", "Node server will continue but RFS EIT profile mounts will fail"))
+			// Enhanced error logging with troubleshooting guidance
+			if icDriver.rfsEnabled {
+				// RFS is enabled - stunnel manager failure will cause RFS EIT mount failures
+				icDriver.logger.Error("Failed to create stunnel manager - RFS EIT mounts will FAIL",
+					zap.Error(err),
+					zap.Bool("rfsEnabled", true),
+					zap.String("impact", "All RFS EIT profile mounts will fail at mount time"),
+					zap.String("action", "Check: 1) OS_TYPE env var is set correctly, 2) CLUSTER_ENV is set, 3) CA bundle file exists, 4) Restart node server pod to retry"))
+			} else {
+				// RFS not enabled - only log warning
+				icDriver.logger.Warn("Failed to create stunnel manager - RFS EIT mounts will not work",
+					zap.Error(err),
+					zap.Bool("rfsEnabled", false),
+					zap.String("note", "Node server will continue - non-RFS mounts unaffected"))
+			}
 			icDriver.ns.StunnelMgr = nil
 		} else {
 			icDriver.ns.StunnelMgr = stunnelMgr
@@ -153,6 +164,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 				zap.String("servicesDir", stunnel.DefaultServicesDir),
 				zap.Int("basePort", stunnel.InitialPort),
 				zap.Int("portRange", stunnel.PortRange),
+				zap.Bool("rfsEnabled", icDriver.rfsEnabled),
 				zap.String("note", "Works with denali-stunnel sidecar container"))
 		}
 	} else {

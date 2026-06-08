@@ -184,36 +184,43 @@ func TestGetCheckHost(t *testing.T) {
 		name       string
 		clusterEnv string
 		want       string
+		wantErr    bool
 	}{
 		{
 			name:       "production",
 			clusterEnv: "production",
 			want:       "production.is-share.appdomain.cloud",
-		},
-		{
-			name:       "prod",
-			clusterEnv: "prod",
-			want:       "production.is-share.appdomain.cloud",
+			wantErr:    false,
 		},
 		{
 			name:       "staging",
 			clusterEnv: "staging",
 			want:       "staging.is-share.appdomain.cloud",
+			wantErr:    false,
 		},
 		{
-			name:       "stage",
-			clusterEnv: "stage",
-			want:       "production.is-share.appdomain.cloud",
-		},
-		{
-			name:       "default (empty)",
+			name:       "empty - should error",
 			clusterEnv: "",
-			want:       "production.is-share.appdomain.cloud",
+			want:       "",
+			wantErr:    true,
 		},
 		{
-			name:       "unknown",
+			name:       "unknown - should error",
 			clusterEnv: "unknown",
-			want:       "production.is-share.appdomain.cloud",
+			want:       "",
+			wantErr:    true,
+		},
+		{
+			name:       "prod - should error (not supported)",
+			clusterEnv: "prod",
+			want:       "",
+			wantErr:    true,
+		},
+		{
+			name:       "stage - should error (not supported)",
+			clusterEnv: "stage",
+			want:       "",
+			wantErr:    true,
 		},
 	}
 
@@ -228,9 +235,24 @@ func TestGetCheckHost(t *testing.T) {
 						t.Logf("Failed to unset CLUSTER_ENV: %v", err)
 					}
 				}()
+			} else {
+				// Ensure CLUSTER_ENV is not set for empty test case
+				if err := os.Unsetenv("CLUSTER_ENV"); err != nil {
+					t.Logf("Failed to unset CLUSTER_ENV: %v", err)
+				}
 			}
 
-			result := getCheckHost(logger)
+			result, err := getCheckHost(logger)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("getCheckHost() expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("getCheckHost() unexpected error = %v", err)
+				return
+			}
 			if result != tt.want {
 				t.Errorf("getCheckHost() = %v, want %v", result, tt.want)
 			}
@@ -854,91 +876,6 @@ func TestGetTunnelPort(t *testing.T) {
 	}
 }
 
-// TestAllocatePort tests port allocation
-func TestAllocatePort(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-
-	tests := []struct {
-		name           string
-		initialPort    int
-		portRange      int
-		allocatedPorts map[string]int
-		volumeID       string
-		wantErr        bool
-	}{
-		{
-			name:           "allocate first port",
-			initialPort:    10001,
-			portRange:      10,
-			allocatedPorts: make(map[string]int),
-			volumeID:       "vol1",
-			wantErr:        false,
-		},
-		{
-			name:        "allocate with existing ports",
-			initialPort: 10001,
-			portRange:   10,
-			allocatedPorts: map[string]int{
-				"vol1": 10001,
-				"vol2": 10002,
-			},
-			volumeID: "vol3",
-			wantErr:  false,
-		},
-		{
-			name:        "no available ports",
-			initialPort: 10001,
-			portRange:   2,
-			allocatedPorts: map[string]int{
-				"vol1": 10001,
-				"vol2": 10002,
-			},
-			volumeID: "vol3",
-			wantErr:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Build portToVolume from allocatedPorts to maintain consistency
-			portToVolume := make(map[int]string)
-			for volID, port := range tt.allocatedPorts {
-				portToVolume[port] = volID
-			}
-
-			sm := &SimpleManager{
-				initialPort:    tt.initialPort,
-				portRange:      tt.portRange,
-				allocatedPorts: tt.allocatedPorts,
-				portToVolume:   portToVolume,
-				logger:         logger,
-			}
-
-			port, err := sm.allocatePort(tt.volumeID)
-			if tt.wantErr {
-				if err == nil {
-					t.Error("allocatePort() expected error, got nil")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("allocatePort() unexpected error = %v", err)
-				return
-			}
-
-			if port < tt.initialPort || port >= tt.initialPort+tt.portRange {
-				t.Errorf("allocatePort() port %d out of range [%d, %d)", port, tt.initialPort, tt.initialPort+tt.portRange)
-			}
-
-			// Verify port was added to map
-			if allocatedPort, exists := sm.allocatedPorts[tt.volumeID]; !exists || allocatedPort != port {
-				t.Errorf("Port not added to allocatedPorts correctly, got %d, exists=%v", allocatedPort, exists)
-			}
-		})
-	}
-}
-
 // TestIsPortAvailable tests port availability check
 func TestIsPortAvailable(t *testing.T) {
 	logger := zaptest.NewLogger(t)
@@ -1464,71 +1401,6 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 
 	if stillPending {
 		t.Error("pendingSIGHUP should be cleared after attempting forced SIGHUP")
-	}
-}
-
-// TestAllocatePort_AllPortsInUse tests allocation when all ports are in use
-func TestAllocatePort_AllPortsInUse(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-
-	// Create manager with very small port range
-	sm := &SimpleManager{
-		initialPort: 50000,
-		portRange:   2,
-		allocatedPorts: map[string]int{
-			"vol1": 50000,
-			"vol2": 50001,
-		},
-		portToVolume: map[int]string{
-			50000: "vol1",
-			50001: "vol2",
-		},
-		logger: logger,
-	}
-
-	// Try to allocate when all ports are used
-	_, err := sm.allocatePort("vol3")
-	if err == nil {
-		t.Error("allocatePort() expected error when all ports in use, got nil")
-	}
-	if !strings.Contains(err.Error(), "no available ports") {
-		t.Errorf("allocatePort() error = %v, want error containing 'no available ports'", err)
-	}
-}
-
-// TestAllocatePort_PortInUseBySystem tests allocation when port is in use by system
-func TestAllocatePort_PortInUseBySystem(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-
-	// Bind to a port to make it unavailable
-	listener, err := net.Listen("tcp", "127.0.0.1:50010")
-	if err != nil {
-		t.Fatalf("Failed to bind test port: %v", err)
-	}
-	defer func() {
-		if err := listener.Close(); err != nil {
-			t.Logf("Failed to close test listener: %v", err)
-		}
-	}()
-
-	sm := &SimpleManager{
-		initialPort:    50010,
-		portRange:      5,
-		allocatedPorts: make(map[string]int),
-		portToVolume:   make(map[int]string),
-		logger:         logger,
-	}
-
-	// Allocate port - should skip 50010 and use 50011
-	port, err := sm.allocatePort("vol1")
-	if err != nil {
-		t.Errorf("allocatePort() unexpected error = %v", err)
-	}
-	if port == 50010 {
-		t.Error("allocatePort() should not allocate port that's in use by system")
-	}
-	if port != 50011 {
-		t.Errorf("allocatePort() = %d, want 50011", port)
 	}
 }
 
