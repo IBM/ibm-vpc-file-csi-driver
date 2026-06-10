@@ -130,8 +130,8 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 	return allSupported
 }
 
-// getVolumeParameters this function get the parameters from storage class, this also validate
-// all parameters passed in storage class or not which are mandatory.
+// getVolumeParameters this function get the parameters from storage class and VolumeAttributesClass,
+// this also validates all parameters passed in storage class or not which are mandatory.
 func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) {
 	var encrypt = "undef"
 	var err error
@@ -140,7 +140,24 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	volume := &provider.Volume{}
 	volume.Name = &req.Name
 	volume.VPCVolume.AccessControlMode = SecurityGroup //Default mode is ENI/VNI
+
+	// Merge parameters from StorageClass and VolumeAttributesClass
+	// VolumeAttributesClass parameters take precedence over StorageClass parameters
+	allParameters := make(map[string]string)
+
+	// First, add StorageClass parameters
 	for key, value := range req.GetParameters() {
+		allParameters[key] = value
+	}
+
+	// Then, add/override with VolumeAttributesClass mutable parameters
+	for key, value := range req.GetMutableParameters() {
+		logger.Info("VolumeAttributesClass parameter detected", zap.String("key", key), zap.String("value", value))
+		allParameters[key] = value
+	}
+
+	// Process all merged parameters
+	for key, value := range allParameters {
 		switch key {
 		case Profile:
 			if utils.ListContainsSubstr(SupportedProfile, value) {
