@@ -131,18 +131,18 @@ func NewSimpleManager(logger *zap.Logger) (*SimpleManager, error) {
 	caFile, err := detectCABundle(logger)
 	if err != nil || caFile == "" {
 		if err != nil {
-			return nil, fmt.Errorf("failed to detect CA bundle: %w", err)
+			return nil, fmt.Errorf("failed to detect CA bundle: %w, please open support ticket", err)
 		}
-		return nil, fmt.Errorf("failed to detect CA bundle: empty CA bundle path")
+		return nil, fmt.Errorf("failed to detect CA bundle: empty CA bundle path, please open support ticket")
 	}
 
 	// Determine checkHost based on CLUSTER_ENV environment variable
 	checkHost, err := getClusterEnv(logger)
 	if err != nil || checkHost == "" {
 		if err != nil {
-			return nil, fmt.Errorf("failed to determine checkHost: %w", err)
+			return nil, fmt.Errorf("failed to determine checkHost: %w, please open support ticket", err)
 		}
-		return nil, fmt.Errorf("failed to determine checkHost: empty checkHost")
+		return nil, fmt.Errorf("failed to determine checkHost: empty checkHost, please open support ticket")
 	}
 
 	// Note: servicesDir is created by Kubernetes hostPath with DirectoryOrCreate
@@ -166,7 +166,7 @@ func NewSimpleManager(logger *zap.Logger) (*SimpleManager, error) {
 		logger.Warn("Failed to rebuild port allocation map", zap.Error(err))
 	}
 
-	logger.Info("SimpleManager initialized with hardcoded defaults and SIGHUP debouncing",
+	logger.Info("SimpleManager initialized",
 		zap.String("servicesDir", servicesDir),
 		zap.Int("initialPort", initialPort),
 		zap.Int("portRange", portRange),
@@ -266,7 +266,7 @@ func (sm *SimpleManager) recoverExistingTunnels() error {
 			continue
 		}
 
-		if port > 0 {
+		if sm.isPortValid(port) {
 			sm.allocatedPorts[volumeID] = port
 			sm.portToVolume[port] = volumeID
 			sm.logger.Info("Recovered tunnel",
@@ -322,10 +322,8 @@ func (sm *SimpleManager) extractPortFromConfigFile(configPath string) (int, erro
 			}
 
 			// Validate port is within the manager's supported allocation range
-			minPort := sm.initialPort
-			maxPort := sm.initialPort + sm.portRange - 1
-			if port < minPort || port > maxPort {
-				return 0, fmt.Errorf("line %d: invalid port %d (supported range is %d-%d)", lineNum, port, minPort, maxPort)
+			if !sm.isPortValid(port) {
+				return 0, fmt.Errorf("line %d: invalid port %d (supported range is %d-%d)", lineNum, port, sm.initialPort, sm.initialPort+sm.portRange-1)
 			}
 
 			// Return immediately after finding the first valid port
@@ -865,14 +863,17 @@ func (sm *SimpleManager) findAvailablePort(volumeID string) (int, error) {
 	return 0, fmt.Errorf("no available ports in range %d-%d (all ports in use or allocated)", sm.initialPort, sm.initialPort+sm.portRange-1)
 }
 
+// isPortValid checks if a port is within the manager's supported allocation range
+func (sm *SimpleManager) isPortValid(port int) bool {
+	return port >= sm.initialPort && port <= sm.initialPort+sm.portRange-1
+}
+
 // isPortAvailable checks if a port is actually available on the system
 // Uses DialContext (connection attempt) instead of Listen (bind) for faster check with timeout
 // This prevents conflicts with other processes while being more efficient
 func (sm *SimpleManager) isPortAvailable(port int) bool {
 	// Fast validation of the manager's supported port range
-	minPort := sm.initialPort
-	maxPort := sm.initialPort + sm.portRange - 1
-	if port < minPort || port > maxPort {
+	if !sm.isPortValid(port) {
 		return false
 	}
 
