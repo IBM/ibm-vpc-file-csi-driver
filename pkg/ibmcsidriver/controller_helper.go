@@ -382,6 +382,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.Region = zones[utils.NodeRegionLabel]
 		volume.Az = zones[utils.NodeZoneLabel]
 	}
+
 	// if EIT enabled
 	if volume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == DP2Profile {
 		volume.TransitEncryption = IPSEC
@@ -389,16 +390,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.TransitEncryption = STUNNEL
 	} else { //Some default value has to be set
 		volume.TransitEncryption = NONE
-	}
-
-	// if EIT enabled
-	if volume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == DP2Profile {
-		volume.TransitEncryption = IPSEC
-	} else if volume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == RFSProfile {
-		volume.TransitEncryption = "none"
-		return volume, fmt.Errorf("encryption in transit is not supported for rfs profile")
-	} else {
-		volume.TransitEncryption = "none" // default value
 	}
 
 	return volume, nil
