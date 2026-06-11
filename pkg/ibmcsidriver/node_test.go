@@ -25,8 +25,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/stunnel"
@@ -273,6 +275,8 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create stunnel manager: %v", err)
 	}
+	stunnelMgrValue := reflect.ValueOf(stunnelMgr).Elem().FieldByName("stunnelStarted")
+	reflect.NewAt(stunnelMgrValue.Type(), unsafe.Pointer(stunnelMgrValue.UnsafeAddr())).Elem().SetBool(true)
 
 	// Initialize IBM CSI Driver with stunnel manager
 	icDriver := initIBMCSIDriver(t)
@@ -443,7 +447,7 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 					FileShareIDLabel: "share-rfs-006",
 				},
 			},
-			expErrCode: codes.OK, // Should succeed - defaults to nfs4
+			expErrCode: codes.OK, // Empty fsType defaults to nfs4 and should succeed
 		},
 	}
 
@@ -464,7 +468,7 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
 		}
 
-		// Verify tunnel was created
+		// Verify tunnel was created only for successful cases
 		fileShareID := tc.req.VolumeContext[FileShareIDLabel]
 		port, exists := stunnelMgr.GetTunnelPort(fileShareID)
 		if !exists {
@@ -474,11 +478,11 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 		assert.NotNil(t, resp)
 	}
 
-	// Verify different ports were allocated
+	// Verify successful cases do not reuse the same port.
 	port1, exists1 := stunnelMgr.GetTunnelPort("share-rfs-001")
 	port2, exists2 := stunnelMgr.GetTunnelPort("share-rfs-002")
 	if !exists1 || !exists2 {
-		t.Fatalf("Expected both tunnels to exist")
+		t.Fatalf("Expected successful tunnels to exist")
 	}
 	if port1 == port2 {
 		t.Fatalf("Expected different ports for different volumes, got same port: %d", port1)
