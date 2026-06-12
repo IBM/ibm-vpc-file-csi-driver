@@ -282,7 +282,11 @@ func (sm *SimpleManager) extractPortFromConfigFile(configPath string) (int, erro
 	if err != nil {
 		return 0, fmt.Errorf("failed to open config file %s: %w", configPath, err)
 	}
-	defer file.Close() //nolint:errcheck // Best effort close after read-only config parsing
+	defer func() { // we have to handle the linter error file.close
+		if closeErr := file.Close(); closeErr != nil {
+			sm.logger.Warn("Failed to close config file", zap.String("path", configPath), zap.Error(closeErr))
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	lineNum := 0
@@ -415,7 +419,7 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 			// Rollback: remove port allocation and config
 			delete(sm.allocatedPorts, volumeID)
 			delete(sm.portToVolume, port)
-			os.Remove(configPath) //nolint:errcheck // Best effort rollback cleanup
+			_ = os.Remove(configPath) // #nosec G104: Best effort close, error not actionable
 			return 0, fmt.Errorf("stunnel not running after %v wait, retry on mount failure", StunnelStartupWaitTime)
 		}
 
@@ -785,8 +789,8 @@ func (sm *SimpleManager) isPortAvailable(port int) bool {
 
 	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err == nil {
-		conn.Close() //nolint:errcheck // Best effort close for short-lived probe connection
-		return false // Port in use
+		_ = conn.Close() // #nosec G104: Best effort close, error not actionable
+		return false     // Port in use
 	}
 
 	// Check for ECONNREFUSED (port available)
