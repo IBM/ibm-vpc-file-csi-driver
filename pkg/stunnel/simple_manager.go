@@ -282,7 +282,7 @@ func (sm *SimpleManager) extractPortFromConfigFile(configPath string) (int, erro
 	if err != nil {
 		return 0, fmt.Errorf("failed to open config file %s: %w", configPath, err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck // Best effort close after read-only config parsing
 
 	scanner := bufio.NewScanner(file)
 	lineNum := 0
@@ -415,7 +415,7 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 			// Rollback: remove port allocation and config
 			delete(sm.allocatedPorts, volumeID)
 			delete(sm.portToVolume, port)
-			os.Remove(configPath) // Best effort cleanup
+			os.Remove(configPath) //nolint:errcheck // Best effort rollback cleanup
 			return 0, fmt.Errorf("stunnel not running after %v wait, retry on mount failure", StunnelStartupWaitTime)
 		}
 
@@ -432,8 +432,14 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 			zap.Int("port", port))
 		sm.scheduleDebouncedSIGHUP(requestID)
 	} else {
-		// Stunnel just confirmed running
+		// Stunnel just confirmed running this case will be hit if csi node server pod is restarted, so we need to restore the state
 		sm.stunnelStarted = true
+		// Stunnel already running, schedule debounced SIGHUP
+		sm.logger.Info("Scheduling debounced SIGHUP",
+			zap.String("RequestID", requestID),
+			zap.String("volumeID", volumeID),
+			zap.Int("port", port))
+		sm.scheduleDebouncedSIGHUP(requestID)
 	}
 
 	return port, nil
@@ -779,7 +785,7 @@ func (sm *SimpleManager) isPortAvailable(port int) bool {
 
 	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err == nil {
-		conn.Close()
+		conn.Close() //nolint:errcheck // Best effort close for short-lived probe connection
 		return false // Port in use
 	}
 
