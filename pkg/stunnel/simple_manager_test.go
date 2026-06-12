@@ -1157,7 +1157,7 @@ func TestEnsureTunnel_StunnelNotStarted(t *testing.T) {
 	if err == nil {
 		t.Fatal("EnsureTunnel() expected error when stunnel does not start, got nil")
 	}
-	if !strings.Contains(err.Error(), "stunnel is still not running after waiting") {
+	if !strings.Contains(err.Error(), "stunnel not running after") {
 		t.Fatalf("EnsureTunnel() error = %v, want startup wait failure", err)
 	}
 

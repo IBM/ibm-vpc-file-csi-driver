@@ -155,17 +155,9 @@ var validHostnameRegex = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a
 
 // validateNFSServer validates that the server is a valid hostname or IP address
 func validateNFSServer(server string) error {
-	// Try parsing as IP address first (IPv4 or IPv6)
+	// Try parsing as IP address first
 	if ip := net.ParseIP(server); ip != nil {
 		return nil // Valid IP address
-	}
-
-	// Check if it's an IPv6 address with brackets (shouldn't happen after split, but be safe)
-	if strings.HasPrefix(server, "[") && strings.HasSuffix(server, "]") {
-		ipv6 := server[1 : len(server)-1]
-		if ip := net.ParseIP(ipv6); ip != nil {
-			return nil
-		}
 	}
 
 	// Validate as hostname (RFC 1123)
