@@ -210,40 +210,6 @@ func validateExportPath(path string) error {
 	return nil
 }
 
-// validateNFSMountOptions validates that required NFS mount options are present for stunnel
-// Returns error if required options (vers, proto) are missing
-func validateNFSMountOptions(options []string) error {
-	if len(options) == 0 {
-		return fmt.Errorf("mount options are required for RFS with stunnel (must include 'vers' and 'proto')")
-	}
-
-	hasVers := false
-	hasProto := false
-
-	for _, opt := range options {
-		if strings.HasPrefix(opt, "vers=") || strings.HasPrefix(opt, "nfsvers=") {
-			hasVers = true
-		}
-		if strings.HasPrefix(opt, "proto=") {
-			hasProto = true
-		}
-	}
-
-	var missingOpts []string
-	if !hasVers {
-		missingOpts = append(missingOpts, "vers")
-	}
-	if !hasProto {
-		missingOpts = append(missingOpts, "proto")
-	}
-
-	if len(missingOpts) > 0 {
-		return fmt.Errorf("missing required mount options for RFS with stunnel: %v. Storage class must include these in mountOptions", missingOpts)
-	}
-
-	return nil
-}
-
 var _ csi.NodeServer = &CSINodeServer{}
 
 // NodePublishVolume ...
@@ -333,26 +299,8 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 			zap.String("volumeID", volumeID),
 			zap.String("nfsServer", source))
 
-		// Validate fsType for RFS with stunnel - must be nfs4 if provided
-		if mnt.FsType != "" && mnt.FsType != nfs4FsType {
-			err := fmt.Errorf("invalid fsType '%s' for RFS profile with encryption-in-transit, must be '%s'", mnt.FsType, nfs4FsType)
-			ctxLogger.Error("Invalid fsType for RFS with stunnel",
-				zap.String("volumeID", volumeID),
-				zap.String("fsType", mnt.FsType),
-				zap.Error(err))
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
-		}
 		// Set fsType to nfs4 for stunnel
 		fsType = nfs4FsType
-
-		// Validate that storage class provides required NFS mount options
-		if err := validateNFSMountOptions(options); err != nil {
-			ctxLogger.Error("Invalid mount options for RFS with stunnel",
-				zap.String("volumeID", volumeID),
-				zap.Strings("options", options),
-				zap.Error(err))
-			return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
-		}
 
 		if csiNS.StunnelMgr == nil {
 			err := fmt.Errorf("stunnel manager is not initialized - this indicates a configuration error. Troubleshooting steps: 1) Check node server pod logs for stunnel initialization errors, 2) Verify OS_TYPE environment variable is set correctly (RHCOS/RHEL/Ubuntu), 3) Verify CLUSTER_ENV is set (production/staging), 4) Ensure CA bundle file exists at expected path, 5) Restart the node server pod to retry initialization")

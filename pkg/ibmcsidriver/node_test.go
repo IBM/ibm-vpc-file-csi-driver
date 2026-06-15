@@ -352,7 +352,7 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 					AccessType: &csi.VolumeCapability_Mount{
 						Mount: &csi.VolumeCapability_MountVolume{
 							FsType:     "nfs4",
-							MountFlags: []string{}, // Missing required mount options
+							MountFlags: []string{}, // Missing required mount options - validation happens at PVC creation time
 						},
 					},
 					AccessMode: &csi.VolumeCapability_AccessMode{
@@ -366,37 +366,10 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 					FileShareIDLabel: "share-rfs-003",
 				},
 			},
-			expErrCode: codes.InvalidArgument, // Should fail - missing required mount options
+			expErrCode: codes.OK, // Should succeed - validation happens at PVC creation time
 		},
 		{
-			name: "RFS profile with invalid fsType",
-			req: &csi.NodePublishVolumeRequest{
-				VolumeId:          "test-volume-rfs-004",
-				TargetPath:        "/mnt/test4",
-				StagingTargetPath: defaultSourcePath,
-				Readonly:          false,
-				VolumeCapability: &csi.VolumeCapability{
-					AccessType: &csi.VolumeCapability_Mount{
-						Mount: &csi.VolumeCapability_MountVolume{
-							FsType:     "ext4", // Invalid fsType for RFS with stunnel
-							MountFlags: []string{"vers=4.1", "proto=tcp"},
-						},
-					},
-					AccessMode: &csi.VolumeCapability_AccessMode{
-						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
-					},
-				},
-				VolumeContext: map[string]string{
-					NFSServerPath:    "10.240.0.8:/share999",
-					IsEITEnabled:     "true",
-					ProfileLabel:     "rfs",
-					FileShareIDLabel: "share-rfs-004",
-				},
-			},
-			expErrCode: codes.InvalidArgument, // Should fail - invalid fsType
-		},
-		{
-			name: "RFS profile with fsType 'nfs' instead of 'nfs4'",
+			name: "RFS profile with fsType 'nfs' instead of 'nfs4' (auto-corrected)",
 			req: &csi.NodePublishVolumeRequest{
 				VolumeId:          "test-volume-rfs-005",
 				TargetPath:        "/mnt/test5",
@@ -405,7 +378,7 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 				VolumeCapability: &csi.VolumeCapability{
 					AccessType: &csi.VolumeCapability_Mount{
 						Mount: &csi.VolumeCapability_MountVolume{
-							FsType:     "nfs", // Should fail - must be nfs4 for stunnel
+							FsType:     "nfs", // Will be auto-corrected to nfs4 by node server
 							MountFlags: []string{"vers=4.1", "proto=tcp"},
 						},
 					},
@@ -420,7 +393,7 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 					FileShareIDLabel: "share-rfs-005",
 				},
 			},
-			expErrCode: codes.InvalidArgument, // Should fail - must be nfs4
+			expErrCode: codes.OK, // Node server auto-corrects fsType to nfs4
 		},
 		{
 			name: "RFS profile with empty fsType (defaults to nfs4)",
