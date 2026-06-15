@@ -277,13 +277,22 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	// Add initialOnwer if UID/GID is given as parameter.
+	// Add initialOwner if UID/GID is given as parameter.
 	// Default will be set to 0 i.e root which even if not set will be defaulted to 0 by the VPC RIAAS
-	if uid != 0 || gid != 0 {
+	// NOTE: Do NOT set InitialOwner when creating from snapshot, as it will be inherited from source
+	// Check if this is a snapshot restore by looking at VolumeContentSource
+	volumeSource := req.GetVolumeContentSource()
+	isSnapshotRestore := volumeSource != nil && volumeSource.GetSnapshot() != nil
+
+	if (uid != 0 || gid != 0) && !isSnapshotRestore {
 		logger.Info("Adding initial owner...", zap.Any("uid", uid), zap.Any("gid", gid))
 		volume.InitialOwner = &provider.InitialOwner{
 			GroupID: int64(gid),
 			UserID:  int64(uid),
 		}
+	} else if isSnapshotRestore && (uid != 0 || gid != 0) {
+		logger.Info("Skipping initial owner for snapshot restore - will be inherited from source snapshot",
+			zap.Any("requested_uid", uid), zap.Any("requested_gid", gid))
 	}
 
 	if volume.VPCVolume.Profile == nil {
