@@ -1569,22 +1569,22 @@ func TestValidateNFSMountOptions(t *testing.T) {
 		{
 			name:          "Empty options - should fail",
 			options:       []string{},
-			expectedError: "mount options are required for RFS with stunnel",
+			expectedError: "mount options are required for RFS with encryption-in-transit",
 		},
 		{
 			name:          "Missing vers option",
 			options:       []string{"proto=tcp", "rsize=1048576"},
-			expectedError: "missing required mount options for RFS with stunnel: [vers]",
+			expectedError: "missing required mount options for RFS with encryption-in-transit: [vers]",
 		},
 		{
 			name:          "Missing proto option",
 			options:       []string{"vers=4.1", "rsize=1048576"},
-			expectedError: "missing required mount options for RFS with stunnel: [proto]",
+			expectedError: "missing required mount options for RFS with encryption-in-transit: [proto]",
 		},
 		{
 			name:          "Missing both vers and proto",
 			options:       []string{"rsize=1048576", "wsize=1048576"},
-			expectedError: "missing required mount options for RFS with stunnel: [vers proto]",
+			expectedError: "missing required mount options for RFS with encryption-in-transit: [vers proto]",
 		},
 		{
 			name:          "Valid with additional options",
@@ -1703,7 +1703,7 @@ func TestConfigureEncryptionInTransit(t *testing.T) {
 				},
 			},
 			expectedTransitEncrypt: STUNNEL,
-			expectedError:          "missing required mount options for RFS with stunnel",
+			expectedError:          "missing required mount options for RFS with encryption-in-transit",
 		},
 		{
 			name: "EIT disabled - should set NONE",

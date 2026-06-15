@@ -413,10 +413,10 @@ func configureEncryptionInTransit(logger *zap.Logger, volume *provider.Volume, v
 				continue
 			}
 
-			// Validate fsType for RFS with stunnel - must be nfs4 if provided
+			// Validate fsType for RFS with encryption-in-transit - must be nfs4 if provided
 			if len(mnt.FsType) != 0 && mnt.FsType != nfs4FsType {
 				err := fmt.Errorf("invalid fsType '%s' for RFS profile with encryption-in-transit, must be '%s'", mnt.FsType, nfs4FsType)
-				logger.Error("Invalid fsType for RFS with stunnel",
+				logger.Error("Invalid fsType for RFS with encryption-in-transit",
 					zap.String("fsType", mnt.FsType),
 					zap.Error(err))
 				return err
@@ -424,7 +424,7 @@ func configureEncryptionInTransit(logger *zap.Logger, volume *provider.Volume, v
 
 			// Validate that storage class provides required NFS mount options
 			if err := validateNFSMountOptions(mnt.MountFlags); err != nil {
-				logger.Error("Invalid mount options for RFS with stunnel",
+				logger.Error("Invalid mount options for RFS with encryption-in-transit",
 					zap.Strings("options", mnt.MountFlags),
 					zap.Error(err))
 				return err
@@ -436,11 +436,11 @@ func configureEncryptionInTransit(logger *zap.Logger, volume *provider.Volume, v
 	return nil
 }
 
-// validateNFSMountOptions validates that required NFS mount options are present for stunnel
+// validateNFSMountOptions validates that required NFS mount options are present for encryption-in-transit
 // Returns error if required options (vers, proto) are missing
 func validateNFSMountOptions(options []string) error {
 	if len(options) == 0 {
-		return fmt.Errorf("mount options are required for RFS with stunnel (must include 'vers' and 'proto')")
+		return fmt.Errorf("mount options are required for RFS with encryption-in-transit (must include 'vers' and 'proto')")
 	}
 
 	hasVers := false
@@ -464,7 +464,7 @@ func validateNFSMountOptions(options []string) error {
 	}
 
 	if len(missingOpts) > 0 {
-		return fmt.Errorf("missing required mount options for RFS with stunnel: %v. Storage class must include these in mountOptions", missingOpts)
+		return fmt.Errorf("missing required mount options for RFS with encryption-in-transit: %v. Storage class must include these in mountOptions", missingOpts)
 	}
 
 	return nil

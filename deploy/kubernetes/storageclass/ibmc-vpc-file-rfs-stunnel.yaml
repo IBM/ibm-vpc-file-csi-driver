@@ -23,6 +23,17 @@ parameters:
   uid: "0"             # The initial user identifier for the file share, by default its root.
   gid: "0"             # The initial group identifier for the file share, by default its root.
   classVersion: "1"
+# Mount options required for RFS with Stunnel (Encryption in Transit)
+# Note: fsType must be specified as "nfs4" in the PVC's volumeMode or will default to nfs4 for RFS
+mountOptions:
+  - vers=4.1      # NFS version 4.1 (required for RFS with stunnel)
+  - proto=tcp     # Use TCP protocol (required for stunnel)
+  - hard          # Hard mount (recommended for production)
+  - sec=sys       # Security flavor (required)
+  - timeo=600     # Timeout value in deciseconds (60 seconds)
+  - retrans=2     # Number of retransmissions
+  - rsize=1048576 # Read buffer size (1MB)
+  - wsize=1048576 # Write buffer size (1MB)
 reclaimPolicy: "Delete"
 allowVolumeExpansion: true
 ---
