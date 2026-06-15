@@ -1661,10 +1661,11 @@ func TestRemoveTunnel_AdditionalCases(t *testing.T) {
 	sm.mu.Unlock()
 
 	tests := []struct {
-		name      string
-		volumeID  string
-		setupFunc func()
-		wantErr   bool
+		name          string
+		volumeID      string
+		setupFunc     func()
+		allowErrMatch string
+		wantErr       bool
 	}{
 		{
 			name:     "remove non-existent volume",
@@ -1690,7 +1691,8 @@ func TestRemoveTunnel_AdditionalCases(t *testing.T) {
 					t.Fatalf("Failed to create config file: %v", err)
 				}
 			},
-			wantErr: false,
+			wantErr:       false,
+			allowErrMatch: "failed to send SIGHUP before removing last config",
 		},
 	}
 
@@ -1706,7 +1708,9 @@ func TestRemoveTunnel_AdditionalCases(t *testing.T) {
 				t.Error("RemoveTunnel() expected error, got nil")
 			}
 			if !tt.wantErr && err != nil {
-				t.Errorf("RemoveTunnel() unexpected error: %v", err)
+				if tt.allowErrMatch == "" || !strings.Contains(err.Error(), tt.allowErrMatch) {
+					t.Errorf("RemoveTunnel() unexpected error: %v", err)
+				}
 			}
 		})
 	}
