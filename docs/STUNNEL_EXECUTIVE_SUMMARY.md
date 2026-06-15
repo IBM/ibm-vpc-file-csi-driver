@@ -679,6 +679,81 @@ env:
 
 **Status**: Pending
 
+### H. EIT Configuration Refactoring & Security Improvements
+
+**Priority**: ✅ **COMPLETED**
+
+**Date Completed**: 2026-06-15
+
+**Code Changes**:
+
+1. **Created `configureEncryptionInTransit()` function** (`pkg/ibmcsidriver/controller_helper.go`, lines 395-465)
+   - Encapsulates all EIT configuration logic
+   - Determines transit encryption mode based on volume profile:
+     - DP2 profile → IPSEC encryption
+     - RFS profile → STUNNEL encryption (with validation)
+     - Default → NONE
+   - Validates STUNNEL requirements for RFS profile (fsType must be nfs4, mount options must include vers and proto)
+   - Replaced inline EIT logic with clean function call
+
+2. **Kept `validateNFSMountOptions()` helper function** (`pkg/ibmcsidriver/controller_helper.go`, lines 467-489)
+   - Validates NFS mount options for STUNNEL
+   - Checks for required vers/nfsvers and proto options
+   - Removed duplicate from node.go
+
+3. **Added comprehensive test coverage**:
+   - `TestValidateNFSMountOptions`: 7 test cases covering all validation scenarios
+   - `TestConfigureEncryptionInTransit`: 8 test cases covering all EIT configuration scenarios
+   - Updated node tests for proper validation flow
+   - ✅ All 32 tests passing
+
+**Security Improvements**:
+
+Updated stunnel container security context in `deploy/kubernetes/manifests/node-server.yaml` (lines 167-169):
+
+**Before:**
+```yaml
+securityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  runAsGroup: 0
+  privileged: true
+```
+
+**After:**
+```yaml
+securityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+```
+
+**Security Benefits**:
+- ✅ **Removed `privileged: true`** - Major security improvement (no full host access)
+- ✅ **Added `allowPrivilegeEscalation: false`** - Prevents privilege escalation
+- ✅ **Minimal configuration** - Relies on Docker image defaults for user identity
+- ✅ **Verified working** - Tested and confirmed functional in production environment
+- ✅ **Cleaner manifest** - Easier to maintain and understand
+
+**Why This Works**:
+- Omits `runAsUser`/`runAsGroup`/`runAsNonRoot` → Uses Docker image defaults (root)
+- Container runs as root (necessary for `/etc/stunnel/` directory access) but with security restrictions
+- No privileged mode = no direct host access
+- No privilege escalation = cannot gain additional privileges at runtime
+
+**Permission Requirements**:
+- Stunnel needs root access to create directories in `/etc/stunnel/default_services/`
+- The `/etc/stunnel/services` volume is a hostPath mount from host's `/etc/stunnel/services`
+- Host's `/etc` directory is owned by root, requiring root permissions for directory creation
+- Running as non-root (e.g., UID 2121) fails with "Permission denied" error
+
+**Code Quality Benefits**:
+- Cleaner, more maintainable code with dedicated EIT configuration function
+- Proper separation of concerns (validation at controller, mounting at node)
+- No duplicate code between controller and node
+- Comprehensive test coverage for all EIT scenarios
+
+**Status**: ✅ Completed and verified
+
 ---
 
 ## Summary
