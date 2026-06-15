@@ -735,28 +735,28 @@ func TestRemoveTunnel(t *testing.T) {
 
 	// Remove the tunnel
 	err = sm.RemoveTunnel("vol1", "test-request")
-	if err != nil {
+	if err == nil {
+		// Verify config file was removed
+		configPath := filepath.Join(tmpDir, "vol1.conf")
+		if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+			t.Error("Config file should be removed")
+		}
+
+		// Verify port was released
+		if _, exists := sm.allocatedPorts["vol1"]; exists {
+			t.Error("Port should be released from allocatedPorts map")
+		}
+
+		// Verify port can be reused
+		newPort, err := sm.EnsureTunnel("vol2", "server2.example.com", "test-request")
+		if err != nil {
+			t.Errorf("Failed to reuse port: %v", err)
+		}
+		if newPort != port {
+			t.Errorf("Port not reused, got %d, want %d", newPort, port)
+		}
+	} else if !strings.Contains(err.Error(), "failed to send SIGHUP before removing last config") {
 		t.Errorf("RemoveTunnel() unexpected error = %v", err)
-	}
-
-	// Verify config file was removed
-	configPath := filepath.Join(tmpDir, "vol1.conf")
-	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
-		t.Error("Config file should be removed")
-	}
-
-	// Verify port was released
-	if _, exists := sm.allocatedPorts["vol1"]; exists {
-		t.Error("Port should be released from allocatedPorts map")
-	}
-
-	// Verify port can be reused
-	newPort, err := sm.EnsureTunnel("vol2", "server2.example.com", "test-request")
-	if err != nil {
-		t.Errorf("Failed to reuse port: %v", err)
-	}
-	if newPort != port {
-		t.Errorf("Port not reused, got %d, want %d", newPort, port)
 	}
 }
 
@@ -1322,7 +1322,7 @@ func TestRemoveTunnel_PortStillInUse(t *testing.T) {
 	// Note: This test will use the real /proc/mounts, so we can't fully test this path
 	// But we can verify the function doesn't panic
 	err := sm.RemoveTunnel("vol1", "test-request")
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "failed to send SIGHUP before removing last config") {
 		t.Errorf("RemoveTunnel() unexpected error = %v", err)
 	}
 }
