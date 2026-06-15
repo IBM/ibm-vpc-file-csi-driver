@@ -165,10 +165,8 @@ spec:
               readOnly: true
         - name: stunnel
           securityContext:
-            runAsNonRoot: false
-            runAsUser: 0
-            runAsGroup: 0
-            privileged: true
+            allowPrivilegeEscalation: false
+            privileged: false
           image: genctl-acadia/denali-stunnel:latest
           imagePullPolicy: Always
           args:
