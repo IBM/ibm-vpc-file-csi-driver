@@ -116,10 +116,10 @@ spec:
           resources:
             limits:
               cpu: 200m
-              memory: 512Mi
+              memory: 250Mi
             requests:
               cpu: 20m
-              memory: 128Mi
+              memory: 50Mi
           ports:
             - name: healthz
               containerPort: 9808
@@ -179,10 +179,10 @@ spec:
           resources:
             limits:
               cpu: 200m
-              memory: 250Mi
+              memory: 512Mi
             requests:
               cpu: 20m
-              memory: 50Mi
+              memory: 128Mi
           volumeMounts:
             - name: stunnel-services
               mountPath: /etc/stunnel/services

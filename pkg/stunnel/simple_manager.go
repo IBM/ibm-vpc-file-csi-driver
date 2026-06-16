@@ -428,17 +428,11 @@ func (sm *SimpleManager) EnsureTunnel(volumeID, nfsServer, requestID string) (in
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
 			zap.Int("port", port))
-	} else if sm.stunnelStarted {
-		// Stunnel already running, schedule debounced SIGHUP
-		sm.logger.Info("Scheduling debounced SIGHUP",
-			zap.String("RequestID", requestID),
-			zap.String("volumeID", volumeID),
-			zap.Int("port", port))
-		sm.scheduleDebouncedSIGHUP(requestID)
 	} else {
-		// Stunnel just confirmed running this case will be hit if csi node server pod is restarted, so we need to restore the state
+		// Stunnel already running or just confirmed running
+		// Set flag if not already set (handles CSI node server pod restart case)
 		sm.stunnelStarted = true
-		// Stunnel already running, schedule debounced SIGHUP
+		// Schedule debounced SIGHUP
 		sm.logger.Info("Scheduling debounced SIGHUP",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
