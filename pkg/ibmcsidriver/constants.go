@@ -163,9 +163,6 @@ const (
 	// EncryptionTransitMode ...
 	EncryptionTransitMode = "user_managed"
 
-	// IPSEC ...
-	IPSEC = "ipsec"
-
 	// VPC ...
 	VPC = "vpc"
 

@@ -383,16 +383,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.Az = zones[utils.NodeZoneLabel]
 	}
 
-	// if EIT enabled
-	if volume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == DP2Profile {
-		volume.TransitEncryption = IPSEC
-	} else if volume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == RFSProfile {
-		volume.TransitEncryption = "none"
-		return volume, fmt.Errorf("encryption in transit is not supported for rfs profile")
-	} else {
-		volume.TransitEncryption = "none" // default value
-	}
-
 	return volume, nil
 }
 
@@ -709,7 +699,7 @@ func createCSIVolumeResponse(vol provider.Volume, volAccessPointResponse provide
 	labels[NFSServerPath] = volAccessPointResponse.MountPath
 
 	// Update label in case EIT is enabled
-	if vol.TransitEncryption == IPSEC {
+	if vol.TransitEncryption == EncryptionTransitMode {
 		labels[IsEITEnabled] = TrueStr
 	}
 
