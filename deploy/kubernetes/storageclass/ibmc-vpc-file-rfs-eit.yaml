@@ -1,7 +1,7 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: ibmc-vpc-file-rfs-stunnel
+  name: ibmc-vpc-file-rfs-eit
   labels:
     app.kubernetes.io/name: ibm-vpc-file-csi-driver
 provisioner: vpc.file.csi.ibm.io
@@ -26,44 +26,9 @@ parameters:
 # Mount options required for RFS with Stunnel (Encryption in Transit)
 # Note: fsType must be specified as "nfs4" in the PVC's volumeMode or will default to nfs4 for RFS
 mountOptions:
-  - vers=4.1      # NFS version 4.1 (required for RFS with stunnel)
+  - nfsvers=4.1   # NFS version 4.1 (required for RFS with stunnel)
   - proto=tcp     # Use TCP protocol (required for stunnel)
   - hard          # Hard mount (recommended for production)
   - sec=sys       # Security flavor (required)
-  - timeo=600     # Timeout value in deciseconds (60 seconds)
-  - retrans=2     # Number of retransmissions
-  - rsize=1048576 # Read buffer size (1MB)
-  - wsize=1048576 # Write buffer size (1MB)
 reclaimPolicy: "Delete"
 allowVolumeExpansion: true
----
-# Note: RFS profile does not support zone parameter - shares are accessible across all zones in the region
-# Note: RFS profile does not support iops parameter - use throughput instead
-# 
-# Throughput ranges for RFS profile:
-# - Minimum: 25 MB/s
-# - Maximum: 8192 MB/s
-#
-# Stunnel Configuration:
-# The CSI driver will automatically create per-volume Stunnel tunnels for RFS shares with EIT enabled.
-# Stunnel configuration can be customized via environment variables in the node server DaemonSet:
-#
-# Environment Variables:
-# - STUNNEL_BASE_PORT: Starting port for tunnel allocation (default: 20000)
-# - STUNNEL_PORT_RANGE: Number of ports available (default: 10000)
-# - STUNNEL_CONFIG_DIR: Directory for configurations (default: /var/lib/ibm-csi-driver/stunnel)
-# - STUNNEL_CA_FILE: CA bundle path (default: /etc/pki/tls/certs/ca-bundle.crt)
-# - STUNNEL_NFS_PORT: NFS port for RFS shares (default: 20049)
-# - STUNNEL_ENVIRONMENT: Environment for hostname verification (default: production, options: staging/production)
-# - STUNNEL_HEALTH_CHECK_INTERVAL: Health check interval (default: 30s)
-#
-# Example DaemonSet environment configuration:
-# env:
-#   - name: STUNNEL_BASE_PORT
-#     value: "20000"
-#   - name: STUNNEL_PORT_RANGE
-#     value: "10000"
-#   - name: STUNNEL_ENVIRONMENT
-#     value: "production"
-
-# Made with Bob
