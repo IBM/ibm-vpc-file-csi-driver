@@ -672,9 +672,14 @@ func TestEnsureTunnel_Concurrent(t *testing.T) {
 
 	wg.Wait()
 
-	// Wait for debounce timer to complete to avoid race condition
-	// The timer is set to 100ms, so wait 150ms to be safe
-	time.Sleep(150 * time.Millisecond)
+	// Stop the debounce timer to prevent it from firing after test completes
+	sm.debounceMu.Lock()
+	if sm.debounceTimer != nil {
+		sm.debounceTimer.Stop()
+		sm.debounceTimer = nil
+	}
+	sm.pendingSIGHUP = false
+	sm.debounceMu.Unlock()
 
 	// All should succeed with same port
 	firstPort := ports[0]
