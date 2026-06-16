@@ -383,91 +383,16 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		volume.Az = zones[utils.NodeZoneLabel]
 	}
 
-	// Configure EIT (Encryption in Transit) based on profile
-	if err := configureEncryptionInTransit(logger, volume, volumeCapabilities); err != nil {
-		return volume, err
-	}
-
-	return volume, nil
-}
-
-// configureEncryptionInTransit configures encryption in transit settings based on profile and validates requirements
-func configureEncryptionInTransit(logger *zap.Logger, volume *provider.Volume, volumeCapabilities []*csi.VolumeCapability) error {
-	// Determine the transit encryption mode based on profile
+	// Set EIT flag
 	if volume.VPCVolume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == DP2Profile {
-		// DP2 profile uses IPSEC for encryption in transit
 		volume.VPCVolume.TransitEncryption = IPSEC
 	} else if volume.VPCVolume.TransitEncryption == EncryptionTransitMode && volume.VPCVolume.Profile.Name == RFSProfile {
-		// RFS profile uses STUNNEL for encryption in transit
 		volume.VPCVolume.TransitEncryption = STUNNEL
 	} else {
-		// Default: no encryption in transit
 		volume.VPCVolume.TransitEncryption = NONE
 	}
 
-	// Additional validation for STUNNEL mode (RFS profile with EIT)
-	if volume.VPCVolume.TransitEncryption == STUNNEL {
-		for _, vcap := range volumeCapabilities {
-			mnt := vcap.GetMount()
-			if mnt == nil {
-				continue
-			}
-
-			// Validate fsType for RFS with encryption-in-transit - must be nfs4 if provided
-			if len(mnt.FsType) != 0 && mnt.FsType != nfs4FsType {
-				err := fmt.Errorf("invalid fsType '%s' for RFS profile with encryption-in-transit, must be '%s'", mnt.FsType, nfs4FsType)
-				logger.Error("Invalid fsType for RFS with encryption-in-transit",
-					zap.String("fsType", mnt.FsType),
-					zap.Error(err))
-				return err
-			}
-
-			// Validate that storage class provides required NFS mount options
-			if err := validateNFSMountOptions(mnt.MountFlags); err != nil {
-				logger.Error("Invalid mount options for RFS with encryption-in-transit",
-					zap.Strings("options", mnt.MountFlags),
-					zap.Error(err))
-				return err
-			}
-			break
-		}
-	}
-
-	return nil
-}
-
-// validateNFSMountOptions validates that required NFS mount options are present for encryption-in-transit
-// Returns error if required options (vers, proto) are missing
-func validateNFSMountOptions(options []string) error {
-	if len(options) == 0 {
-		return fmt.Errorf("mount options are required for RFS with encryption-in-transit (must include 'vers' and 'proto')")
-	}
-
-	hasVers := false
-	hasProto := false
-
-	for _, opt := range options {
-		if strings.HasPrefix(opt, "vers=") || strings.HasPrefix(opt, "nfsvers=") {
-			hasVers = true
-		}
-		if strings.HasPrefix(opt, "proto=") {
-			hasProto = true
-		}
-	}
-
-	var missingOpts []string
-	if !hasVers {
-		missingOpts = append(missingOpts, "vers")
-	}
-	if !hasProto {
-		missingOpts = append(missingOpts, "proto")
-	}
-
-	if len(missingOpts) > 0 {
-		return fmt.Errorf("missing required mount options for RFS with encryption-in-transit: %v. Storage class must include these in mountOptions", missingOpts)
-	}
-
-	return nil
+	return volume, nil
 }
 
 // setSecurityGroupList

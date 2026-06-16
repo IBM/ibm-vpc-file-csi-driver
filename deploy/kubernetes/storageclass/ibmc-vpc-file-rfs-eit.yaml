@@ -26,9 +26,9 @@ parameters:
 # Mount options required for RFS with Stunnel (Encryption in Transit)
 # Note: fsType must be specified as "nfs4" in the PVC's volumeMode or will default to nfs4 for RFS
 mountOptions:
-  - nfsvers=4.1   # NFS version 4.1 (required for RFS with stunnel)
+  - hard
+  - nfsvers=4.1
+  - sec=sys
   - proto=tcp     # Use TCP protocol (required for stunnel)
-  - hard          # Hard mount (recommended for production)
-  - sec=sys       # Security flavor (required)
 reclaimPolicy: "Delete"
 allowVolumeExpansion: true
