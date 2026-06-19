@@ -812,7 +812,7 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 		iops = parsed
 	}
 
-	if val, ok := params["bandwidth"]; ok {
+	if val, ok := params["throughput"]; ok {
 		parsed, _ := strconv.ParseInt(val, 10, 32)
 		bandwidth = int32(parsed)
 	}
