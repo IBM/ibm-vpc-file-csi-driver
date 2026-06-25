@@ -42,10 +42,10 @@ const (
 	DefaultServicesDir = "/etc/stunnel/services"
 
 	// InitialPort is the starting port for tunnel allocation
-	InitialPort = 10001
+	InitialPort = 30000
 
 	// PortRange is the number of ports available
-	PortRange = 20000
+	PortRange = 2767
 
 	// PgrepTimeout is the maximum time to wait for pgrep command
 	PgrepTimeout = 5 * time.Second
