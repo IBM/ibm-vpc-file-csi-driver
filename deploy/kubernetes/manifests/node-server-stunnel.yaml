@@ -21,6 +21,7 @@ spec:
         app: ibm-vpc-file-csi-node
         app.kubernetes.io/name: ibm-vpc-file-csi-driver
     spec:
+      shareProcessNamespace: true
       hostNetwork: true
       priorityClassName: system-node-critical
       serviceAccountName: ibm-vpc-file-node-sa
@@ -101,8 +102,14 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            - name: CLUSTER_ENV
+              value: "production" # staging/production
+            - name: OS_TYPE
+              value: "RHCOS" # Ubuntu/RHCOS/RHEL
             - name: SOCKET_PATH
               value: "/var/lib/ibmshare.sock"
+            - name: IS_NODE_SERVER
+              value: "true"
             # Not applicable to Red Hat OpenShift Container Platform Self-Managed
             # - name: SIDECAR_GROUP_ID
             #   value: "2121"
@@ -151,6 +158,37 @@ spec:
               mountPath: /etc/storage_ibmc/cluster_info
             - mountPath: /tmp/mount-helper
               name: mh-logs
+            - name: stunnel-services
+              mountPath: /etc/stunnel/services
+            - name: host-certs
+              mountPath: /etc/host-certs
+              readOnly: true
+        - name: stunnel
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+          image: genctl-acadia/denali-stunnel:latest
+          imagePullPolicy: Always
+          args:
+            - "--dynamic"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            limits:
+              cpu: 200m
+              memory: 512Mi
+            requests:
+              cpu: 20m
+              memory: 128Mi
+          volumeMounts:
+            - name: stunnel-services
+              mountPath: /etc/stunnel/services
+            - name: host-certs
+              mountPath: /etc/host-certs
+              readOnly: true
         - name: liveness-probe
           securityContext:
             runAsNonRoot: false # For IKS use true, for OCP use false
@@ -231,3 +269,12 @@ spec:
           hostPath:
             path: /opt/ibm/mount-ibmshare/
             type: DirectoryOrCreate
+        - name: stunnel-services
+          hostPath:
+            path: /etc/stunnel/services
+            type: DirectoryOrCreate
+        # Mount host /etc directory to access CA certificates for both Ubuntu and RHEL
+        - name: host-certs
+          hostPath:
+            path: /etc
+            type: Directory
