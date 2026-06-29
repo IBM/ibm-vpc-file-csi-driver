@@ -264,7 +264,6 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	}
 	mnt := volumeCapability.GetMount()
 	options := mnt.MountFlags
-	transitEncryption := STUNNEL
 	// Get volume context
 	volumeContext := req.GetVolumeContext()
 
@@ -275,7 +274,11 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 
 	// find  FS type
 	fsType := defaultFsType
-	// In case EIT is enabled, use eitFsType
+	// transitEncryption is only consumed by MountEITBasedFileShare (DP2 path).
+	// It must be set explicitly per-profile — no default — so that a future profile
+	// which reaches MountEITBasedFileShare without an explicit assignment fails
+	// loudly rather than silently mounting with the wrong encryption mode.
+	var transitEncryption string
 	if isEITEnabled == TrueStr {
 		if profileName == DP2Profile {
 			transitEncryption = IPSEC

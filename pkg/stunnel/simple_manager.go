@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2026- IBM Inc. All rights reserved
+ * Copyright 2026 IBM Inc. All rights reserved
  * SPDX-License-Identifier: Apache2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -101,17 +101,6 @@ type SimpleManager struct {
 	debounceTimer  *time.Timer
 	pendingSIGHUP  bool
 	debounceWindow time.Duration
-}
-
-// Config holds configuration for SimpleManager
-type Config struct {
-	ServicesDir    string
-	InitialPort    int
-	PortRange      int
-	CAFile         string // Path to CA bundle file for TLS verification
-	DebugLevel     int    // Stunnel debug level 0-7 (default: 5)
-	Logger         *zap.Logger
-	DebounceWindow time.Duration // Time window to collect multiple SIGHUPs (default: 2s)
 }
 
 // NewSimpleManager creates a new SimpleManager with hardcoded defaults
@@ -694,6 +683,14 @@ func (sm *SimpleManager) handleLastTunnelCleanup(volumeID string, tunnelPort int
 		zap.Duration("waitTime", StunnelReloadWaitTime))
 	time.Sleep(StunnelReloadWaitTime)
 
+	// Reset stunnelStarted so that if stunnel crashes after the last config is removed,
+	// the next EnsureTunnel will re-run the liveness check and startup wait.
+	// This is safe on the happy path: stunnel is still running after last-tunnel cleanup
+	// (we never kill it), so isStunnelRunning() returns true and the wait is skipped.
+	// The 10s wait is only incurred when stunnel actually crashed — exactly the case
+	// we need to protect against.
+	sm.stunnelStarted = false
+
 	return nil
 }
 
@@ -775,24 +772,17 @@ func (sm *SimpleManager) findAvailablePort(volumeID string) (int, error) {
 	return 0, fmt.Errorf("no available ports in range %d-%d", sm.initialPort, maxPort-1)
 }
 
-// isPortAvailable checks if a port is available on the system
-// Uses DialContext for fast check with timeout
+// isPortAvailable checks if a port is available on the system by attempting
+// to bind it. This is instantaneous (a single kernel syscall) and gives a
+// definitive answer regardless of system load, unlike a dial-based approach
+// which can time out and incorrectly report the port as unavailable.
 func (sm *SimpleManager) isPortAvailable(port int) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-
-	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err == nil {
-		_ = conn.Close() // #nosec G104: Best effort close, error not actionable
-		return false     // Port in use
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		// EADDRINUSE means something is already bound — port is not available.
+		// Any other error (e.g. permission denied) is also treated as unavailable.
+		return false
 	}
-
-	// Check for ECONNREFUSED (port available)
-	if opErr, ok := err.(*net.OpError); ok {
-		if sysErr, ok := opErr.Err.(*os.SyscallError); ok {
-			return sysErr.Err == syscall.ECONNREFUSED
-		}
-	}
-
-	return false // Uncertain state, assume unavailable for safety
+	_ = ln.Close() // #nosec G104: Best effort close, error not actionable
+	return true
 }
