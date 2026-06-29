@@ -1039,8 +1039,20 @@ func TestScheduleDebouncedSIGHUP(t *testing.T) {
 	}
 	sm.debounceMu.Unlock()
 
-	// Wait for debounce window to expire
-	time.Sleep(100 * time.Millisecond)
+	// Ensure any residual timer is stopped when the test ends so the AfterFunc
+	// callback cannot fire against a torn-down *testing.T (would cause a data race).
+	t.Cleanup(func() {
+		sm.debounceMu.Lock()
+		if sm.debounceTimer != nil {
+			sm.debounceTimer.Stop()
+			sm.debounceTimer = nil
+		}
+		sm.debounceMu.Unlock()
+	})
+
+	// Wait for debounce window to expire and the callback goroutine to finish.
+	// 200ms >> 50ms debounce window + pgrep subprocess duration.
+	time.Sleep(200 * time.Millisecond)
 
 	// Verify pendingSIGHUP was cleared
 	sm.debounceMu.Lock()
