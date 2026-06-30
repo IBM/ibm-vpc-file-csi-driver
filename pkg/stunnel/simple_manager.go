@@ -196,16 +196,16 @@ func detectCABundle(logger *zap.Logger) (string, error) {
 func getClusterEnv(logger *zap.Logger) (string, error) {
 	clusterEnv := os.Getenv("CLUSTER_ENV")
 	if clusterEnv == "" {
-		clusterEnv = "production"
+		clusterEnv = "prod"
 		logger.Warn("CLUSTER_ENV not set, defaulting to production for TLS verification",
 			zap.String("clusterEnv", clusterEnv))
 	}
 
 	var checkHost string
 	switch clusterEnv {
-	case "production":
+	case "prod":
 		checkHost = ProductionCheckHost
-	case "staging":
+	case "stage":
 		checkHost = StagingCheckHost
 	default:
 		logger.Warn("Unknown CLUSTER_ENV, defaulting to production for TLS verification",

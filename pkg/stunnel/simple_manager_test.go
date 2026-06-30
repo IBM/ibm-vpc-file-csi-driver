@@ -67,7 +67,7 @@ func TestNewSimpleManager(t *testing.T) {
 
 				// Set environment variables
 				t.Setenv("OS_TYPE", "RHCOS")
-				t.Setenv("CLUSTER_ENV", "production")
+				t.Setenv("CLUSTER_ENV", "prod")
 
 				// Override CA path detection by creating the file at expected location
 				// Since we can't modify system paths, we'll use NewSimpleManagerForTesting instead
@@ -209,13 +209,13 @@ func TestGetCheckHost(t *testing.T) {
 	}{
 		{
 			name:       "production",
-			clusterEnv: "production",
+			clusterEnv: "prod",
 			want:       "production.is-share.appdomain.cloud",
 			wantErr:    false,
 		},
 		{
 			name:       "staging",
-			clusterEnv: "staging",
+			clusterEnv: "stage",
 			want:       "staging.is-share.appdomain.cloud",
 			wantErr:    false,
 		},
@@ -232,14 +232,8 @@ func TestGetCheckHost(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "prod - defaults to production (not supported)",
+			name:       "prod - defaults to prod (not supported)",
 			clusterEnv: "prod",
-			want:       "production.is-share.appdomain.cloud",
-			wantErr:    false,
-		},
-		{
-			name:       "stage - defaults to production (not supported)",
-			clusterEnv: "stage",
 			want:       "production.is-share.appdomain.cloud",
 			wantErr:    false,
 		},
