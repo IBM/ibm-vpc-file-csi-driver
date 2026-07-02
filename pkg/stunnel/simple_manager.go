@@ -610,16 +610,25 @@ func (sm *SimpleManager) RemoveTunnel(volumeID, requestID string) error {
 	configPath := filepath.Join(sm.servicesDir, volumeID+".conf")
 	isLastTunnel := len(sm.allocatedPorts) == 1 // Check BEFORE deletion
 
-	// Handle last tunnel cleanup BEFORE removing config
-	if isLastTunnel {
-		if err := sm.handleLastTunnelCleanup(volumeID, tunnelPort, requestID); err != nil {
-			return err // Port maps NOT modified, safe to return
-		}
-	}
-
-	// Release port from both maps
+	// Release port from both maps BEFORE dropping sm.mu (inside handleLastTunnelCleanup).
+	// This ensures any concurrent RemoveTunnel goroutine that acquires sm.mu during
+	// the lock gap will find no entry and exit early at the "No port found" check above,
+	// preventing a duplicate SIGHUP and double os.Remove.
+	// On any failure below we rollback both maps.
 	delete(sm.allocatedPorts, volumeID)
 	delete(sm.portToVolume, tunnelPort)
+
+	// For the last tunnel, send a synchronous SIGHUP so stunnel closes connections
+	// before the config file is removed. sm.mu is temporarily released inside;
+	// concurrent goroutines will see the maps already cleared and exit early.
+	if isLastTunnel {
+		if err := sm.handleLastTunnelCleanup(volumeID, tunnelPort, requestID); err != nil {
+			// Rollback: restore port mapping so the caller can retry
+			sm.allocatedPorts[volumeID] = tunnelPort
+			sm.portToVolume[tunnelPort] = volumeID
+			return err
+		}
+	}
 
 	// Remove config file
 	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
