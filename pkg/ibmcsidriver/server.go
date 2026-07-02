@@ -168,6 +168,7 @@ func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, h
 	glog.V(3).Infof("GRPC call: %s", info.FullMethod)
 	glog.V(5).Infof("GRPC request: %+v", req)
 	resp, err := handler(ctx, req)
+	glog.Infof("Handler returned response=%+v err=%v", resp, err)
 	if err != nil {
 		glog.Errorf("GRPC error: %v", err)
 	} else {
