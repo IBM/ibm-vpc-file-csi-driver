@@ -666,7 +666,13 @@ func TestEnsureTunnel_Concurrent(t *testing.T) {
 
 	wg.Wait()
 
-	// Stop the debounce timer to prevent it from firing after test completes
+	// Wait for the debounce window to expire so the time.AfterFunc callback fires
+	// and completes while *testing.T is still alive. Simply stopping the timer is
+	// not sufficient: if the callback has already started, Stop() is a no-op and
+	// the goroutine will write to the logger after the test exits — causing a race.
+	time.Sleep(2 * sm.debounceWindow)
+
+	// Now that the callback has completed, cancel any residual timer state.
 	sm.debounceMu.Lock()
 	if sm.debounceTimer != nil {
 		sm.debounceTimer.Stop()
@@ -1325,6 +1331,7 @@ func TestRemoveTunnel_PortStillInUse(t *testing.T) {
 		initialPort:    10001,
 		portRange:      100,
 		allocatedPorts: map[string]int{"vol1": 10001},
+		portToVolume:   map[int]string{10001: "vol1"},
 		logger:         logger,
 	}
 
