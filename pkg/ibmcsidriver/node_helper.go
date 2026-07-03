@@ -80,7 +80,6 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mount
 				ctxLogger.Error("Mount backend output: ", zap.String("Reponse:", errResponse))
 			}
 		}
-		ctxLogger.Info("processMount: returning CSI error-test",zap.String("requestID", requestID),zap.String("errorCode", errorCode),zap.String("fsType", fsType),zap.String("mountPath", mountPath),zap.String("targetPath", targetPath),zap.Error(err),)
 		return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)
 	}
 
