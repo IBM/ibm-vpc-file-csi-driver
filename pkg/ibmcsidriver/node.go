@@ -306,11 +306,11 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		fsType = nfs4FsType
 
 		if csiNS.StunnelMgr == nil {
-			err := fmt.Errorf("stunnel manager is not initialized - this indicates a configuration error. Troubleshooting steps: 1) Check node server pod logs for stunnel initialization errors, 2) Verify OS_TYPE environment variable is set correctly (RHCOS/RHEL/Ubuntu), 3) Verify CLUSTER_ENV is set (production/staging), 4) Ensure CA bundle file exists at expected path, 5) Restart the node server pod to retry initialization")
+			err := fmt.Errorf("stunnel manager is not initialized - this indicates a configuration error. Troubleshooting steps: 1) Check node server pod logs for stunnel initialization errors, 2) Verify OS_TYPE environment variable is set correctly (RHCOS/RHEL/Ubuntu), 3) Verify CLUSTER_ENV is set (production/staging), 4) If INITIAL_STUNNEL_PORT is set in the addon ConfigMap, verify it is a valid integer in range 1-65535, 5) Restart the node server pod to get fresh logs and check if the issue is resolved. If the issue persists or none of the above apply, open a support ticket with the IBM Cloud Container Storage team")
 			ctxLogger.Error("Stunnel manager not available for RFS EIT mount - initialization failed at startup",
 				zap.String("volumeID", volumeID),
 				zap.String("profileName", profileName),
-				zap.String("action", "Check node server pod logs and restart pod after fixing configuration"),
+				zap.String("action", "Verify OS_TYPE/CLUSTER_ENV env vars and INITIAL_STUNNEL_PORT value in addon ConfigMap, then restart the node server pod. If unresolved, open a support ticket with the IBM Cloud Container Storage team"),
 				zap.Error(err))
 			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 		}

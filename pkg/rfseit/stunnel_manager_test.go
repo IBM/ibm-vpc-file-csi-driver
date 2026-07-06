@@ -270,7 +270,7 @@ func TestGetCheckHost(t *testing.T) {
 	}
 }
 
-// TestGetInitialPort tests the INITIAL_PORT environment variable handling
+// TestGetInitialPort tests the INITIAL_STUNNEL_PORT environment variable handling
 func TestGetInitialPort(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 
@@ -340,11 +340,11 @@ func TestGetInitialPort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.envValue != "" {
-				t.Setenv("INITIAL_PORT", tt.envValue)
+				t.Setenv("INITIAL_STUNNEL_PORT", tt.envValue)
 			} else {
-				// Ensure INITIAL_PORT is unset for the default case
-				if err := os.Unsetenv("INITIAL_PORT"); err != nil {
-					t.Fatalf("Failed to unset INITIAL_PORT: %v", err)
+				// Ensure INITIAL_STUNNEL_PORT is unset for the default case
+				if err := os.Unsetenv("INITIAL_STUNNEL_PORT"); err != nil {
+					t.Fatalf("Failed to unset INITIAL_STUNNEL_PORT: %v", err)
 				}
 			}
 

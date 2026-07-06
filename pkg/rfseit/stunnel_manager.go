@@ -107,7 +107,7 @@ type StunnelManager struct {
 }
 
 // NewStunnelManager creates a new StunnelManager with defaults derived from
-// the OS_TYPE, CLUSTER_ENV, and INITIAL_PORT environment variables.
+// the OS_TYPE, CLUSTER_ENV, and INITIAL_STUNNEL_PORT environment variables.
 func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 	if logger == nil {
 		return nil, fmt.Errorf("logger is required")
@@ -131,10 +131,10 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 		return nil, fmt.Errorf("failed to determine checkHost: empty checkHost, ")
 	}
 
-	// Read initial port from INITIAL_PORT env var; fall back to InitialPort constant
+	// Read initial port from INITIAL_STUNNEL_PORT env var; fall back to InitialPort constant
 	initialPort, err := getInitialPort(logger)
 	if err != nil {
-		return nil, fmt.Errorf("invalid INITIAL_PORT: %w", err)
+		return nil, fmt.Errorf("invalid INITIAL_STUNNEL_PORT: %w", err)
 	}
 
 	// Note: servicesDir is created by Kubernetes hostPath with DirectoryOrCreate
@@ -228,26 +228,26 @@ func getClusterEnv(logger *zap.Logger) (string, error) {
 	return checkHost, nil
 }
 
-// getInitialPort reads the starting port for tunnel allocation from the INITIAL_PORT
+// getInitialPort reads the starting port for tunnel allocation from the INITIAL_STUNNEL_PORT
 // environment variable. If the variable is not set, InitialPort is used as the default.
 // Returns an error if the value is set but not a valid port number (1–65535).
 func getInitialPort(logger *zap.Logger) (int, error) {
-	raw := os.Getenv("INITIAL_PORT")
+	raw := os.Getenv("INITIAL_STUNNEL_PORT")
 	if raw == "" {
-		logger.Info("INITIAL_PORT not set, using default",
+		logger.Info("INITIAL_STUNNEL_PORT not set, using default",
 			zap.Int("initialPort", InitialPort))
 		return InitialPort, nil
 	}
 
 	port, err := strconv.Atoi(raw)
 	if err != nil {
-		return 0, fmt.Errorf("INITIAL_PORT %q is not a valid integer: %w", raw, err)
+		return 0, fmt.Errorf("INITIAL_STUNNEL_PORT %q is not a valid integer: %w", raw, err)
 	}
 	if port < 1 || port > 65535 {
-		return 0, fmt.Errorf("INITIAL_PORT %d is out of valid port range (1–65535)", port)
+		return 0, fmt.Errorf("INITIAL_STUNNEL_PORT %d is out of valid port range (1–65535)", port)
 	}
 
-	logger.Info("Using INITIAL_PORT from environment",
+	logger.Info("Using INITIAL_STUNNEL_PORT from environment",
 		zap.Int("initialPort", port))
 	return port, nil
 }
