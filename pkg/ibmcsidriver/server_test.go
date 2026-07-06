@@ -28,6 +28,7 @@ import (
 	"context"
 
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/ibmcsidriverfakes"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 )
@@ -94,6 +95,10 @@ func TestSetup(t *testing.T) {
 		t.Logf("setup CSI sidecar with chown failure")
 		_ = os.Setenv("IS_NODE_SERVER", "true")
 		defer func() { _ = os.Unsetenv("IS_NODE_SERVER") }()
+		fakeFileOps := new(ibmcsidriverfakes.FakeSocketPermission)
+		chownErr := errors.New("chown /tmp/testcsi.sock: operation not permitted")
+		fakeFileOps.ChownReturns(chownErr)
+		nonBlockingServer.fileOps = fakeFileOps
 		ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
 		assert.NotNil(t, err)
 		assert.Nil(t, ls)

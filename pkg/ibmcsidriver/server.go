@@ -50,7 +50,7 @@ type NonBlockingGRPCServer interface {
 
 // NewNonBlockingGRPCServer ...
 func NewNonBlockingGRPCServer(logger *zap.Logger) NonBlockingGRPCServer {
-	return &nonBlockingGRPCServer{logger: logger}
+	return &nonBlockingGRPCServer{logger: logger, fileOps: &opsSocketPermission{}}
 }
 
 // nonBlockingGRPCServer server
@@ -58,6 +58,7 @@ type nonBlockingGRPCServer struct {
 	wg     sync.WaitGroup
 	server *grpc.Server
 	logger *zap.Logger
+	fileOps socketPermission
 }
 
 // Start ...
@@ -126,8 +127,7 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 	// In case of nodeSerer container, setup desired csi socket permissions and user/group.
 	// This is required for running `livenessprobe` container as non-root user/group
 	if os.Getenv("IS_NODE_SERVER") == "true" {
-		fileops := &opsSocketPermission{}
-		if err := setupSidecar(addr, fileops, s.logger); err != nil {
+		if err := setupSidecar(addr, s.fileOps, s.logger); err != nil {
 			s.logger.Error("setupSidecar failed.", zap.Error(err))
 			return nil, err
 		}
