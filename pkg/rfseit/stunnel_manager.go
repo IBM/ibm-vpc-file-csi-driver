@@ -107,7 +107,7 @@ type StunnelManager struct {
 }
 
 // NewStunnelManager creates a new StunnelManager with defaults derived from
-// the OS_TYPE, CLUSTER_ENV, and INITIAL_STUNNEL_PORT environment variables.
+// the OS_TYPE and CLUSTER_ENV environment variables.
 func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 	if logger == nil {
 		return nil, fmt.Errorf("logger is required")
@@ -131,16 +131,10 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 		return nil, fmt.Errorf("failed to determine checkHost: empty checkHost, ")
 	}
 
-	// Read initial port from INITIAL_STUNNEL_PORT env var; fall back to InitialPort constant
-	initialPort, err := getInitialPort(logger)
-	if err != nil {
-		return nil, fmt.Errorf("invalid INITIAL_STUNNEL_PORT: %w", err)
-	}
-
 	// Note: servicesDir is created by Kubernetes hostPath with DirectoryOrCreate
 	sm := &StunnelManager{
 		servicesDir:    DefaultServicesDir,
-		initialPort:    initialPort,
+		initialPort:    InitialPort,
 		portRange:      PortRange,
 		allocatedPorts: make(map[string]int),
 		portToVolume:   make(map[int]string),
@@ -226,30 +220,6 @@ func getClusterEnv(logger *zap.Logger) (string, error) {
 		zap.String("checkHost", checkHost),
 		zap.String("clusterEnv", clusterEnv))
 	return checkHost, nil
-}
-
-// getInitialPort reads the starting port for tunnel allocation from the INITIAL_STUNNEL_PORT
-// environment variable. If the variable is not set, InitialPort is used as the default.
-// Returns an error if the value is set but not a valid port number (1–65535).
-func getInitialPort(logger *zap.Logger) (int, error) {
-	raw := os.Getenv("INITIAL_STUNNEL_PORT")
-	if raw == "" {
-		logger.Info("INITIAL_STUNNEL_PORT not set, using default",
-			zap.Int("initialPort", InitialPort))
-		return InitialPort, nil
-	}
-
-	port, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0, fmt.Errorf("INITIAL_STUNNEL_PORT %q is not a valid integer: %w", raw, err)
-	}
-	if port < 1 || port > 65535 {
-		return 0, fmt.Errorf("INITIAL_STUNNEL_PORT %d is out of valid port range (1–65535)", port)
-	}
-
-	logger.Info("Using INITIAL_STUNNEL_PORT from environment",
-		zap.Int("initialPort", port))
-	return port, nil
 }
 
 // recoverExistingTunnels scans the services directory and rebuilds the port allocation map.
