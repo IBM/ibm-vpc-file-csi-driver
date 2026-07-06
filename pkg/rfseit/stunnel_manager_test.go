@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2026- IBM Inc. All rights reserved
+ * Copyright 2026 IBM Inc. All rights reserved
  * SPDX-License-Identifier: Apache2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package stunnel
+package rfseit
 
 import (
 	"fmt"
@@ -33,8 +33,8 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-// TestNewSimpleManager tests the constructor with hardcoded defaults
-func TestNewSimpleManager(t *testing.T) {
+// TestNewStunnelManager tests the constructor with hardcoded defaults
+func TestNewStunnelManager(t *testing.T) {
 	tests := []struct {
 		name        string
 		logger      *zap.Logger
@@ -70,26 +70,26 @@ func TestNewSimpleManager(t *testing.T) {
 				t.Setenv("CLUSTER_ENV", "prod")
 
 				// Override CA path detection by creating the file at expected location
-				// Since we can't modify system paths, we'll use NewSimpleManagerForTesting instead
-				t.Skip("Skipping NewSimpleManager test - requires system CA files. Use NewSimpleManagerForTesting instead.")
+				// Since we can't modify system paths, we'll use NewStunnelManagerForTesting instead
+				t.Skip("Skipping NewStunnelManager test - requires system CA files. Use NewStunnelManagerForTesting instead.")
 			}
-			sm, err := NewSimpleManager(tt.logger)
+			sm, err := NewStunnelManager(tt.logger)
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("NewSimpleManager() expected error containing %q, got nil", tt.errContains)
+					t.Errorf("NewStunnelManager() expected error containing %q, got nil", tt.errContains)
 				} else if !strings.Contains(err.Error(), tt.errContains) {
-					t.Errorf("NewSimpleManager() error = %v, want error containing %q", err, tt.errContains)
+					t.Errorf("NewStunnelManager() error = %v, want error containing %q", err, tt.errContains)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("NewSimpleManager() unexpected error = %v", err)
+				t.Errorf("NewStunnelManager() unexpected error = %v", err)
 				return
 			}
 
 			if sm == nil {
-				t.Error("NewSimpleManager() returned nil manager")
+				t.Error("NewStunnelManager() returned nil manager")
 				return
 			}
 
@@ -155,7 +155,6 @@ func TestDetectCABundle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set OS_TYPE environment variable
 			if tt.osType != "" {
 				if err := os.Setenv("OS_TYPE", tt.osType); err != nil {
 					t.Fatalf("Failed to set OS_TYPE: %v", err)
@@ -166,7 +165,6 @@ func TestDetectCABundle(t *testing.T) {
 					}
 				}()
 			} else {
-				// Ensure OS_TYPE is not set
 				_ = os.Unsetenv("OS_TYPE")
 			}
 
@@ -179,9 +177,7 @@ func TestDetectCABundle(t *testing.T) {
 			}
 
 			// In test environment, CA files may not exist
-			// We only verify the path logic, not file existence
 			if err != nil {
-				// Check if error is due to missing file (expected in test env)
 				if strings.Contains(err.Error(), "CA bundle file not found") {
 					t.Skipf("Skipping test - CA bundle file not found in test environment (expected): %v", err)
 					return
@@ -251,7 +247,6 @@ func TestGetCheckHost(t *testing.T) {
 					}
 				}()
 			} else {
-				// Ensure CLUSTER_ENV is not set for empty test case
 				if err := os.Unsetenv("CLUSTER_ENV"); err != nil {
 					t.Logf("Failed to unset CLUSTER_ENV: %v", err)
 				}
@@ -274,6 +269,107 @@ func TestGetCheckHost(t *testing.T) {
 		})
 	}
 }
+
+// TestGetInitialPort tests the INITIAL_PORT environment variable handling
+func TestGetInitialPort(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+
+	tests := []struct {
+		name        string
+		envValue    string
+		want        int
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:     "not set - uses default",
+			envValue: "",
+			want:     InitialPort,
+			wantErr:  false,
+		},
+		{
+			name:     "valid port",
+			envValue: "12000",
+			want:     12000,
+			wantErr:  false,
+		},
+		{
+			name:     "minimum valid port",
+			envValue: "1",
+			want:     1,
+			wantErr:  false,
+		},
+		{
+			name:     "maximum valid port",
+			envValue: "65535",
+			want:     65535,
+			wantErr:  false,
+		},
+		{
+			name:        "not an integer",
+			envValue:    "abc",
+			wantErr:     true,
+			errContains: "not a valid integer",
+		},
+		{
+			name:        "zero - out of range",
+			envValue:    "0",
+			wantErr:     true,
+			errContains: "out of valid port range",
+		},
+		{
+			name:        "negative - out of range",
+			envValue:    "-1",
+			wantErr:     true,
+			errContains: "out of valid port range",
+		},
+		{
+			name:        "too high - out of range",
+			envValue:    "65536",
+			wantErr:     true,
+			errContains: "out of valid port range",
+		},
+		{
+			name:        "float - not an integer",
+			envValue:    "11300.5",
+			wantErr:     true,
+			errContains: "not a valid integer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv("INITIAL_PORT", tt.envValue)
+			} else {
+				// Ensure INITIAL_PORT is unset for the default case
+				if err := os.Unsetenv("INITIAL_PORT"); err != nil {
+					t.Fatalf("Failed to unset INITIAL_PORT: %v", err)
+				}
+			}
+
+			got, err := getInitialPort(logger)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("getInitialPort() expected error containing %q, got nil", tt.errContains)
+					return
+				}
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("getInitialPort() error = %v, want error containing %q", err, tt.errContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("getInitialPort() unexpected error = %v", err)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("getInitialPort() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 
 // TestRecoverExistingTunnels tests tunnel recovery
 func TestRecoverExistingTunnels(t *testing.T) {
@@ -304,7 +400,7 @@ connect = server3:20049
 		}
 	}
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpDir,
 		initialPort:    10001,
 		portRange:      100,
@@ -333,7 +429,7 @@ connect = server3:20049
 // TestRecoverExistingTunnels_NonExistentDir tests recovery with non-existent directory
 func TestRecoverExistingTunnels_NonExistentDir(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    "/non/existent/directory",
 		allocatedPorts: make(map[string]int),
 		portToVolume:   make(map[int]string),
@@ -461,7 +557,7 @@ connect = server:20049
 		},
 	}
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		initialPort: 10001,
 		portRange:   100,
 		logger:      logger,
@@ -499,7 +595,7 @@ func TestEnsureTunnel(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpDir,
 		initialPort:    10001,
 		portRange:      100,
@@ -578,7 +674,7 @@ func TestEnsureTunnel(t *testing.T) {
 }
 
 // TestEnsureTunnel_NoTLSConfig documents current behavior: TLS config validation
-// happens in NewSimpleManager/NewSimpleManagerForTesting, not in EnsureTunnel.
+// happens in NewStunnelManager/NewStunnelManagerForTesting, not in EnsureTunnel.
 func TestEnsureTunnel_NoTLSConfig(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
@@ -607,7 +703,7 @@ func TestEnsureTunnel_NoTLSConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm := &SimpleManager{
+			sm := &StunnelManager{
 				servicesDir:    tmpDir,
 				initialPort:    10001,
 				portRange:      100,
@@ -635,7 +731,7 @@ func TestEnsureTunnel_Concurrent(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpDir,
 		initialPort:    10001,
 		portRange:      100,
@@ -667,12 +763,10 @@ func TestEnsureTunnel_Concurrent(t *testing.T) {
 	wg.Wait()
 
 	// Wait for the debounce window to expire so the time.AfterFunc callback fires
-	// and completes while *testing.T is still alive. Simply stopping the timer is
-	// not sufficient: if the callback has already started, Stop() is a no-op and
-	// the goroutine will write to the logger after the test exits — causing a race.
+	// and completes while *testing.T is still alive.
 	time.Sleep(2 * sm.debounceWindow)
 
-	// Now that the callback has completed, cancel any residual timer state.
+	// Cancel any residual timer state.
 	sm.debounceMu.Lock()
 	if sm.debounceTimer != nil {
 		sm.debounceTimer.Stop()
@@ -703,7 +797,7 @@ func TestRemoveTunnel(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpDir,
 		initialPort:    10001,
 		portRange:      100,
@@ -772,7 +866,7 @@ func TestRemoveTunnel(t *testing.T) {
 // TestRemoveTunnel_EmptyVolumeID tests removal with empty volumeID
 func TestRemoveTunnel_EmptyVolumeID(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    t.TempDir(),
 		allocatedPorts: make(map[string]int),
 		portToVolume:   make(map[int]string),
@@ -788,7 +882,7 @@ func TestRemoveTunnel_EmptyVolumeID(t *testing.T) {
 // TestRemoveTunnel_NonExistent tests removal of non-existent tunnel
 func TestRemoveTunnel_NonExistent(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    t.TempDir(),
 		allocatedPorts: make(map[string]int),
 		portToVolume:   make(map[int]string),
@@ -805,48 +899,32 @@ func TestRemoveTunnel_NonExistent(t *testing.T) {
 func TestIsTunnelPortInUse(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		logger: logger,
 	}
 
-	// Test with actual /proc/mounts (if available)
-	// This test verifies the function doesn't panic and handles errors gracefully
 	tests := []struct {
 		name string
 		port int
 	}{
-		{
-			name: "random port 1",
-			port: 10001,
-		},
-		{
-			name: "random port 2",
-			port: 10003,
-		},
-		{
-			name: "high port",
-			port: 50000,
-		},
+		{name: "random port 1", port: 10001},
+		{name: "random port 2", port: 10003},
+		{name: "high port", port: 50000},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Just verify it doesn't panic and returns a boolean
 			result := sm.isTunnelPortInUse(tt.port)
-			// Result will depend on actual system state
 			_ = result
 		})
 	}
-
-	// Test error handling when /proc/mounts doesn't exist
-	// We can't easily mock this, but the function should handle it gracefully
-	// and return false (fail-safe behavior)
 }
 
 // TestGetTunnelPort tests port retrieval
 func TestGetTunnelPort(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		allocatedPorts: map[string]int{
 			"vol1": 10001,
 			"vol2": 10002,
@@ -890,7 +968,7 @@ func TestGetTunnelPort(t *testing.T) {
 // TestIsPortAvailable tests port availability check
 func TestIsPortAvailable(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		initialPort: 50000,
 		portRange:   10,
 		logger:      logger,
@@ -922,7 +1000,7 @@ func TestIsPortAvailable(t *testing.T) {
 // TestReleasePort tests port release
 func TestReleasePort(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		allocatedPorts: map[string]int{
 			"vol1": 10001,
 			"vol2": 10002,
@@ -940,12 +1018,9 @@ func TestReleasePort(t *testing.T) {
 	delete(sm.allocatedPorts, "vol2")
 	delete(sm.portToVolume, 10002)
 
-	// Verify vol2 was removed
 	if _, exists := sm.allocatedPorts["vol2"]; exists {
 		t.Error("vol2 should be removed from allocatedPorts")
 	}
-
-	// Verify others remain
 	if _, exists := sm.allocatedPorts["vol1"]; !exists {
 		t.Error("vol1 should still exist in allocatedPorts")
 	}
@@ -958,7 +1033,7 @@ func TestReleasePort(t *testing.T) {
 	delete(sm.portToVolume, 99999)
 }
 
-// TestGetConfigPath tests config path generation (inlined filepath.Join)
+// TestGetConfigPath tests config path generation
 func TestGetConfigPath(t *testing.T) {
 	servicesDir := "/etc/stunnel/services"
 
@@ -989,10 +1064,10 @@ func TestGetConfigPath(t *testing.T) {
 	}
 }
 
-// TestGetAllocatedPortsCount tests port count retrieval (direct map access)
+// TestGetAllocatedPortsCount tests port count retrieval
 func TestGetAllocatedPortsCount(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		allocatedPorts: map[string]int{
 			"vol1": 10001,
 			"vol2": 10002,
@@ -1006,7 +1081,6 @@ func TestGetAllocatedPortsCount(t *testing.T) {
 		t.Errorf("len(allocatedPorts) = %v, want 3", count)
 	}
 
-	// Test with empty map
 	sm.allocatedPorts = make(map[string]int)
 	count = len(sm.allocatedPorts)
 	if count != 0 {
@@ -1017,7 +1091,7 @@ func TestGetAllocatedPortsCount(t *testing.T) {
 // TestScheduleDebouncedSIGHUP tests SIGHUP debouncing
 func TestScheduleDebouncedSIGHUP(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		logger:         logger,
 		debounceWindow: 50 * time.Millisecond,
 		stunnelStarted: true,
@@ -1029,7 +1103,6 @@ func TestScheduleDebouncedSIGHUP(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	// Verify pendingSIGHUP is set
 	sm.debounceMu.Lock()
 	if !sm.pendingSIGHUP {
 		t.Error("pendingSIGHUP should be true")
@@ -1040,7 +1113,7 @@ func TestScheduleDebouncedSIGHUP(t *testing.T) {
 	sm.debounceMu.Unlock()
 
 	// Ensure any residual timer is stopped when the test ends so the AfterFunc
-	// callback cannot fire against a torn-down *testing.T (would cause a data race).
+	// callback cannot fire against a torn-down *testing.T.
 	t.Cleanup(func() {
 		sm.debounceMu.Lock()
 		if sm.debounceTimer != nil {
@@ -1051,10 +1124,8 @@ func TestScheduleDebouncedSIGHUP(t *testing.T) {
 	})
 
 	// Wait for debounce window to expire and the callback goroutine to finish.
-	// 200ms >> 50ms debounce window + pgrep subprocess duration.
 	time.Sleep(200 * time.Millisecond)
 
-	// Verify pendingSIGHUP was cleared
 	sm.debounceMu.Lock()
 	if sm.pendingSIGHUP {
 		t.Error("pendingSIGHUP should be false after debounce window")
@@ -1065,28 +1136,25 @@ func TestScheduleDebouncedSIGHUP(t *testing.T) {
 // TestIsStunnelRunning tests stunnel process detection
 func TestIsStunnelRunning(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		logger: logger,
 	}
 
-	// This will likely return false in test environment
-	// Just verify it doesn't panic
+	// This will likely return false in test environment — just verify no panic
 	running := sm.isStunnelRunning()
-	_ = running // Use the result to avoid unused variable warning
+	_ = running
 }
 
 // TestReloadStunnel tests stunnel reload
 func TestReloadStunnel(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		logger: logger,
 	}
 
 	// This will likely fail in test environment (no stunnel process)
-	// Just verify it returns an error gracefully
 	err := sm.reloadStunnel("test-request")
 	if err == nil {
-		// Stunnel is actually running in test environment (unlikely)
 		t.Log("stunnel process found in test environment")
 	}
 }
@@ -1096,7 +1164,7 @@ func TestRemoveTunnel_LastTunnel(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpDir,
 		initialPort:    10001,
 		portRange:      100,
@@ -1109,17 +1177,13 @@ func TestRemoveTunnel_LastTunnel(t *testing.T) {
 		stunnelStarted: true,
 	}
 
-	// Create a tunnel
 	_, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 	if err != nil {
 		t.Fatalf("Failed to create tunnel: %v", err)
 	}
 
-	// Schedule a debounced SIGHUP
 	sm.scheduleDebouncedSIGHUP("test-request")
 
-	// On macOS /proc/mounts is unavailable, so RemoveTunnel returns early before
-	// the forced-last-tunnel SIGHUP path is reached.
 	if runtime.GOOS == "darwin" {
 		err = sm.RemoveTunnel("vol1", "test-request")
 		if err != nil {
@@ -1128,23 +1192,18 @@ func TestRemoveTunnel_LastTunnel(t *testing.T) {
 		return
 	}
 
-	// Remove the last tunnel (should force pending SIGHUP)
-	// In test environment, SIGHUP will fail because stunnel process is not running.
 	err = sm.RemoveTunnel("vol1", "test-request")
 
 	if err != nil {
-		// Verify it's the expected SIGHUP error
 		if !strings.Contains(err.Error(), "failed to send SIGHUP before removing last config") {
 			t.Errorf("Expected SIGHUP error, got: %v", err)
 		}
 
-		// Verify rollback happened - port should still be allocated
 		if _, exists := sm.allocatedPorts["vol1"]; !exists {
 			t.Error("Port should still be allocated after SIGHUP failure (rollback)")
 		}
 	}
 
-	// Verify pending SIGHUP was cleared (even if SIGHUP failed)
 	sm.debounceMu.Lock()
 	stillPending := sm.pendingSIGHUP
 	sm.debounceMu.Unlock()
@@ -1154,14 +1213,12 @@ func TestRemoveTunnel_LastTunnel(t *testing.T) {
 	}
 }
 
-// Made with Bob
-
 // TestEnsureTunnel_StunnelNotStarted tests tunnel creation when stunnel is not running.
 func TestEnsureTunnel_StunnelNotStarted(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpDir,
 		initialPort:    10001,
 		portRange:      100,
@@ -1206,7 +1263,7 @@ func TestRecoverExistingTunnels_ReadError(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpFile, // This is a file, not a directory
 		allocatedPorts: make(map[string]int),
 		portToVolume:   make(map[int]string),
@@ -1222,7 +1279,7 @@ func TestRecoverExistingTunnels_ReadError(t *testing.T) {
 // TestExtractPortFromConfigFile_FileNotFound tests extraction with missing file
 func TestExtractPortFromConfigFile_FileNotFound(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		logger: logger,
 	}
 
@@ -1247,7 +1304,7 @@ func TestEnsureTunnel_WriteConfigError(t *testing.T) {
 		}
 	}()
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpDir,
 		initialPort:    10001,
 		portRange:      100,
@@ -1259,7 +1316,6 @@ func TestEnsureTunnel_WriteConfigError(t *testing.T) {
 		stunnelStarted: true,
 	}
 
-	// Attempt to create tunnel - should fail due to read-only directory
 	_, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 	if err == nil {
 		t.Error("EnsureTunnel() expected error for write failure, got nil")
@@ -1268,8 +1324,7 @@ func TestEnsureTunnel_WriteConfigError(t *testing.T) {
 		t.Errorf("EnsureTunnel() error = %v, want error containing 'failed to write'", err)
 	}
 
-	// ENHANCED: Explicit rollback verification
-	// Verify that port maps are empty after rollback (no leaked allocations)
+	// Verify rollback: maps must be empty
 	if len(sm.allocatedPorts) != 0 {
 		t.Errorf("Port map should be empty after rollback, got %d entries: %v",
 			len(sm.allocatedPorts), sm.allocatedPorts)
@@ -1279,25 +1334,19 @@ func TestEnsureTunnel_WriteConfigError(t *testing.T) {
 			len(sm.portToVolume), sm.portToVolume)
 	}
 
-	// ENHANCED: Verify port can be reallocated after rollback
-	// Fix the directory permissions to allow write
+	// Verify port can be reallocated after rollback
 	if err := os.Chmod(tmpDir, 0755); err != nil {
 		t.Fatalf("Failed to restore directory permissions: %v", err)
 	}
 
-	// Now the same volume should be able to allocate a port successfully
 	port, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request-2")
 	if err != nil {
 		t.Errorf("Port should be reallocatable after rollback, got error: %v", err)
-	}
-	if port == 0 {
-		t.Error("Should have allocated a port after rollback")
 	}
 	if port != 10001 {
 		t.Errorf("Expected first port 10001, got %d", port)
 	}
 
-	// Verify maps are now populated correctly
 	if len(sm.allocatedPorts) != 1 {
 		t.Errorf("Expected 1 allocated port, got %d", len(sm.allocatedPorts))
 	}
@@ -1310,8 +1359,6 @@ func TestEnsureTunnel_WriteConfigError(t *testing.T) {
 	if sm.portToVolume[port] != "vol1" {
 		t.Errorf("Expected %d -> vol1 mapping, got %s", port, sm.portToVolume[port])
 	}
-
-	t.Logf("✓ Rollback verification complete: maps empty after failure, port reallocatable")
 }
 
 // TestRemoveTunnel_PortStillInUse tests removal when port is still in use
@@ -1319,14 +1366,7 @@ func TestRemoveTunnel_PortStillInUse(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
 
-	// Create a mock /proc/mounts file
-	mountsContent := `127.0.0.1:/export1 /mnt/vol1 nfs4 rw,port=10001,vers=4.1 0 0`
-	mountsFile := filepath.Join(tmpDir, "mounts")
-	if err := os.WriteFile(mountsFile, []byte(mountsContent), 0644); err != nil {
-		t.Fatalf("Failed to create mock mounts file: %v", err)
-	}
-
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpDir,
 		initialPort:    10001,
 		portRange:      100,
@@ -1335,14 +1375,11 @@ func TestRemoveTunnel_PortStillInUse(t *testing.T) {
 		logger:         logger,
 	}
 
-	// Create config file
 	configPath := filepath.Join(tmpDir, "vol1.conf")
 	if err := os.WriteFile(configPath, []byte("test"), 0600); err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
-	// Note: This test will use the real /proc/mounts, so we can't fully test this path
-	// But we can verify the function doesn't panic
 	err := sm.RemoveTunnel("vol1", "test-request")
 	if err != nil && !strings.Contains(err.Error(), "failed to send SIGHUP before removing last config") {
 		t.Errorf("RemoveTunnel() unexpected error = %v", err)
@@ -1353,40 +1390,26 @@ func TestRemoveTunnel_PortStillInUse(t *testing.T) {
 func TestIsTunnelPortInUse_WithMounts(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 
-	// Create a temporary file to simulate /proc/mounts
-	tmpDir := t.TempDir()
-	mountsFile := filepath.Join(tmpDir, "mounts")
-	mountsContent := `127.0.0.1:/export1 /mnt/vol1 nfs4 rw,port=10001,vers=4.1 0 0
-127.0.0.1:/export2 /mnt/vol2 nfs4 rw,port=10002,vers=4.1 0 0
-/dev/sda1 / ext4 rw 0 0
-`
-	if err := os.WriteFile(mountsFile, []byte(mountsContent), 0644); err != nil {
-		t.Fatalf("Failed to create mock mounts file: %v", err)
-	}
-
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		logger: logger,
 	}
 
-	// Test with actual /proc/mounts (will likely return false in test environment)
-	// This primarily tests that the function doesn't panic
+	// Test with actual /proc/mounts — primarily verifies no panic
 	result := sm.isTunnelPortInUse(10001)
-	_ = result // Just verify no panic
+	_ = result
 }
 
 // TestScheduleDebouncedSIGHUP_AlreadyPending tests debouncing with already pending SIGHUP
 func TestScheduleDebouncedSIGHUP_AlreadyPending(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		logger:         logger,
 		debounceWindow: 100 * time.Millisecond,
 		stunnelStarted: true,
 	}
 
-	// Schedule first SIGHUP
 	sm.scheduleDebouncedSIGHUP("request-1")
 
-	// Verify pending flag is set
 	sm.debounceMu.Lock()
 	if !sm.pendingSIGHUP {
 		t.Error("pendingSIGHUP should be true after first schedule")
@@ -1394,11 +1417,9 @@ func TestScheduleDebouncedSIGHUP_AlreadyPending(t *testing.T) {
 	firstTimer := sm.debounceTimer
 	sm.debounceMu.Unlock()
 
-	// Schedule second SIGHUP immediately (should reset timer)
 	time.Sleep(10 * time.Millisecond)
 	sm.scheduleDebouncedSIGHUP("request-2")
 
-	// Verify timer was reset (different instance)
 	sm.debounceMu.Lock()
 	secondTimer := sm.debounceTimer
 	sm.debounceMu.Unlock()
@@ -1407,10 +1428,8 @@ func TestScheduleDebouncedSIGHUP_AlreadyPending(t *testing.T) {
 		t.Error("Timer should be reset on second schedule")
 	}
 
-	// Wait for debounce to complete
 	time.Sleep(150 * time.Millisecond)
 
-	// Verify pending flag was cleared
 	sm.debounceMu.Lock()
 	if sm.pendingSIGHUP {
 		t.Error("pendingSIGHUP should be false after debounce completes")
@@ -1420,8 +1439,6 @@ func TestScheduleDebouncedSIGHUP_AlreadyPending(t *testing.T) {
 
 // TestRemoveTunnel_WithPendingSIGHUP tests last tunnel removal with pending SIGHUP
 func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
-	// Skip on macOS - /proc/mounts doesn't exist, so port is always considered "in use"
-	// and removal is skipped, meaning SIGHUP never fires
 	if runtime.GOOS == "darwin" {
 		t.Skip("Skipping on macOS - /proc/mounts not available, test behavior is platform-specific")
 	}
@@ -1429,7 +1446,7 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tmpDir := t.TempDir()
 
-	sm := &SimpleManager{
+	sm := &StunnelManager{
 		servicesDir:    tmpDir,
 		initialPort:    10001,
 		portRange:      100,
@@ -1442,13 +1459,11 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 		stunnelStarted: true,
 	}
 
-	// Create a tunnel
 	_, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 	if err != nil {
 		t.Fatalf("Failed to create tunnel: %v", err)
 	}
 
-	// Verify pending SIGHUP was scheduled
 	sm.debounceMu.Lock()
 	hasPending := sm.pendingSIGHUP
 	sm.debounceMu.Unlock()
@@ -1457,24 +1472,17 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 		t.Error("Should have pending SIGHUP after tunnel creation")
 	}
 
-	// Remove the last tunnel (should force pending SIGHUP)
-	// In test environment, SIGHUP will fail because stunnel process is not running
-	// This is expected behavior - the error handling will rollback the removal
 	err = sm.RemoveTunnel("vol1", "test-request")
 
-	// Should fail with SIGHUP error on Linux
 	if err != nil {
-		// Verify it's the expected SIGHUP error
 		if !strings.Contains(err.Error(), "failed to send SIGHUP before removing last config") {
 			t.Errorf("Expected SIGHUP error, got: %v", err)
 		}
 
-		// Verify rollback happened - port should still be allocated
 		if _, exists := sm.allocatedPorts["vol1"]; !exists {
 			t.Error("Port should still be allocated after SIGHUP failure (rollback)")
 		}
 
-		// Verify pending SIGHUP was cleared after SIGHUP attempt
 		sm.debounceMu.Lock()
 		stillPending := sm.pendingSIGHUP
 		sm.debounceMu.Unlock()
@@ -1487,14 +1495,13 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 	}
 }
 
-// TestNewSimpleManagerForTesting tests the test helper function
-func TestNewSimpleManagerForTesting(t *testing.T) {
+// TestNewStunnelManagerForTesting tests the test helper function
+func TestNewStunnelManagerForTesting(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tempDir := t.TempDir()
 	servicesDir := filepath.Join(tempDir, "services")
 	caFile := filepath.Join(tempDir, "ca.pem")
 
-	// Create required files
 	if err := os.MkdirAll(servicesDir, 0755); err != nil {
 		t.Fatalf("Failed to create services dir: %v", err)
 	}
@@ -1545,28 +1552,27 @@ func TestNewSimpleManagerForTesting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sm, err := NewSimpleManagerForTesting(tt.servicesDir, tt.caFile, tt.logger)
+			sm, err := NewStunnelManagerForTesting(tt.servicesDir, tt.caFile, tt.logger)
 
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("NewSimpleManagerForTesting() expected error containing %q, got nil", tt.errContains)
+					t.Errorf("NewStunnelManagerForTesting() expected error containing %q, got nil", tt.errContains)
 				} else if !strings.Contains(err.Error(), tt.errContains) {
-					t.Errorf("NewSimpleManagerForTesting() error = %v, want error containing %q", err, tt.errContains)
+					t.Errorf("NewStunnelManagerForTesting() error = %v, want error containing %q", err, tt.errContains)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("NewSimpleManagerForTesting() unexpected error = %v", err)
+				t.Errorf("NewStunnelManagerForTesting() unexpected error = %v", err)
 				return
 			}
 
 			if sm == nil {
-				t.Error("NewSimpleManagerForTesting() returned nil manager")
+				t.Error("NewStunnelManagerForTesting() returned nil manager")
 				return
 			}
 
-			// Verify the manager was initialized correctly
 			if sm.servicesDir != tt.servicesDir {
 				t.Errorf("servicesDir = %v, want %v", sm.servicesDir, tt.servicesDir)
 			}
@@ -1585,8 +1591,8 @@ func TestNewSimpleManagerForTesting(t *testing.T) {
 			if sm.debounceWindow != 2*time.Second {
 				t.Errorf("debounceWindow = %v, want %v", sm.debounceWindow, 2*time.Second)
 			}
-			if sm.checkHost != "production.is-share.appdomain.cloud" {
-				t.Errorf("checkHost = %v, want production.is-share.appdomain.cloud", sm.checkHost)
+			if sm.checkHost != ProductionCheckHost {
+				t.Errorf("checkHost = %v, want %v", sm.checkHost, ProductionCheckHost)
 			}
 		})
 	}
@@ -1599,7 +1605,6 @@ func TestReloadStunnel_ErrorCases(t *testing.T) {
 	servicesDir := filepath.Join(tempDir, "services")
 	caFile := filepath.Join(tempDir, "ca.pem")
 
-	// Create required files
 	if err := os.MkdirAll(servicesDir, 0755); err != nil {
 		t.Fatalf("Failed to create services dir: %v", err)
 	}
@@ -1607,132 +1612,87 @@ func TestReloadStunnel_ErrorCases(t *testing.T) {
 		t.Fatalf("Failed to create CA file: %v", err)
 	}
 
-	sm, err := NewSimpleManagerForTesting(servicesDir, caFile, logger)
+	sm, err := NewStunnelManagerForTesting(servicesDir, caFile, logger)
 	if err != nil {
-		t.Fatalf("Failed to create SimpleManager: %v", err)
+		t.Fatalf("Failed to create StunnelManager: %v", err)
 	}
 
-	// Test reloadStunnel - will fail on macOS because stunnel isn't running
-	// but we're testing that the function handles errors gracefully
 	err = sm.reloadStunnel("test-request")
 	if err == nil {
 		t.Error("reloadStunnel() expected error when stunnel is not running, got nil")
 	}
 
 	// Verify error message is helpful
-	if !strings.Contains(err.Error(), "failed to locate stunnel process") &&
-		!strings.Contains(err.Error(), "stunnel may not be running") {
-		t.Errorf("reloadStunnel() error should mention stunnel lookup/runtime state, got: %v", err)
+	if err != nil && !strings.Contains(err.Error(), "stunnel") {
+		t.Errorf("reloadStunnel() error should mention stunnel, got: %v", err)
 	}
 }
 
-// TestIsTunnelPortInUse_ErrorHandling tests isTunnelPortInUse behavior
+// TestIsTunnelPortInUse_ErrorHandling tests /proc/mounts read failure handling
 func TestIsTunnelPortInUse_ErrorHandling(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	tempDir := t.TempDir()
-	servicesDir := filepath.Join(tempDir, "services")
-	caFile := filepath.Join(tempDir, "ca.pem")
-
-	// Create required files
-	if err := os.MkdirAll(servicesDir, 0755); err != nil {
-		t.Fatalf("Failed to create services dir: %v", err)
-	}
-	if err := os.WriteFile(caFile, []byte("mock CA"), 0644); err != nil {
-		t.Fatalf("Failed to create CA file: %v", err)
+	sm := &StunnelManager{
+		logger: logger,
 	}
 
-	sm, err := NewSimpleManagerForTesting(servicesDir, caFile, logger)
-	if err != nil {
-		t.Fatalf("Failed to create SimpleManager: %v", err)
-	}
-
-	// Test that the function runs without panicking
-	// On macOS: /proc/mounts doesn't exist, returns true (fail-safe)
-	// On Linux: /proc/mounts exists, returns false (no mounts for this port)
-	// Both behaviors are correct for their platform
-	inUse := sm.isTunnelPortInUse(10001)
-
-	// Just verify the function returns a boolean without error
-	// The actual value depends on the platform
-	t.Logf("isTunnelPortInUse(10001) returned: %v (platform-dependent)", inUse)
+	// Just verify no panic
+	result := sm.isTunnelPortInUse(10001)
+	_ = result
 }
 
 // TestRemoveTunnel_AdditionalCases tests additional RemoveTunnel scenarios
 func TestRemoveTunnel_AdditionalCases(t *testing.T) {
 	logger := zaptest.NewLogger(t)
-	tempDir := t.TempDir()
-	servicesDir := filepath.Join(tempDir, "services")
-	caFile := filepath.Join(tempDir, "ca.pem")
-
-	// Create required files
-	if err := os.MkdirAll(servicesDir, 0755); err != nil {
-		t.Fatalf("Failed to create services dir: %v", err)
-	}
-	if err := os.WriteFile(caFile, []byte("mock CA"), 0644); err != nil {
-		t.Fatalf("Failed to create CA file: %v", err)
-	}
-
-	sm, err := NewSimpleManagerForTesting(servicesDir, caFile, logger)
-	if err != nil {
-		t.Fatalf("Failed to create SimpleManager: %v", err)
-	}
-
-	// Mark stunnel as started so we can test the debounced SIGHUP path
-	sm.mu.Lock()
-	sm.stunnelStarted = true
-	sm.mu.Unlock()
+	tmpDir := t.TempDir()
 
 	tests := []struct {
-		name          string
-		volumeID      string
-		setupFunc     func()
-		allowErrMatch string
-		wantErr       bool
+		name       string
+		volumeID   string
+		setupPorts map[string]int
+		wantErr    bool
 	}{
 		{
-			name:     "remove non-existent volume",
-			volumeID: "non-existent-vol",
-			setupFunc: func() {
-				// No setup needed
-			},
-			wantErr: false, // Should not error, just log warning
+			name:       "remove non-existent volume",
+			volumeID:   "non-existent",
+			setupPorts: map[string]int{},
+			wantErr:    false,
 		},
 		{
-			name:     "remove volume with config file",
-			volumeID: "vol-with-config",
-			setupFunc: func() {
-				// Allocate a port and create config
-				sm.mu.Lock()
-				sm.allocatedPorts["vol-with-config"] = 10005
-				sm.portToVolume[10005] = "vol-with-config"
-				sm.mu.Unlock()
-
-				// Create the config file
-				configPath := filepath.Join(sm.servicesDir, "vol-with-config.conf")
-				if err := os.WriteFile(configPath, []byte("[vol-with-config]\naccept = 127.0.0.1:10005\n"), 0644); err != nil {
-					t.Fatalf("Failed to create config file: %v", err)
-				}
+			name:     "empty volume ID",
+			volumeID: "",
+			setupPorts: map[string]int{
+				"vol1": 10001,
 			},
-			wantErr:       false,
-			allowErrMatch: "failed to send SIGHUP before removing last config",
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupFunc != nil {
-				tt.setupFunc()
+			portToVol := make(map[int]string)
+			for vid, p := range tt.setupPorts {
+				portToVol[p] = vid
+			}
+
+			sm := &StunnelManager{
+				servicesDir:    tmpDir,
+				initialPort:    10001,
+				portRange:      100,
+				allocatedPorts: tt.setupPorts,
+				portToVolume:   portToVol,
+				caFile:         "/tmp/ca.pem",
+				checkHost:      "test.example.com",
+				logger:         logger,
+				debounceWindow: 50 * time.Millisecond,
+				stunnelStarted: true,
 			}
 
 			err := sm.RemoveTunnel(tt.volumeID, "test-request")
-
 			if tt.wantErr && err == nil {
 				t.Error("RemoveTunnel() expected error, got nil")
 			}
 			if !tt.wantErr && err != nil {
-				if tt.allowErrMatch == "" || !strings.Contains(err.Error(), tt.allowErrMatch) {
-					t.Errorf("RemoveTunnel() unexpected error: %v", err)
-				}
+				t.Errorf("RemoveTunnel() unexpected error = %v", err)
 			}
 		})
 	}

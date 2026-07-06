@@ -34,7 +34,7 @@ import (
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/stunnel"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
@@ -49,7 +49,7 @@ type CSINodeServer struct {
 	Mounter    mountmanager.Mounter
 	Metadata   nodeMetadata.NodeMetadata
 	Stats      StatsUtils
-	StunnelMgr *stunnel.SimpleManager
+	StunnelMgr *rfseit.StunnelManager
 	// TODO: Only lock mutually exclusive calls and make locking more fine grained
 	mutex utils.LockStore
 	csi.UnimplementedNodeServer

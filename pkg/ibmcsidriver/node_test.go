@@ -31,7 +31,7 @@ import (
 	"unsafe"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/stunnel"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
@@ -271,7 +271,7 @@ func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
 	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
 
-	stunnelMgr, err := stunnel.NewSimpleManagerForTesting(servicesDir, caFile, logger)
+	stunnelMgr, err := rfseit.NewStunnelManagerForTesting(servicesDir, caFile, logger)
 	if err != nil {
 		t.Fatalf("Failed to create stunnel manager: %v", err)
 	}

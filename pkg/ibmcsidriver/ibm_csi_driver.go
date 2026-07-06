@@ -27,7 +27,7 @@ import (
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/stunnel"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -140,7 +140,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	// Initialize stunnel manager for node server (works with stunnel sidecar)
 	if os.Getenv("IS_NODE_SERVER") == "true" {
 		// Create simple stunnel manager with hardcoded defaults
-		stunnelMgr, err := stunnel.NewSimpleManager(icDriver.logger)
+		stunnelMgr, err := rfseit.NewStunnelManager(icDriver.logger)
 		if err != nil {
 			// Enhanced error logging with troubleshooting guidance
 			if icDriver.rfsEnabled {
@@ -161,9 +161,9 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		} else {
 			icDriver.ns.StunnelMgr = stunnelMgr
 			icDriver.logger.Info("Successfully initialized stunnel manager for node server with hardcoded defaults",
-				zap.String("servicesDir", stunnel.DefaultServicesDir),
-				zap.Int("basePort", stunnel.InitialPort),
-				zap.Int("portRange", stunnel.PortRange),
+				zap.String("servicesDir", rfseit.DefaultServicesDir),
+				zap.Int("basePort", rfseit.InitialPort),
+				zap.Int("portRange", rfseit.PortRange),
 				zap.Bool("rfsEnabled", icDriver.rfsEnabled),
 				zap.String("note", "Works with stunnel sidecar container"))
 		}

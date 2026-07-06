@@ -105,7 +105,9 @@ spec:
             - name: CLUSTER_ENV
               value: "production" # staging/production
             - name: OS_TYPE
-              value: "RHCOS" # Ubuntu/RHCOS/RHEL
+              value: "RHCOS" # Ubuntu/RHCOS/
+            - name: INITIAL_PORT
+              value: "11300" # Default value 11300
             - name: SOCKET_PATH
               value: "/var/lib/ibmshare.sock"
             - name: IS_NODE_SERVER
