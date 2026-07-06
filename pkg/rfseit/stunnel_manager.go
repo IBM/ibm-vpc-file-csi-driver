@@ -616,10 +616,10 @@ func (sm *StunnelManager) RemoveTunnel(volumeID, requestID string) error {
 	}
 
 	sm.mu.Lock()
-	defer sm.mu.Unlock()
 
 	tunnelPort, exists := sm.allocatedPorts[volumeID]
 	if !exists {
+		sm.mu.Unlock()
 		sm.logger.Warn("No port found for volume, config may already be removed",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID))
@@ -627,6 +627,7 @@ func (sm *StunnelManager) RemoveTunnel(volumeID, requestID string) error {
 	}
 
 	if sm.isTunnelPortInUse(tunnelPort) {
+		sm.mu.Unlock()
 		sm.logger.Info("Tunnel port still in use by active mounts, keeping config",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
@@ -637,30 +638,30 @@ func (sm *StunnelManager) RemoveTunnel(volumeID, requestID string) error {
 	configPath := filepath.Join(sm.servicesDir, volumeID+".conf")
 	isLastTunnel := len(sm.allocatedPorts) == 1 // Check BEFORE deletion
 
-	// Remove from maps now. Any concurrent RemoveTunnel that races in after
-	// sm.mu is released will find no entry and exit early — preventing duplicate
-	// SIGHUPs and double os.Remove. Failures below roll back both maps.
+	// Remove from maps. Any concurrent RemoveTunnel that races in after Unlock
+	// will find no entry and exit early — preventing duplicate SIGHUPs and
+	// double os.Remove. Failures below roll back both maps.
 	delete(sm.allocatedPorts, volumeID)
 	delete(sm.portToVolume, tunnelPort)
 
-	// For the last tunnel, send a synchronous SIGHUP before removing the config
-	// so stunnel gracefully closes existing connections.
-	// handleLastTunnelCleanup temporarily releases sm.mu to acquire debounceMu
-	// without deadlocking, then re-acquires sm.mu before returning.
+	sm.mu.Unlock()
+	// sm.mu is NOT held from here — both helpers are free to acquire debounceMu.
+
 	if isLastTunnel {
 		if err := sm.handleLastTunnelCleanup(volumeID, tunnelPort, requestID); err != nil {
-			// Rollback: restore port mapping so the caller can retry
+			sm.mu.Lock()
 			sm.allocatedPorts[volumeID] = tunnelPort
 			sm.portToVolume[tunnelPort] = volumeID
+			sm.mu.Unlock()
 			return err
 		}
 	}
 
-	// Remove config file — slow file I/O, done outside the inner lock window
-	// but still within the deferred sm.mu.Unlock of this function.
 	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
+		sm.mu.Lock()
 		sm.allocatedPorts[volumeID] = tunnelPort
 		sm.portToVolume[tunnelPort] = volumeID
+		sm.mu.Unlock()
 		sm.logger.Error("Failed to remove config file, rolled back port release",
 			zap.String("RequestID", requestID),
 			zap.String("volumeID", volumeID),
@@ -675,27 +676,19 @@ func (sm *StunnelManager) RemoveTunnel(volumeID, requestID string) error {
 		zap.Bool("isLastTunnel", isLastTunnel))
 
 	// Schedule debounced SIGHUP for non-last tunnels so stunnel unloads the service.
-	// Must release sm.mu first to avoid deadlock with debounceMu.
 	if !isLastTunnel {
-		sm.mu.Unlock()
 		sm.scheduleDebouncedSIGHUP(requestID)
-		sm.mu.Lock()
 	}
 
 	return nil
 }
 
 // handleLastTunnelCleanup handles the special case of removing the last tunnel.
-// Must be called with sm.mu held; temporarily releases it to acquire debounceMu,
-// then re-acquires sm.mu before returning so the caller's defer Unlock is balanced.
+// Must be called with sm.mu NOT held. Acquires only debounceMu internally.
 func (sm *StunnelManager) handleLastTunnelCleanup(volumeID string, tunnelPort int, requestID string) error {
 	sm.logger.Info("Last tunnel being removed, handling cleanup",
 		zap.String("RequestID", requestID),
 		zap.String("volumeID", volumeID))
-
-	// Release sm.mu to acquire debounceMu (avoid lock-order deadlock)
-	sm.mu.Unlock()
-	defer sm.mu.Lock() // Re-acquire before returning so caller's defer Unlock is balanced
 
 	sm.debounceMu.Lock()
 	defer sm.debounceMu.Unlock()
