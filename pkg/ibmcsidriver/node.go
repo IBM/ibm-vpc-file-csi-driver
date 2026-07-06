@@ -310,7 +310,6 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 			ctxLogger.Error("Stunnel manager not available for RFS EIT mount - initialization failed at startup",
 				zap.String("volumeID", volumeID),
 				zap.String("profileName", profileName),
-				zap.String("action", "Verify OS_TYPE/CLUSTER_ENV env vars, then restart the node server pod. If unresolved, open a support ticket with the IBM Cloud Container Storage team"),
 				zap.Error(err))
 			return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 		}
