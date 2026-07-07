@@ -271,6 +271,10 @@ func (sm *StunnelManager) recoverExistingTunnels() error {
 //   - accept=127.0.0.1:PORT     (no spaces)
 //   - accept = 0.0.0.0:PORT     (any IP)
 func (sm *StunnelManager) extractPortFromConfigFile(configPath string) (int, error) {
+	// #nosec G304 -- configPath is always filepath.Join(sm.servicesDir, <filename>) where
+	// servicesDir is a fixed operator-controlled directory and the filename comes from
+	// os.ReadDir(servicesDir) or volumeID+".conf" (CSI RPC input). No user-controlled
+	// path traversal is possible.
 	file, err := os.Open(configPath)
 	if err != nil {
 		return 0, fmt.Errorf("failed to open config file %s: %w", configPath, err)
@@ -520,6 +524,8 @@ debug = %d
 
 // writeTunnelConfig atomically writes config content to the given path.
 func (sm *StunnelManager) writeTunnelConfig(configPath, config string) error {
+	// #nosec G304 -- configPath is always filepath.Join(sm.servicesDir, volumeID+".conf")
+	// where servicesDir is a fixed operator-controlled directory. No path traversal possible.
 	if err := os.WriteFile(configPath, []byte(config), ConfigFilePermissions); err != nil {
 		return fmt.Errorf("failed to write stunnel config file: %w", err)
 	}
