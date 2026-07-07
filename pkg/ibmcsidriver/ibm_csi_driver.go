@@ -145,7 +145,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 			// Enhanced error logging with troubleshooting guidance
 			if icDriver.rfsEnabled {
 				// RFS is enabled - stunnel manager failure will cause RFS EIT mount failures
-				icDriver.logger.Error("Failed to create stunnel manager - RFS EIT mounts will FAIL",
+				icDriver.logger.Warn("Failed to create stunnel manager - RFS EIT mounts will FAIL",
 					zap.Error(err),
 					zap.Bool("rfsEnabled", true),
 					zap.String("impact", "All RFS EIT profile mounts will fail at mount time"),
