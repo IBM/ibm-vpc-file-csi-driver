@@ -306,7 +306,7 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		fsType = nfs4FsType
 
 		if csiNS.StunnelMgr == nil {
-			err := fmt.Errorf("Stunnel manager is not initialized, this indicates a configuration error. Restart the file csi node server pod from kube-system namespace where the application is running and check if the issue is resolved. If the issue persists or none of the above apply, open a support ticket with the IBM Cloud Container Storage team.")
+			err := fmt.Errorf("stunnel manager is not initialized, this indicates a configuration error. Restart the file csi node server pod from kube-system namespace where the application is running and check if the issue is resolved. If the issue persists or none of the above apply, open a support ticket with the IBM Cloud Container Storage team.")
 			ctxLogger.Error("Stunnel manager not available for RFS EIT mount - initialization failed at startup",
 				zap.String("volumeID", volumeID),
 				zap.String("profileName", profileName),
