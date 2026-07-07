@@ -20,14 +20,19 @@
 package ibmcsidriver
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
-
-	"context"
+	"unsafe"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
+	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -73,9 +78,10 @@ func (su *MockStatUtils) IsDevicePathNotExist(devicePath string) bool {
 
 func TestNodePublishVolume(t *testing.T) {
 	testCases := []struct {
-		name       string
-		req        *csi.NodePublishVolumeRequest
-		expErrCode codes.Code
+		name          string
+		req           *csi.NodePublishVolumeRequest
+		expErrCode    codes.Code
+		expErrMessage string
 	}{
 		{
 			name: "Valid request",
@@ -100,6 +106,65 @@ func TestNodePublishVolume(t *testing.T) {
 				VolumeContext:     map[string]string{NFSServerPath: "c:/abc/xyz", IsEITEnabled: "true"},
 			},
 			expErrCode: codes.OK,
+		},
+		{
+			name: "RFS profile with EIT enabled but no stunnel manager",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs4", // Must be nfs4 for RFS with stunnel
+							MountFlags: []string{"vers=4.1", "proto=tcp"},
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath: "10.240.0.5:/share123",
+					IsEITEnabled:  "true",
+					ProfileLabel:  "rfs",
+				},
+			},
+			expErrCode:    codes.Internal, // Should fail - stunnel manager required for RFS+EIT
+			expErrMessage: "stunnel manager is not initialized",
+		},
+		{
+			name: "Valid request with DP2 profile and EIT enabled",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext: map[string]string{
+					NFSServerPath: "10.240.0.5:/share456",
+					IsEITEnabled:  "true",
+					ProfileLabel:  "dp2",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed with IPSEC
+		},
+		{
+			name: "Valid request with RFS profile but EIT disabled",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability:  stdVolCap[0],
+				VolumeContext: map[string]string{
+					NFSServerPath: "10.240.0.5:/share789",
+					IsEITEnabled:  "false",
+					ProfileLabel:  "rfs",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed with regular NFS mount
 		},
 		{
 			name: "Empty volume ID",
@@ -171,12 +236,231 @@ func TestNodePublishVolume(t *testing.T) {
 			if serverError.Code() != tc.expErrCode {
 				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
 			}
+			// Validate error message if expected
+			if tc.expErrMessage != "" {
+				if !strings.Contains(serverError.Message(), tc.expErrMessage) {
+					t.Fatalf("Expected error message to contain: %q, got: %q", tc.expErrMessage, serverError.Message())
+				}
+			}
 			continue
 		}
 		if tc.expErrCode != codes.OK {
 			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
 		}
 	}
+}
+
+// TestNodePublishVolume_RFSWithStunnel tests RFS profile with stunnel manager configured
+func TestNodePublishVolume_RFSWithStunnel(t *testing.T) {
+	// Create a temporary directory for stunnel configs
+	tempDir := t.TempDir()
+	servicesDir := filepath.Join(tempDir, "services")
+
+	// Create the services directory that stunnel manager will use
+	if err := os.MkdirAll(servicesDir, 0755); err != nil {
+		t.Fatalf("Failed to create services dir: %v", err)
+	}
+
+	// Create a mock CA file
+	caFile := filepath.Join(tempDir, "ca-bundle.crt")
+	if err := os.WriteFile(caFile, []byte("mock CA cert"), 0644); err != nil {
+		t.Fatalf("Failed to create mock CA file: %v", err)
+	}
+
+	// Initialize stunnel manager with test-specific configuration
+	logger, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	stunnelMgr, err := rfseit.NewStunnelManagerForTesting(servicesDir, caFile, logger)
+	if err != nil {
+		t.Fatalf("Failed to create stunnel manager: %v", err)
+	}
+	stunnelMgrValue := reflect.ValueOf(stunnelMgr).Elem().FieldByName("stunnelStarted")
+	reflect.NewAt(stunnelMgrValue.Type(), unsafe.Pointer(stunnelMgrValue.UnsafeAddr())).Elem().SetBool(true)
+
+	// Initialize IBM CSI Driver with stunnel manager
+	icDriver := initIBMCSIDriver(t)
+	icDriver.ns.StunnelMgr = stunnelMgr
+
+	testCases := []struct {
+		name       string
+		req        *csi.NodePublishVolumeRequest
+		expErrCode codes.Code
+	}{
+		{
+			name: "RFS profile with EIT enabled and stunnel manager configured",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-001",
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs4",
+							MountFlags: []string{"vers=4.1", "proto=tcp"}, // Storage class provides these
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.5:/share123",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-001",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed with stunnel manager
+		},
+		{
+			name: "RFS profile with different volume",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-002",
+				TargetPath:        "/mnt/test2",
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs4",
+							MountFlags: []string{"vers=4.1", "proto=tcp"}, // Storage class provides these
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.6:/share456",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-002",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed and allocate different port
+		},
+		{
+			name: "RFS profile with missing mount options",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-003",
+				TargetPath:        "/mnt/test3",
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs4",
+							MountFlags: []string{}, // Missing required mount options - validation happens at PVC creation time
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.7:/share789",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-003",
+				},
+			},
+			expErrCode: codes.OK, // Should succeed - validation happens at PVC creation time
+		},
+		{
+			name: "RFS profile with fsType 'nfs' instead of 'nfs4' (auto-corrected)",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-005",
+				TargetPath:        "/mnt/test5",
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "nfs", // Will be auto-corrected to nfs4 by node server
+							MountFlags: []string{"vers=4.1", "proto=tcp"},
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.9:/share111",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-005",
+				},
+			},
+			expErrCode: codes.OK, // Node server auto-corrects fsType to nfs4
+		},
+		{
+			name: "RFS profile with empty fsType (defaults to nfs4)",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          "test-volume-rfs-006",
+				TargetPath:        "/mnt/test6",
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{
+							FsType:     "", // Empty - should default to nfs4
+							MountFlags: []string{"vers=4.1", "proto=tcp"},
+						},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{
+					NFSServerPath:    "10.240.0.10:/share222",
+					IsEITEnabled:     "true",
+					ProfileLabel:     "rfs",
+					FileShareIDLabel: "share-rfs-006",
+				},
+			},
+			expErrCode: codes.OK, // Empty fsType defaults to nfs4 and should succeed
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Logf("Test case: %s", tc.name)
+		resp, err := icDriver.ns.NodePublishVolume(context.Background(), tc.req)
+		if err != nil {
+			serverError, ok := status.FromError(err)
+			if !ok {
+				t.Fatalf("Could not get error status code from err: %v", err)
+			}
+			if serverError.Code() != tc.expErrCode {
+				t.Fatalf("Expected error code: %v, got: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
+			continue
+		}
+		if tc.expErrCode != codes.OK {
+			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
+		}
+
+		// Verify tunnel was created only for successful cases
+		fileShareID := tc.req.VolumeContext[FileShareIDLabel]
+		port, exists := stunnelMgr.GetTunnelPort(fileShareID)
+		if !exists {
+			t.Fatalf("Expected tunnel to be created for %s, but it doesn't exist", fileShareID)
+		}
+		t.Logf("Tunnel created successfully for %s on port %d", fileShareID, port)
+		assert.NotNil(t, resp)
+	}
+
+	// Verify successful cases do not reuse the same port.
+	port1, exists1 := stunnelMgr.GetTunnelPort("share-rfs-001")
+	port2, exists2 := stunnelMgr.GetTunnelPort("share-rfs-002")
+	if !exists1 || !exists2 {
+		t.Fatalf("Expected successful tunnels to exist")
+	}
+	if port1 == port2 {
+		t.Fatalf("Expected different ports for different volumes, got same port: %d", port1)
+	}
+	t.Logf("Successfully allocated different ports: %d and %d", port1, port2)
 }
 
 func TestNodeUnpublishVolume(t *testing.T) {
@@ -229,6 +513,89 @@ func TestNodeUnpublishVolume(t *testing.T) {
 		if tc.expErrCode != codes.OK {
 			t.Fatalf("Expected error: %v, got no error", tc.expErrCode)
 		}
+	}
+}
+
+// TestNodeUnpublishVolume_BoundsCheck tests that NodeUnpublishVolume handles
+// invalid volume ID formats gracefully without panicking on array access.
+// This test validates the bounds check at node.go:443 (if len(fileShareID) > 0)
+// which prevents panic when accessing fileShareID[0].
+func TestNodeUnpublishVolume_BoundsCheck(t *testing.T) {
+	testCases := []struct {
+		name        string
+		volumeID    string
+		expectPanic bool
+		description string
+	}{
+		{
+			name:        "Valid volume ID with # separator",
+			volumeID:    "share123#target456",
+			expectPanic: false,
+			description: "Normal case: shareID#targetID format - getTokens returns [share123, target456]",
+		},
+		{
+			name:        "Valid volume ID with : separator",
+			volumeID:    "share123:target456",
+			expectPanic: false,
+			description: "Deprecated format: shareID:targetID - getTokens returns [share123, target456]",
+		},
+		{
+			name:        "Volume ID without separator",
+			volumeID:    "share123",
+			expectPanic: false,
+			description: "Edge case: no separator - getTokens returns [share123]",
+		},
+		{
+			name:        "Just separator #",
+			volumeID:    "#",
+			expectPanic: false,
+			description: "Edge case: just # - getTokens returns ['', ''] (2 empty strings)",
+		},
+		{
+			name:        "Just separator :",
+			volumeID:    ":",
+			expectPanic: false,
+			description: "Edge case: just : - getTokens returns ['', ''] (2 empty strings)",
+		},
+	}
+
+	icDriver := initIBMCSIDriver(t)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &csi.NodeUnpublishVolumeRequest{
+				VolumeId:   tc.volumeID,
+				TargetPath: defaultTargetPath,
+			}
+
+			// Test that no panic occurs - the bounds check prevents it
+			defer func() {
+				if r := recover(); r != nil {
+					if !tc.expectPanic {
+						t.Errorf("BOUNDS CHECK FAILED: Unexpected panic for %s: %v", tc.description, r)
+						t.Errorf("The bounds check at node.go:443 should prevent panic on fileShareID[0] access")
+					}
+				}
+			}()
+
+			// Call NodeUnpublishVolume - should not panic due to bounds check
+			resp, err := icDriver.ns.NodeUnpublishVolume(context.Background(), req)
+
+			// Verify no panic occurred
+			if !tc.expectPanic {
+				// Should succeed or fail gracefully without panicking
+				if err != nil {
+					// Check it's not a panic-related error
+					assert.NotContains(t, err.Error(), "index out of range",
+						"Bounds check failed: accessing fileShareID[0] caused panic")
+					assert.NotContains(t, err.Error(), "runtime error",
+						"Bounds check failed: runtime error occurred")
+				} else {
+					assert.NotNil(t, resp, "Expected non-nil response for valid request")
+				}
+				t.Logf("✓ %s: No panic occurred, bounds check working correctly", tc.description)
+			}
+		})
 	}
 }
 
@@ -514,3 +881,254 @@ func TestIsDevicePathNotExist(t *testing.T) {
 // 		return command
 // 	}
 // }
+
+func TestSplitNFSSource(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      string
+		wantServer  string
+		wantPath    string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:       "valid NFS source with simple path",
+			source:     "192.168.1.100:/share",
+			wantServer: "192.168.1.100",
+			wantPath:   "/share",
+			wantErr:    false,
+		},
+		{
+			name:       "valid NFS source with nested path",
+			source:     "nfs.example.com:/exports/data/volume1",
+			wantServer: "nfs.example.com",
+			wantPath:   "/exports/data/volume1",
+			wantErr:    false,
+		},
+		{
+			name:       "valid NFS source with root path",
+			source:     "10.0.0.5:/",
+			wantServer: "10.0.0.5",
+			wantPath:   "/",
+			wantErr:    false,
+		},
+		{
+			name:        "empty source",
+			source:      "",
+			wantErr:     true,
+			errContains: "cannot be empty",
+		},
+		{
+			name:        "missing colon separator",
+			source:      "192.168.1.100/share",
+			wantErr:     true,
+			errContains: "missing ':' separator",
+		},
+		{
+			name:        "empty server",
+			source:      ":/share",
+			wantErr:     true,
+			errContains: "server cannot be empty",
+		},
+		{
+			name:        "empty export path",
+			source:      "192.168.1.100:",
+			wantErr:     true,
+			errContains: "export path cannot be empty",
+		},
+		{
+			name:        "export path without leading slash",
+			source:      "192.168.1.100:share",
+			wantErr:     true,
+			errContains: "must start with '/'",
+		},
+		{
+			name:        "export path with double slashes",
+			source:      "192.168.1.100://share",
+			wantErr:     true,
+			errContains: "double slashes",
+		},
+		{
+			name:        "export path with double slashes in middle",
+			source:      "192.168.1.100:/exports//data",
+			wantErr:     true,
+			errContains: "double slashes",
+		},
+		{
+			name:       "hostname with hyphen and numbers",
+			source:     "nfs-server-01.example.com:/vol/data",
+			wantServer: "nfs-server-01.example.com",
+			wantPath:   "/vol/data",
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := splitNFSSource(tt.source)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("splitNFSSource() expected error but got none")
+					return
+				}
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("splitNFSSource() error = %v, want error containing %q", err, tt.errContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("splitNFSSource() unexpected error = %v", err)
+				return
+			}
+
+			if result == nil {
+				t.Errorf("splitNFSSource() returned nil result")
+				return
+			}
+
+			if result.Server != tt.wantServer {
+				t.Errorf("splitNFSSource() Server = %v, want %v", result.Server, tt.wantServer)
+			}
+
+			if result.ExportPath != tt.wantPath {
+				t.Errorf("splitNFSSource() ExportPath = %v, want %v", result.ExportPath, tt.wantPath)
+			}
+		})
+	}
+}
+
+// TestSplitNFSSource_SecurityAttacks tests malicious input handling
+func TestSplitNFSSource_SecurityAttacks(t *testing.T) {
+	maliciousInputs := []struct {
+		name        string
+		input       string
+		desc        string
+		errContains string
+	}{
+		{
+			name:        "path traversal single",
+			input:       "server:/../etc/passwd",
+			desc:        "Should reject parent directory references",
+			errContains: "parent directory references",
+		},
+		{
+			name:        "path traversal multiple",
+			input:       "server:/path/../../../etc",
+			desc:        "Should reject multiple parent references",
+			errContains: "parent directory references",
+		},
+		{
+			name:        "path traversal at end",
+			input:       "server:/path/..",
+			desc:        "Should reject parent reference at end",
+			errContains: "parent directory references",
+		},
+		{
+			name:        "current directory reference",
+			input:       "server:/./path",
+			desc:        "Should reject current directory references",
+			errContains: "current directory references",
+		},
+		{
+			name:        "current directory at end",
+			input:       "server:/path/.",
+			desc:        "Should reject current directory at end",
+			errContains: "current directory references",
+		},
+		{
+			name:        "null byte injection",
+			input:       "server:/path\x00/hidden",
+			desc:        "Should reject null bytes",
+			errContains: "null bytes",
+		},
+		{
+			name:        "newline injection",
+			input:       "server:/path\n/data",
+			desc:        "Should reject control characters",
+			errContains: "control character",
+		},
+		{
+			name:        "carriage return injection",
+			input:       "server:/path\r/data",
+			desc:        "Should reject control characters",
+			errContains: "control character",
+		},
+		{
+			name:        "tab injection",
+			input:       "server:/path\t/data",
+			desc:        "Should reject control characters",
+			errContains: "control character",
+		},
+		{
+			name:        "length attack on source",
+			input:       strings.Repeat("a", 5000) + ":/path",
+			desc:        "Should reject excessive source length",
+			errContains: "exceeds maximum length",
+		},
+		{
+			name:        "length attack on server",
+			input:       strings.Repeat("a", 300) + ".com:/path",
+			desc:        "Should reject excessive server length",
+			errContains: "exceeds maximum length",
+		},
+		{
+			name:        "length attack on path",
+			input:       "server:/" + strings.Repeat("a", 5000),
+			desc:        "Should reject excessive path length",
+			errContains: "exceeds maximum length",
+		},
+		{
+			name:        "double slash in path",
+			input:       "server://path",
+			desc:        "Should reject double slashes",
+			errContains: "double slashes",
+		},
+		{
+			name:        "double slash in middle",
+			input:       "server:/path//data",
+			desc:        "Should reject double slashes in middle",
+			errContains: "double slashes",
+		},
+		{
+			name:        "command injection attempt",
+			input:       "server;rm -rf /:/path",
+			desc:        "Should reject invalid server format",
+			errContains: "invalid hostname format",
+		},
+		{
+			name:        "path with spaces",
+			input:       "server:/path with spaces",
+			desc:        "Should accept paths with spaces (valid NFS)",
+			errContains: "", // This should actually succeed
+		},
+	}
+
+	for _, tt := range maliciousInputs {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := splitNFSSource(tt.input)
+
+			// Special case: paths with spaces are actually valid in NFS
+			if tt.name == "path with spaces" {
+				if err != nil {
+					t.Errorf("%s: Expected success for valid path with spaces, got error: %v", tt.desc, err)
+				}
+				if result == nil || result.ExportPath != "/path with spaces" {
+					t.Errorf("%s: Expected path '/path with spaces', got: %v", tt.desc, result)
+				}
+				return
+			}
+
+			// All other cases should fail
+			if err == nil {
+				t.Errorf("%s: Expected error for malicious input, got none", tt.desc)
+				return
+			}
+
+			if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("%s: Error = %v, want error containing %q", tt.desc, err, tt.errContains)
+			}
+		})
+	}
+}

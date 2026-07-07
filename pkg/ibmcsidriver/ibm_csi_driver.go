@@ -22,10 +22,12 @@ package ibmcsidriver
 import (
 	"context"
 	"fmt"
+	"os"
 
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -133,6 +135,42 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		icDriver.rfsEnabled = true
 		icDriver.logger.Info("RFS profile is supported")
 	}
+
+	// Initialize tunnel manager gRPC client only for node servers (not controllers)
+	// Initialize stunnel manager for node server (works with stunnel sidecar)
+	if os.Getenv("IS_NODE_SERVER") == "true" {
+		// Create simple stunnel manager with hardcoded defaults
+		stunnelMgr, err := rfseit.NewStunnelManager(icDriver.logger)
+		if err != nil {
+			// Enhanced error logging with troubleshooting guidance
+			if icDriver.rfsEnabled {
+				// RFS is enabled - stunnel manager failure will cause RFS EIT mount failures
+				icDriver.logger.Warn("Failed to create stunnel manager - RFS EIT mounts will FAIL",
+					zap.Error(err),
+					zap.Bool("rfsEnabled", true),
+					zap.String("impact", "All RFS EIT profile mounts will fail at mount time"),
+					zap.String("action", "Check: 1) OS_TYPE env var is set correctly, 2) CLUSTER_ENV is set, 3) CA bundle file exists, 4) Restart node server pod to retry"))
+			} else {
+				// RFS not enabled - only log warning
+				icDriver.logger.Warn("Failed to create stunnel manager - RFS EIT mounts will not work",
+					zap.Error(err),
+					zap.Bool("rfsEnabled", false),
+					zap.String("note", "Node server will continue - non-RFS mounts unaffected"))
+			}
+			icDriver.ns.StunnelMgr = nil
+		} else {
+			icDriver.ns.StunnelMgr = stunnelMgr
+			icDriver.logger.Info("Successfully initialized stunnel manager for node server with hardcoded defaults",
+				zap.String("servicesDir", rfseit.DefaultServicesDir),
+				zap.Int("basePort", rfseit.InitialPort),
+				zap.Int("portRange", rfseit.PortRange),
+				zap.Bool("rfsEnabled", icDriver.rfsEnabled),
+				zap.String("note", "Works with stunnel sidecar container"))
+		}
+	} else {
+		icDriver.logger.Info("Skipping stunnel manager initialization (running as controller)")
+	}
+
 	return nil
 }
 
@@ -201,10 +239,11 @@ func NewIdentityServer(icDriver *IBMCSIDriver) *CSIIdentityServer {
 // NewNodeServer ...
 func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUtil StatsUtils, nodeMetadata nodeMetadata.NodeMetadata) *CSINodeServer {
 	return &CSINodeServer{
-		Driver:   icDriver,
-		Mounter:  mounter,
-		Stats:    statsUtil,
-		Metadata: nodeMetadata,
+		Driver:     icDriver,
+		Mounter:    mounter,
+		Stats:      statsUtil,
+		Metadata:   nodeMetadata,
+		StunnelMgr: nil, // Will be initialized in SetupIBMCSIDriver if IS_NODE_SERVER=true
 	}
 }
 
