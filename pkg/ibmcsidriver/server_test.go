@@ -92,18 +92,25 @@ func TestSetup(t *testing.T) {
 	}
 
 	{
-		t.Logf("setup CSI sidecar with chown failure")
-		_ = os.Setenv("IS_NODE_SERVER", "true")
-		defer func() { _ = os.Unsetenv("IS_NODE_SERVER") }()
-		fakeFileOps := new(ibmcsidriverfakes.FakeSocketPermission)
-		chownErr := errors.New("chown /tmp/testcsi.sock: operation not permitted")
-		fakeFileOps.ChownReturns(chownErr)
-		nonBlockingServer.fileOps = fakeFileOps
-		ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
-		assert.NotNil(t, err)
-		assert.Nil(t, ls)
-		assert.Equal(t, err.Error(), "chown /tmp/testcsi.sock: operation not permitted")
-	}
+        t.Logf("setup CSI sidecar with chown failure")
+        _ = os.Setenv("IS_NODE_SERVER", "true")
+        defer func() { _ = os.Unsetenv("IS_NODE_SERVER") }()
+
+        // Initialize your mock
+        fakeFileOps := new(ibmcsidriverfakes.FakeSocketPermission)
+        chownErr := errors.New("chown /tmp/testcsi.sock: operation not permitted")
+        fakeFileOps.ChownReturns(chownErr)
+
+        // Override the package global hook, and restore it when done
+        oldFileOps := defaultSocketPermission
+        defaultSocketPermission = fakeFileOps
+        defer func() { defaultSocketPermission = oldFileOps }()
+
+        ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
+        assert.NotNil(t, err)
+        assert.Nil(t, ls)
+        assert.Equal(t, "chown /tmp/testcsi.sock: operation not permitted", err.Error())
+    }
 }
 
 func TestLogGRPC(t *testing.T) {
