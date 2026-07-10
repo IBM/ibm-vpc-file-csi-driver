@@ -72,7 +72,6 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mount
 		errRemovePath := os.Remove(targetPath)
 		if errRemovePath != nil {
 			ctxLogger.Warn("processMount: Remove targetPath failed", zap.String("targetPath", targetPath), zap.Error(errRemovePath))
-			errorCode = commonError.CreateMountTargetFailed
 		}
 		if fsType == eitFsType {
 			errorCode = checkMountResponse(err)
