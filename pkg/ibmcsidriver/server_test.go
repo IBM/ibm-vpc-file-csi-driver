@@ -28,6 +28,7 @@ import (
 	"context"
 
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
+	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/ibmcsidriver/ibmcsidriverfakes"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 )
@@ -91,14 +92,25 @@ func TestSetup(t *testing.T) {
 	}
 
 	{
-		t.Logf("setup CSI sidecar with chown failure")
-		_ = os.Setenv("IS_NODE_SERVER", "true")
-		defer func() { _ = os.Unsetenv("IS_NODE_SERVER") }()
-		ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
-		assert.NotNil(t, err)
-		assert.Nil(t, ls)
-		assert.Equal(t, err.Error(), "chown /tmp/testcsi.sock: operation not permitted")
-	}
+        t.Logf("setup CSI sidecar with chown failure")
+        _ = os.Setenv("IS_NODE_SERVER", "true")
+        defer func() { _ = os.Unsetenv("IS_NODE_SERVER") }()
+
+        // Initialize your mock
+        fakeFileOps := new(ibmcsidriverfakes.FakeSocketPermission)
+        chownErr := errors.New("chown /tmp/testcsi.sock: operation not permitted")
+        fakeFileOps.ChownReturns(chownErr)
+
+        // Override the package global hook, and restore it when done
+        oldFileOps := defaultSocketPermission
+        defaultSocketPermission = fakeFileOps
+        defer func() { defaultSocketPermission = oldFileOps }()
+
+        ls, err := nonBlockingServer.Setup(*goodEndpoint, ids, cs, ns)
+        assert.NotNil(t, err)
+        assert.Nil(t, ls)
+        assert.Equal(t, "chown /tmp/testcsi.sock: operation not permitted", err.Error())
+    }
 }
 
 func TestLogGRPC(t *testing.T) {

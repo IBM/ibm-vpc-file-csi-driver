@@ -67,16 +67,15 @@ func (csiNS *CSINodeServer) processMount(ctxLogger *zap.Logger, requestID, mount
 				return nil, commonError.GetCSIError(ctxLogger, commonError.UnmountFailed, requestID, err, targetPath)
 			}
 		}
-		var errorCode string
+		errorCode := commonError.MountingTargetFailed
 		errRemovePath := os.Remove(targetPath)
 		if errRemovePath != nil {
 			ctxLogger.Warn("processMount: Remove targetPath failed", zap.String("targetPath", targetPath), zap.Error(errRemovePath))
-			errorCode = commonError.CreateMountTargetFailed
 		}
 		if fsType == eitFsType {
 			errorCode = checkMountResponse(err)
 			if errorCode != commonError.UnresponsiveMountHelperContainerUtility {
-				ctxLogger.Error("Mount backend output: ", zap.String("Reponse:", errResponse))
+				ctxLogger.Error("Mount backend output: ", zap.String("Response:", errResponse))
 			}
 		}
 		return nil, commonError.GetCSIError(ctxLogger, errorCode, requestID, err)

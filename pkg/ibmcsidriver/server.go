@@ -53,6 +53,9 @@ func NewNonBlockingGRPCServer(logger *zap.Logger) NonBlockingGRPCServer {
 	return &nonBlockingGRPCServer{logger: logger}
 }
 
+// Package variable to allow unit tests to override file operations safely
+var defaultSocketPermission socketPermission = &opsSocketPermission{}
+
 // nonBlockingGRPCServer server
 type nonBlockingGRPCServer struct {
 	wg     sync.WaitGroup
@@ -126,8 +129,7 @@ func (s *nonBlockingGRPCServer) Setup(endpoint string, ids csi.IdentityServer, c
 	// In case of nodeSerer container, setup desired csi socket permissions and user/group.
 	// This is required for running `livenessprobe` container as non-root user/group
 	if os.Getenv("IS_NODE_SERVER") == "true" {
-		fileops := &opsSocketPermission{}
-		if err := setupSidecar(addr, fileops, s.logger); err != nil {
+		if err := setupSidecar(addr, defaultSocketPermission, s.logger); err != nil {
 			s.logger.Error("setupSidecar failed.", zap.Error(err))
 			return nil, err
 		}
