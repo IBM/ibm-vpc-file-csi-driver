@@ -158,8 +158,7 @@ func TestProcessMount_MountFailure(t *testing.T) {
 				_ = os.Remove(targetPath)
 			}
 
-			// Override MakeDir so it doesn't create the path when targetPath is
-			// a real TempDir — that path already exists and we want Remove to
+			// Use an existing TempDir — that path already exists and we want Remove to
 			// find it after the mount fails.
 			resp, err := icDriver.ns.processMount(logger, "req-001", "10.0.0.1:/vol", targetPath, tc.fsType, tc.transitEnc, nil)
 
