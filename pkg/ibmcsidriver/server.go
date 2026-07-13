@@ -61,7 +61,6 @@ type nonBlockingGRPCServer struct {
 	wg     sync.WaitGroup
 	server *grpc.Server
 	logger *zap.Logger
-	// fileOps socketPermission
 }
 
 // Start ...
