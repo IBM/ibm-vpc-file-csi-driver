@@ -106,10 +106,21 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	}
 	_ = icDriver.AddNodeServiceCapabilities(ns) // #nosec G104: Attempt to AddNodeServiceCapabilities only on best-effort basis. Error cannot be usefully handled.
 
+	// Fetch dp2 capacity-IOPS bands from IBM Global Catalog once at startup and cache them.
+	// A nil catalogClient means the bands are unavailable; allowCapacityRoundoffForIops will
+	// surface a clear error at PVC creation time rather than failing the whole driver.
+	catalogClient := NewCatalogClient(CatalogDP2URL, lgr)
+	if err := catalogClient.FetchBands(); err != nil {
+		lgr.Warn("Failed to fetch dp2 catalog bands from IBM Global Catalog; "+
+			"allowCapacityRoundoffForIops will be unavailable until driver restart",
+			zap.Error(err))
+		catalogClient = nil
+	}
+
 	// Set up CSI RPC Servers
 	icDriver.ids = NewIdentityServer(icDriver)
 	icDriver.ns = NewNodeServer(icDriver, mounter, statsUtil, metadata)
-	icDriver.cs = NewControllerServer(icDriver, provider)
+	icDriver.cs = NewControllerServer(icDriver, provider, catalogClient)
 
 	icDriver.logger.Info("Successfully setup IBM CSI driver")
 
@@ -248,10 +259,11 @@ func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUt
 }
 
 // NewControllerServer ...
-func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface) *CSIControllerServer {
+func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface, catalogClient *CatalogClient) *CSIControllerServer {
 	return &CSIControllerServer{
-		Driver:      icDriver,
-		CSIProvider: provider,
+		Driver:        icDriver,
+		CSIProvider:   provider,
+		CatalogClient: catalogClient,
 	}
 }
 

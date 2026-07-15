@@ -196,6 +196,15 @@ const (
 	// VMState ... Parameter to identify VM persistent state volumes (vTPM)
 	VMState = "vmState"
 
+	// AllowCapacityRoundoffForIops ... When set to "true" in the StorageClass, the driver will
+	// automatically round up the requested capacity to the minimum size tier that satisfies
+	// the requested IOPS, instead of returning an error when the size/IOPS combination is invalid.
+	AllowCapacityRoundoffForIops = "allowCapacityRoundoffForIops"
+
+	// CatalogDP2URL is the IBM Global Catalog endpoint for the dp2 share profile.
+	// config_validation bands are fetched from metadata.other.profile.config_validation[].
+	CatalogDP2URL = "https://globalcatalog.cloud.ibm.com/api/v1/dp2"
+
 	// ConfigmapName ...
 	ConfigmapName = "ibm-cloud-provider-data"
 
