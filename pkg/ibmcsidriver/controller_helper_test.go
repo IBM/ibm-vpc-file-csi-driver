@@ -30,6 +30,7 @@ import (
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 const (
@@ -174,6 +175,24 @@ func isVolumeSame(actual *provider.Volume, expected *provider.Volume) bool {
 		actual.Region == expected.Region
 }
 
+// newTestCatalogClient builds a CatalogClient pre-loaded with the dp2CapacityIopsRanges
+// table used throughout tests — no HTTP call is made.
+func newTestCatalogClient(t *testing.T) *CatalogClient {
+	t.Helper()
+	logger, teardown := cloudProvider.GetTestLogger(t)
+	t.Cleanup(teardown)
+	c := NewCatalogClient("", logger)
+	for _, r := range dp2CapacityIopsRanges {
+		c.bands = append(c.bands, CatalogBand{
+			CapMin:  r.minSize,
+			CapMax:  r.maxSize,
+			IOPSMin: r.minIops,
+			IOPSMax: r.maxIops,
+		})
+	}
+	return c
+}
+
 func TestGetVolumeParameters(t *testing.T) {
 	volumeName := "volName"
 	volumeSize := 11
@@ -181,6 +200,7 @@ func TestGetVolumeParameters(t *testing.T) {
 	testCases := []struct {
 		testCaseName   string
 		request        *csi.CreateVolumeRequest
+		catalogClient  *CatalogClient // nil for non-roundoff cases
 		expectedVolume *provider.Volume
 		expectedStatus bool
 		expectedError  error
@@ -966,6 +986,137 @@ func TestGetVolumeParameters(t *testing.T) {
 			expectedStatus: true,
 			expectedError:  nil,
 		},
+		{
+			testCaseName: "allowCapacityRoundoffForIops invalid value",
+			request: &csi.CreateVolumeRequest{
+				Parameters: map[string]string{
+					AllowCapacityRoundoffForIops: "notBool",
+				},
+			},
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", "notBool", AllowCapacityRoundoffForIops),
+		},
+		{
+			testCaseName: "allowCapacityRoundoffForIops false - no roundup",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				// 11 GiB falls in tier {10,39} whose maxIops=1000; requesting 1500 IOPS should fail without roundup
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 11811160064, // 11 GiB
+					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}},
+				},
+				Parameters: map[string]string{
+					Profile:                      "dp2",
+					Zone:                         "us-south-1",
+					Region:                       "us-south",
+					IsENIEnabled:                 "true",
+					ResourceGroup:                "myresourcegroups",
+					AllowCapacityRoundoffForIops: "false",
+					IOPS:                         "110",
+				},
+			},
+			expectedVolume: &provider.Volume{
+				Name:     &volumeName,
+				Capacity: &volumeSize,
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "dp2"},
+					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						AccessControlMode: SecurityGroup,
+					},
+				},
+				Az:     "us-south-1",
+				Region: "us-south",
+			},
+			expectedStatus: true,
+			expectedError:  nil,
+		},
+		{
+			testCaseName: "allowCapacityRoundoffForIops true - rounds up capacity for IOPS",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				// 11 GiB falls in tier {10,39,minIops=100,maxIops=1000}; requesting 1500 IOPS needs
+				// the {40,79,100,2000} tier -> capacity rounded up to 40 GiB
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 11811160064, // 11 GiB
+					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}},
+				},
+				Parameters: map[string]string{
+					Profile:                      "dp2",
+					Zone:                         "us-south-1",
+					Region:                       "us-south",
+					IsENIEnabled:                 "true",
+					ResourceGroup:                "myresourcegroups",
+					AllowCapacityRoundoffForIops: "true",
+					IOPS:                         "1500",
+				},
+			},
+			catalogClient: func() *CatalogClient {
+				c := &CatalogClient{logger: zap.NewNop()}
+				for _, r := range dp2CapacityIopsRanges {
+					c.bands = append(c.bands, CatalogBand{CapMin: r.minSize, CapMax: r.maxSize, IOPSMin: r.minIops, IOPSMax: r.maxIops})
+				}
+				return c
+			}(),
+			// After round-up, capacity will be 40 GiB
+			expectedVolume: &provider.Volume{
+				Name: &volumeName,
+				Capacity: func() *int {
+					v := 40
+					return &v
+				}(),
+				VPCVolume: provider.VPCVolume{
+					Profile:       &provider.Profile{Name: "dp2"},
+					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
+					VPCFileVolume: provider.VPCFileVolume{
+						AccessControlMode: SecurityGroup,
+					},
+				},
+				Az:     "us-south-1",
+				Region: "us-south",
+			},
+			expectedStatus: true,
+			expectedError:  nil,
+		},
+		{
+			testCaseName: "allowCapacityRoundoffForIops true - IOPS exceeds all tiers",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 11811160064,
+					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}},
+				},
+				Parameters: map[string]string{
+					Profile:                      "dp2",
+					Zone:                         "us-south-1",
+					Region:                       "us-south",
+					IsENIEnabled:                 "true",
+					ResourceGroup:                "myresourcegroups",
+					AllowCapacityRoundoffForIops: "true",
+					IOPS:                         "999999",
+				},
+			},
+			catalogClient: func() *CatalogClient {
+				c := &CatalogClient{logger: zap.NewNop()}
+				for _, r := range dp2CapacityIopsRanges {
+					c.bands = append(c.bands, CatalogBand{CapMin: r.minSize, CapMax: r.maxSize, IOPSMin: r.minIops, IOPSMax: r.maxIops})
+				}
+				return c
+			}(),
+			expectedVolume: &provider.Volume{},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("no dp2 band found for iops=<999999>; value may exceed the maximum supported IOPS"),
+		},
 	}
 
 	// Set up
@@ -991,7 +1142,7 @@ func TestGetVolumeParameters(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			actualVolume, err := getVolumeParameters(logger, testcase.request, testConfig)
+			actualVolume, err := getVolumeParameters(logger, testcase.request, testConfig, testcase.catalogClient)
 			if testcase.expectedError != nil {
 				assert.Equal(t, err, testcase.expectedError)
 			} else {
@@ -1039,6 +1190,70 @@ func TestIsValidCapacityIOPS(t *testing.T) {
 				assert.Equal(t, err, testcase.expectedError)
 			} else {
 				assert.Equal(t, testcase.expectedStatus, isValid)
+			}
+		})
+	}
+}
+
+func TestRoundUpCapacityForIops(t *testing.T) {
+	testCases := []struct {
+		testCaseName   string
+		requestSize    int
+		requestIops    int
+		profile        string
+		expectedSize   int
+		expectedError  error
+	}{
+		{
+			testCaseName:  "Size already satisfies IOPS - no change",
+			requestSize:   20,
+			requestIops:   500,
+			profile:       "dp2",
+			expectedSize:  20,
+			expectedError: nil,
+		},
+		{
+			testCaseName:  "Size too small for IOPS - rounds up to tier minimum",
+			requestSize:   11,
+			requestIops:   1500,
+			profile:       "dp2",
+			expectedSize:  40,
+			expectedError: nil,
+		},
+		{
+			testCaseName:  "Size too small for high IOPS - rounds up to higher tier",
+			requestSize:   11,
+			requestIops:   5000,
+			profile:       "dp2",
+			expectedSize:  100,
+			expectedError: nil,
+		},
+		{
+			testCaseName:  "IOPS exceeds maximum of all tiers",
+			requestSize:   100,
+			requestIops:   999999,
+			profile:       "dp2",
+			expectedSize:  100,
+			expectedError: fmt.Errorf("requested IOPS <999999> exceeds the maximum supported IOPS for any capacity tier"),
+		},
+		{
+			testCaseName:  "Unsupported profile",
+			requestSize:   20,
+			requestIops:   500,
+			profile:       "rfs",
+			expectedSize:  20,
+			expectedError: fmt.Errorf("allowCapacityRoundoffForIops is not supported for profile: <rfs>"),
+		},
+	}
+
+	for _, testcase := range testCases {
+		t.Run(testcase.testCaseName, func(t *testing.T) {
+			size, err := roundUpCapacityForIops(testcase.requestSize, testcase.requestIops, testcase.profile)
+			if testcase.expectedError != nil {
+				assert.Equal(t, testcase.expectedError, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, testcase.expectedSize, size)
 			}
 		})
 	}
