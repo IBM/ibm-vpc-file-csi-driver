@@ -78,7 +78,7 @@ func NewCatalogClient(url string, logger *zap.Logger) *CatalogClient {
 // FetchBands performs a single HTTP GET to the IBM Global Catalog API, parses the
 // config_validation bands, and caches them for the lifetime of the driver pod.
 // Returns an error if the endpoint is unreachable or returns an unexpected response.
-func (c *CatalogClient) FetchBands() error {
+func (c *CatalogClient) FetchBands() (retErr error) {
 	c.logger.Info("Fetching dp2 capacity-IOPS bands from IBM Global Catalog", zap.String("url", c.url))
 
 	httpClient := &http.Client{Timeout: 30 * time.Second}
@@ -86,7 +86,11 @@ func (c *CatalogClient) FetchBands() error {
 	if err != nil {
 		return fmt.Errorf("catalog API request failed: %w", err)
 	}
-	defer resp.Body.Close() // #nosec G307
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to close catalog API response body: %w", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("catalog API returned unexpected status: %d", resp.StatusCode)
