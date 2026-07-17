@@ -807,28 +807,35 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 	var iops int64
 	var bandwidth int32
 
-	// Determine the volume profile so a common VAC (e.g. throughput=5000) can be
-	// routed correctly: dp2 volumes use "iops", rfs volumes use "bandwidth".
+	// Resolve the volume's profile so that a common VAC carrying both
+	// "iops" and "throughput" is routed correctly:
+	//   dp2  → only "iops" is sent  (bandwidth stays 0)
+	//   rfs  → only "throughput" is mapped to bandwidth ("iops" is ignored)
+	// This prevents VPC returning shares_bad_field_update_for_rfs_profile
+	// when both fields are submitted together.
 	volumeProfile := ""
 	if volDetail.Profile != nil {
 		volumeProfile = strings.ToLower(volDetail.Profile.Name)
 	}
-	ctxLogger.Info("ControllerModifyVolume: resolved volume profile", zap.String("profile", volumeProfile))
+	ctxLogger.Info("ControllerModifyVolume: resolved volume profile",
+		zap.String("profile", volumeProfile))
 
-	if val, ok := params[IOPS]; ok {
-		parsed, _ := strconv.ParseInt(val, 10, 64)
-		iops = parsed
-	}
-
-	if val, ok := params[Throughput]; ok && volumeProfile == RFSProfile {
-		// VAC carries "throughput" and the volume is rfs — map to bandwidth
-		parsed, _ := strconv.ParseInt(val, 10, 32)
-		bandwidth = int32(parsed)
-	}
-
-	if val, ok := params["bandwidth"]; ok {
-		parsed, _ := strconv.ParseInt(val, 10, 32)
-		bandwidth = int32(parsed)
+	switch volumeProfile {
+	case RFSProfile:
+		// rfs: accept "throughput" or "bandwidth" as the bandwidth value
+		if val, ok := params[Throughput]; ok {
+			parsed, _ := strconv.ParseInt(val, 10, 32)
+			bandwidth = int32(parsed)
+		} else if val, ok := params["bandwidth"]; ok {
+			parsed, _ := strconv.ParseInt(val, 10, 32)
+			bandwidth = int32(parsed)
+		}
+	default:
+		// dp2 (and any future profile): accept "iops"
+		if val, ok := params[IOPS]; ok {
+			parsed, _ := strconv.ParseInt(val, 10, 64)
+			iops = parsed
+		}
 	}
 
 	modifyReq := provider.ModifyVolumeRequest{
