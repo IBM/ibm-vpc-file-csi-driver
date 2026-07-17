@@ -807,12 +807,26 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 	var iops int64
 	var bandwidth int32
 
-	if val, ok := params["iops"]; ok {
+	// Determine the volume profile so a common VAC (e.g. throughput=5000) can be
+	// routed correctly: dp2 volumes use "iops", rfs volumes use "bandwidth".
+	volumeProfile := ""
+	if volDetail.Profile != nil {
+		volumeProfile = strings.ToLower(volDetail.Profile.Name)
+	}
+	ctxLogger.Info("ControllerModifyVolume: resolved volume profile", zap.String("profile", volumeProfile))
+
+	if val, ok := params[IOPS]; ok {
 		parsed, _ := strconv.ParseInt(val, 10, 64)
 		iops = parsed
 	}
 
-	if val, ok := params["throughput"]; ok {
+	if val, ok := params[Throughput]; ok && volumeProfile == RFSProfile {
+		// VAC carries "throughput" and the volume is rfs — map to bandwidth
+		parsed, _ := strconv.ParseInt(val, 10, 32)
+		bandwidth = int32(parsed)
+	}
+
+	if val, ok := params["bandwidth"]; ok {
 		parsed, _ := strconv.ParseInt(val, 10, 32)
 		bandwidth = int32(parsed)
 	}
