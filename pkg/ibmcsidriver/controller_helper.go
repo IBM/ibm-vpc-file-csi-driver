@@ -363,19 +363,52 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
-	// validate bandwidth for dp2 profile
-	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
-		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property from storage class")
-		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-		return volume, err
+	// Profile-specific parameter validation.
+	//
+	// A common VolumeAttributesClass may carry both "iops" and "throughput" so
+	// that a single VAC works for both dp2 and rfs volumes.  In that case the
+	// driver strips the parameter that doesn't apply to the current profile
+	// (with a warning) rather than failing the provision request.
+	//
+	// Parameters that come exclusively from the StorageClass (not a VAC) and
+	// conflict with the profile are still treated as a hard configuration error
+	// to catch mismatched StorageClass definitions early.
+	iopsFromVAC := false
+	throughputFromVAC := false
+	if mutable := req.GetMutableParameters(); mutable != nil {
+		_, iopsFromVAC = mutable[IOPS]
+		_, throughputFromVAC = mutable[Throughput]
 	}
 
-	// validation zone and iops for 'rfs' profile
-	if volume.VPCVolume.Profile.Name == RFSProfile {
-		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
-			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
+	// dp2: bandwidth/throughput is not a valid attribute.
+	// Silently drop it when it arrived via a common VAC; error if it came from the SC.
+	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
+		if throughputFromVAC {
+			logger.Warn("getVolumeParameters: throughput is not applicable for dp2 profile; "+
+				"ignoring it (supplied by a common VolumeAttributesClass)",
+				zap.Int32("bandwidth", volume.VPCVolume.Bandwidth))
+			volume.VPCVolume.Bandwidth = 0
+		} else {
+			err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property from storage class")
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
+		}
+	}
+
+	// rfs: iops and zone are not valid attributes.
+	// Silently drop iops when it arrived via a common VAC; error if it came from the SC.
+	if volume.VPCVolume.Profile.Name == RFSProfile {
+		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
+			if iopsFromVAC {
+				logger.Warn("getVolumeParameters: iops is not applicable for rfs profile; "+
+					"ignoring it (supplied by a common VolumeAttributesClass)",
+					zap.String("iops", *volume.Iops))
+				volume.Iops = nil
+			} else {
+				err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
+				logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+				return volume, err
+			}
 		}
 		if len(strings.TrimSpace(volume.Az)) > 0 {
 			err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
