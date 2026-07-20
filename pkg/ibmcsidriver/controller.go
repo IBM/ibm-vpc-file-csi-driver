@@ -20,6 +20,7 @@
 package ibmcsidriver
 
 import (
+	"context"
 	"os"
 	"strings"
 	"time"
@@ -27,13 +28,11 @@ import (
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	vpcfileClient "github.com/IBM/ibmcloud-volume-file-vpc/common/vpcclient/client"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
-
-	"context"
-
 	"go.uber.org/zap"
 )
 
@@ -41,7 +40,7 @@ import (
 type CSIControllerServer struct {
 	Driver        *IBMCSIDriver
 	CSIProvider   cloudProvider.CloudProviderInterface
-	CatalogClient *CatalogClient
+	CatalogClient vpcfileClient.CapacityRoundoffService
 	csi.UnimplementedControllerServer
 }
 

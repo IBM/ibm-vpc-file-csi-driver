@@ -20,11 +20,13 @@
 package ibmcsidriver
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	vpcfileClient "github.com/IBM/ibmcloud-volume-file-vpc/common/vpcclient/client"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
@@ -133,7 +135,7 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 // getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
 // catalogClient is optional (may be nil when allowCapacityRoundoffForIops is not used).
-func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, catalogClient *CatalogClient) (*provider.Volume, error) {
+func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, catalogClient vpcfileClient.CapacityRoundoffService) (*provider.Volume, error) {
 	var encrypt = "undef"
 	var err error
 	var uid int
@@ -364,8 +366,8 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		return volume, err
 	}
 
-	// If allowCapacityRoundoffForIops is true, validate preconditions and look up the
-	// minimum required capacity from the IBM Global Catalog, then round up if needed.
+	// If allowCapacityRoundoffForIops is true, validate preconditions then delegate
+	// the round-up to the upstream CapacityRoundoffService
 	if allowCapacityRoundoff {
 		if volume.VPCVolume.Profile.Name != DP2Profile {
 			err = fmt.Errorf("allowCapacityRoundoffForIops is only supported for the dp2 profile; current profile: <%s>", volume.VPCVolume.Profile.Name)
@@ -382,23 +384,24 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
 		}
-		iopsVal, iopsParseErr := strconv.Atoi(strings.TrimSpace(*volume.Iops))
+		iopsVal, iopsParseErr := strconv.ParseInt(strings.TrimSpace(*volume.Iops), 10, 64)
 		if iopsParseErr != nil {
 			err = fmt.Errorf("invalid iops value <%s>: %w", *volume.Iops, iopsParseErr)
 			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
 			return volume, err
 		}
-		minCap, catalogErr := catalogClient.GetMinCapacityForIops(iopsVal)
+		adjustedCap, catalogErr := catalogClient.RoundUpCapacityForIOPS(context.Background(), int64(*volume.Capacity), iopsVal)
 		if catalogErr != nil {
 			logger.Error("getVolumeParameters", zap.NamedError("CatalogLookupFailed", catalogErr))
 			return volume, catalogErr
 		}
-		if *volume.Capacity < minCap {
+		if adjustedCap != int64(*volume.Capacity) {
 			logger.Info("Rounding up volume capacity for requested IOPS",
 				zap.Int("requestedGiB", *volume.Capacity),
-				zap.Int("adjustedGiB", minCap),
+				zap.Int64("adjustedGiB", adjustedCap),
 				zap.String("iops", *volume.Iops))
-			volume.Capacity = &minCap
+			adjustedCapInt := int(adjustedCap)
+			volume.Capacity = &adjustedCapInt
 		}
 	}
 
@@ -501,32 +504,6 @@ func setPrimaryIPAddress(volume *provider.Volume, key string, value string) erro
 	}
 
 	return fmt.Errorf("invalid option either provide primaryIPID or primaryIPAddress: '%s:<%v>'", key, value)
-}
-
-// roundUpCapacityForIops returns the minimum capacity (in GiB) that supports the given IOPS
-// for the specified profile. If the current size already satisfies the IOPS requirement it is
-// returned unchanged. Returns an error when the requested IOPS cannot be satisfied by any tier.
-func roundUpCapacityForIops(size int, iops int, profile string) (int, error) {
-	var capacityIopsRanges []classRange
-
-	if profile == DP2Profile {
-		capacityIopsRanges = dp2CapacityIopsRanges
-	} else {
-		return size, fmt.Errorf("allowCapacityRoundoffForIops is not supported for profile: <%s>", profile)
-	}
-
-	for _, entry := range capacityIopsRanges {
-		if iops >= entry.minIops && iops <= entry.maxIops {
-			if size >= entry.minSize {
-				// Current size is already in a tier that supports this IOPS
-				return size, nil
-			}
-			// Round up to the minimum size of the first tier that supports this IOPS
-			return entry.minSize, nil
-		}
-	}
-
-	return size, fmt.Errorf("requested IOPS <%d> exceeds the maximum supported IOPS for any capacity tier", iops)
 }
 
 // Validate size and iops for custom class

@@ -201,9 +201,10 @@ const (
 	// the requested IOPS, instead of returning an error when the size/IOPS combination is invalid.
 	AllowCapacityRoundoffForIops = "allowCapacityRoundoffForIops"
 
-	// CatalogDP2URL is the IBM Global Catalog endpoint for the dp2 share profile.
-	// config_validation bands are fetched from metadata.other.profile.config_validation[].
-	CatalogDP2URL = "https://globalcatalog.cloud.ibm.com/api/v1/dp2"
+	// CatalogDP2URLEnvVar is the environment variable that overrides the IBM Global Catalog
+	// dp2 endpoint. Sourced from ibm-vpc-file-csi-configmap via envFrom on the controller
+	// container. When unset the upstream client.DefaultCatalogEndpoint is used.
+	CatalogDP2URLEnvVar = "CATALOG_DP2_URL"
 
 	// ConfigmapName ...
 	ConfigmapName = "ibm-cloud-provider-data"
