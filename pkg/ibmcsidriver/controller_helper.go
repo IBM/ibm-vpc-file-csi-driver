@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	vpcfileClient "github.com/IBM/ibmcloud-volume-file-vpc/common/vpcclient/client"
+	vpccatalog "github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
@@ -135,7 +135,7 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 // getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
 // catalogClient is optional (may be nil when allowCapacityRoundoffForIops is not used).
-func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, catalogClient vpcfileClient.CapacityRoundoffService) (*provider.Volume, error) {
+func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, catalogClient vpccatalog.CapacityRoundoffService) (*provider.Volume, error) {
 	var encrypt = "undef"
 	var err error
 	var uid int
