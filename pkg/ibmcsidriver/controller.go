@@ -28,7 +28,7 @@ import (
 	commonError "github.com/IBM/ibm-csi-common/pkg/messages"
 	"github.com/IBM/ibm-csi-common/pkg/metrics"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	vpccatalog "github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
+	fileProvider "github.com/IBM/ibmcloud-volume-file-vpc/file/provider"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
@@ -40,7 +40,7 @@ import (
 type CSIControllerServer struct {
 	Driver        *IBMCSIDriver
 	CSIProvider   cloudProvider.CloudProviderInterface
-	CatalogClient vpccatalog.CapacityRoundoffService
+	CatalogClient fileProvider.CapacityRoundoffService
 	csi.UnimplementedControllerServer
 }
 

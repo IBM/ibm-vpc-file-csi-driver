@@ -28,7 +28,8 @@ import (
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
-	vpccatalog "github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
+	"github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
+	fileProvider "github.com/IBM/ibmcloud-volume-file-vpc/file/provider"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -111,17 +112,17 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	// fall back to the upstream default so the driver works out of the box.
 	catalogEndpoint := os.Getenv(CatalogDP2URLEnvVar)
 	if catalogEndpoint == "" {
-		catalogEndpoint = vpccatalog.DefaultCatalogEndpoint
+		catalogEndpoint = catalog.DefaultCatalogEndpoint
 	}
 	lgr.Info("Using IBM Global Catalog endpoint for dp2 bands",
 		zap.String("endpoint", catalogEndpoint))
 
 	// Build the catalog client using the upstream library from ibmcloud-volume-file-vpc.
 	// Passing nil lets the upstream use its own default HTTP client and timeout.
-	// Bands are fetched lazily on first use (per-PVC); the CachingCatalogClient
-	// memoises each result so repeated CreateVolume calls for the same IOPS value
+	// Bands are fetched lazily on first use (per-PVC); the CapacityRoundoffService
+	// caches the full band table so repeated CreateVolume calls for the same IOPS value
 	// do not cause additional HTTP round-trips to the Global Catalog.
-	catalogClient := NewCachingCatalogClient(vpccatalog.NewCatalogClientWithEndpoint(nil, catalogEndpoint))
+	catalogClient := fileProvider.NewCapacityRoundoffService(catalog.NewClientWithEndpoint(nil, catalogEndpoint), lgr)
 
 	// Set up CSI RPC Servers
 	icDriver.ids = NewIdentityServer(icDriver)
@@ -265,7 +266,7 @@ func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUt
 }
 
 // NewControllerServer ...
-func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface, catalogClient vpccatalog.CapacityRoundoffService) *CSIControllerServer {
+func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface, catalogClient fileProvider.CapacityRoundoffService) *CSIControllerServer {
 	return &CSIControllerServer{
 		Driver:        icDriver,
 		CSIProvider:   provider,

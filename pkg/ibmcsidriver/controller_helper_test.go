@@ -27,7 +27,8 @@ import (
 	"testing"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	vpccatalog "github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
+	"github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
+	fileProvider "github.com/IBM/ibmcloud-volume-file-vpc/file/provider"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
@@ -180,7 +181,7 @@ func isVolumeSame(actual *provider.Volume, expected *provider.Volume) bool {
 // catalogTestServer returns an httptest.Server that serves dp2 capacity-IOPS bands matching
 // the dp2CapacityIopsRanges table, and a pre-built CapacityRoundoffService backed by it.
 // The server is closed automatically when the test ends.
-func catalogTestServer(t *testing.T) (*httptest.Server, vpccatalog.CapacityRoundoffService) {
+func catalogTestServer(t *testing.T) (*httptest.Server, fileProvider.CapacityRoundoffService) {
 	t.Helper()
 	body := buildCatalogJSON()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -188,7 +189,7 @@ func catalogTestServer(t *testing.T) (*httptest.Server, vpccatalog.CapacityRound
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(srv.Close)
-	return srv, vpccatalog.NewCatalogClientWithEndpoint(srv.Client(), srv.URL)
+	return srv, fileProvider.NewCapacityRoundoffService(catalog.NewClientWithEndpoint(srv.Client(), srv.URL), nil)
 }
 
 // buildCatalogJSON serialises dp2CapacityIopsRanges into the JSON shape the upstream client expects.
@@ -211,7 +212,7 @@ func TestGetVolumeParameters(t *testing.T) {
 	testCases := []struct {
 		testCaseName   string
 		request        *csi.CreateVolumeRequest
-		catalogClient  vpccatalog.CapacityRoundoffService // nil for non-roundoff cases
+		catalogClient  fileProvider.CapacityRoundoffService // nil for non-roundoff cases
 		expectedVolume *provider.Volume
 		expectedStatus bool
 		expectedError  error
@@ -1069,7 +1070,7 @@ func TestGetVolumeParameters(t *testing.T) {
 					IOPS:                         "1500",
 				},
 			},
-			catalogClient: func() vpccatalog.CapacityRoundoffService {
+			catalogClient: func() fileProvider.CapacityRoundoffService {
 				_, c := catalogTestServer(t)
 				return c
 			}(),
@@ -1114,7 +1115,7 @@ func TestGetVolumeParameters(t *testing.T) {
 					IOPS:                         "999999",
 				},
 			},
-			catalogClient: func() vpccatalog.CapacityRoundoffService {
+			catalogClient: func() fileProvider.CapacityRoundoffService {
 				_, c := catalogTestServer(t)
 				return c
 			}(),
