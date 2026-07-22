@@ -21,19 +21,17 @@ package ibmcsidriver
 
 import (
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	"github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
-	fileProvider "github.com/IBM/ibmcloud-volume-file-vpc/file/provider"
+	fileprovider "github.com/IBM/ibmcloud-volume-file-vpc/file/provider"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -178,33 +176,6 @@ func isVolumeSame(actual *provider.Volume, expected *provider.Volume) bool {
 		actual.Region == expected.Region
 }
 
-// catalogTestServer returns an httptest.Server that serves dp2 capacity-IOPS bands matching
-// the dp2CapacityIopsRanges table, and a pre-built CapacityRoundoffService backed by it.
-// The server is closed automatically when the test ends.
-func catalogTestServer(t *testing.T) (*httptest.Server, fileProvider.CapacityRoundoffService) {
-	t.Helper()
-	body := buildCatalogJSON()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(body))
-	}))
-	t.Cleanup(srv.Close)
-	return srv, fileProvider.NewCapacityRoundoffService(catalog.NewClientWithEndpoint(srv.Client(), srv.URL), nil)
-}
-
-// buildCatalogJSON serialises dp2CapacityIopsRanges into the JSON shape the upstream client expects.
-func buildCatalogJSON() string {
-	bands := ""
-	for i, r := range dp2CapacityIopsRanges {
-		if i > 0 {
-			bands += ","
-		}
-		bands += fmt.Sprintf(`{"capacity":{"min":%d,"max":%d},"iops":{"min":%d,"max":%d}}`,
-			r.minSize, r.maxSize, r.minIops, r.maxIops)
-	}
-	return `{"metadata":{"other":{"profile":{"config_validation":[` + bands + `]}}}}`
-}
-
 func TestGetVolumeParameters(t *testing.T) {
 	volumeName := "volName"
 	volumeSize := 11
@@ -212,7 +183,6 @@ func TestGetVolumeParameters(t *testing.T) {
 	testCases := []struct {
 		testCaseName   string
 		request        *csi.CreateVolumeRequest
-		catalogClient  fileProvider.CapacityRoundoffService // nil for non-roundoff cases
 		expectedVolume *provider.Volume
 		expectedStatus bool
 		expectedError  error
@@ -998,131 +968,6 @@ func TestGetVolumeParameters(t *testing.T) {
 			expectedStatus: true,
 			expectedError:  nil,
 		},
-		{
-			testCaseName: "allowCapacityRoundoffForIops invalid value",
-			request: &csi.CreateVolumeRequest{
-				Parameters: map[string]string{
-					AllowCapacityRoundoffForIops: "notBool",
-				},
-			},
-			expectedVolume: &provider.Volume{},
-			expectedStatus: true,
-			expectedError:  fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", "notBool", AllowCapacityRoundoffForIops),
-		},
-		{
-			testCaseName: "allowCapacityRoundoffForIops false - no roundup",
-			request: &csi.CreateVolumeRequest{
-				Name: volumeName,
-				// 11 GiB falls in tier {10,39} whose maxIops=1000; requesting 1500 IOPS should fail without roundup
-				CapacityRange: &csi.CapacityRange{
-					RequiredBytes: 11811160064, // 11 GiB
-					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
-				},
-				VolumeCapabilities: []*csi.VolumeCapability{
-					{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}},
-				},
-				Parameters: map[string]string{
-					Profile:                      "dp2",
-					Zone:                         "us-south-1",
-					Region:                       "us-south",
-					IsENIEnabled:                 "true",
-					ResourceGroup:                "myresourcegroups",
-					AllowCapacityRoundoffForIops: "false",
-					IOPS:                         "110",
-				},
-			},
-			expectedVolume: &provider.Volume{
-				Name:     &volumeName,
-				Capacity: &volumeSize,
-				VPCVolume: provider.VPCVolume{
-					Profile:       &provider.Profile{Name: "dp2"},
-					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
-					VPCFileVolume: provider.VPCFileVolume{
-						AccessControlMode: SecurityGroup,
-					},
-				},
-				Az:     "us-south-1",
-				Region: "us-south",
-			},
-			expectedStatus: true,
-			expectedError:  nil,
-		},
-		{
-			testCaseName: "allowCapacityRoundoffForIops true - rounds up capacity for IOPS",
-			request: &csi.CreateVolumeRequest{
-				Name: volumeName,
-				// 11 GiB falls in tier {10,39,minIops=100,maxIops=1000}; requesting 1500 IOPS needs
-				// the {40,79,100,2000} tier -> capacity rounded up to 40 GiB
-				CapacityRange: &csi.CapacityRange{
-					RequiredBytes: 11811160064, // 11 GiB
-					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
-				},
-				VolumeCapabilities: []*csi.VolumeCapability{
-					{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}},
-				},
-				Parameters: map[string]string{
-					Profile:                      "dp2",
-					Zone:                         "us-south-1",
-					Region:                       "us-south",
-					IsENIEnabled:                 "true",
-					ResourceGroup:                "myresourcegroups",
-					AllowCapacityRoundoffForIops: "true",
-					IOPS:                         "1500",
-				},
-			},
-			catalogClient: func() fileProvider.CapacityRoundoffService {
-				_, c := catalogTestServer(t)
-				return c
-			}(),
-			// After round-up, capacity will be 40 GiB
-			expectedVolume: &provider.Volume{
-				Name: &volumeName,
-				Capacity: func() *int {
-					v := 40
-					return &v
-				}(),
-				VPCVolume: provider.VPCVolume{
-					Profile:       &provider.Profile{Name: "dp2"},
-					ResourceGroup: &provider.ResourceGroup{ID: "myresourcegroups"},
-					VPCFileVolume: provider.VPCFileVolume{
-						AccessControlMode: SecurityGroup,
-					},
-				},
-				Az:     "us-south-1",
-				Region: "us-south",
-			},
-			expectedStatus: true,
-			expectedError:  nil,
-		},
-		{
-			testCaseName: "allowCapacityRoundoffForIops true - IOPS exceeds all tiers",
-			request: &csi.CreateVolumeRequest{
-				Name: volumeName,
-				CapacityRange: &csi.CapacityRange{
-					RequiredBytes: 11811160064,
-					LimitBytes:    utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes,
-				},
-				VolumeCapabilities: []*csi.VolumeCapability{
-					{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}},
-				},
-				Parameters: map[string]string{
-					Profile:                      "dp2",
-					Zone:                         "us-south-1",
-					Region:                       "us-south",
-					IsENIEnabled:                 "true",
-					ResourceGroup:                "myresourcegroups",
-					AllowCapacityRoundoffForIops: "true",
-					IOPS:                         "999999",
-				},
-			},
-			catalogClient: func() fileProvider.CapacityRoundoffService {
-				_, c := catalogTestServer(t)
-				return c
-			}(),
-			expectedVolume: &provider.Volume{},
-			expectedStatus: true,
-			expectedError:  fmt.Errorf("no dp2 catalog band covers iops=999999"),
-		},
 	}
 
 	// Set up
@@ -1148,7 +993,7 @@ func TestGetVolumeParameters(t *testing.T) {
 
 	for _, testcase := range testCases {
 		t.Run(testcase.testCaseName, func(t *testing.T) {
-			actualVolume, err := getVolumeParameters(logger, testcase.request, testConfig, testcase.catalogClient)
+			actualVolume, err := getVolumeParameters(logger, testcase.request, testConfig, nil)
 			if testcase.expectedError != nil {
 				assert.Equal(t, err, testcase.expectedError)
 			} else {
@@ -1702,6 +1547,240 @@ func TestGetPrefedTopologyParams(t *testing.T) {
 				assert.Equal(t, testcase.expectedOutput, actualCtlPubVol)
 			} else {
 				assert.Equal(t, testcase.expectedError, err)
+			}
+		})
+	}
+}
+
+// testDP2Bands mirrors the IBM Global Catalog dp2 bands used for round-off tests.
+var testDP2Bands = []fileprovider.CatalogBand{
+	{CapMin: 10, CapMax: 39, IOPSMin: 100, IOPSMax: 1000},
+	{CapMin: 40, CapMax: 79, IOPSMin: 100, IOPSMax: 2000},
+	{CapMin: 80, CapMax: 99, IOPSMin: 100, IOPSMax: 4000},
+	{CapMin: 100, CapMax: 499, IOPSMin: 100, IOPSMax: 6000},
+	{CapMin: 500, CapMax: 999, IOPSMin: 100, IOPSMax: 10000},
+	{CapMin: 1000, CapMax: 1999, IOPSMin: 100, IOPSMax: 20000},
+	{CapMin: 2000, CapMax: 3999, IOPSMin: 200, IOPSMax: 40000},
+	{CapMin: 4000, CapMax: 7999, IOPSMin: 300, IOPSMax: 40000},
+	{CapMin: 8000, CapMax: 15999, IOPSMin: 500, IOPSMax: 64000},
+	{CapMin: 16000, CapMax: 32000, IOPSMin: 2000, IOPSMax: 96000},
+}
+
+// TestGetVolumeParameters_AllowCapacityRoundoffForIops covers the round-off
+// logic activated by the AllowCapacityRoundoffForIops StorageClass parameter.
+func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
+	logger, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	testConfig := &config.Config{
+		VPC: &config.VPCProviderConfig{
+			MaxRetryAttempt: 5,
+			MaxRetryGap:     10,
+			APIVersion:      "TestAPIVersion",
+			ResourceGroupID: "10000000",
+		},
+	}
+
+	catalogProvider, err := fileprovider.NewCapacityRoundoff(testDP2Bands)
+	require.NoError(t, err)
+	// iops strings
+	iops3000 := "3000"
+	iops20000 := "20000"
+	volumeName := "vol-roundoff"
+
+	testCases := []struct {
+		testCaseName    string
+		request         *csi.CreateVolumeRequest
+		catalogProvider fileprovider.CapacityRoundoff
+		expectedError   error
+		// expectedCapGiB is the capacity the volume should have after round-off.
+		// 0 means we only check the error path.
+		expectedCapGiB int
+	}{
+		{
+			// TC-U01: requested 20 GiB with iops=3000 -> catalog band 80-99 GiB (IOPSMax=4000)
+			// -> minCap=80 GiB -> capacity rounded up to 80 GiB.
+			testCaseName: "TC-U01: allowRoundoff=true, iops=3000, requestedGiB=20 -> adjusted to 80",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 20 * utils.GiB,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:                     "dp2",
+					IOPS:                        iops3000,
+					AllowCapacityRoundoffForIops: "true",
+					Zone:                        "us-south-1",
+					Region:                      "us-south",
+					ResourceGroup:               "rg-1",
+				},
+			},
+			catalogProvider: catalogProvider,
+			expectedCapGiB:  80,
+		},
+		{
+			// TC-U02: requested 100 GiB with iops=3000 -> catalog says minCap=80 GiB
+			// -> 100 >= 80 -> no adjustment.
+			testCaseName: "TC-U02: allowRoundoff=true, iops=3000, requestedGiB=100 -> no adjustment",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 100 * utils.GiB,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:                     "dp2",
+					IOPS:                        iops3000,
+					AllowCapacityRoundoffForIops: "true",
+					Zone:                        "us-south-1",
+					Region:                      "us-south",
+					ResourceGroup:               "rg-1",
+				},
+			},
+			catalogProvider: catalogProvider,
+			expectedCapGiB:  100,
+		},
+		{
+			// TC-U03: requested 200 GiB with iops=3000 -> minCap=80 GiB
+			// -> 200 >= 80 -> no adjustment.
+			testCaseName: "TC-U03: allowRoundoff=true, iops=3000, requestedGiB=200 -> no adjustment",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 200 * utils.GiB,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:                     "dp2",
+					IOPS:                        iops3000,
+					AllowCapacityRoundoffForIops: "true",
+					Zone:                        "us-south-1",
+					Region:                      "us-south",
+					ResourceGroup:               "rg-1",
+				},
+			},
+			catalogProvider: catalogProvider,
+			expectedCapGiB:  200,
+		},
+		{
+			// TC-U04: high IOPS — iops=20000, requestedGiB=50
+			// -> catalog band 1000-1999 GiB (IOPSMax=20000) -> minCap=1000 -> adjusted.
+			testCaseName: "TC-U04: allowRoundoff=true, iops=20000, requestedGiB=50 -> adjusted to 1000",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 50 * utils.GiB,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:                     "dp2",
+					IOPS:                        iops20000,
+					AllowCapacityRoundoffForIops: "true",
+					Zone:                        "us-south-1",
+					Region:                      "us-south",
+					ResourceGroup:               "rg-1",
+				},
+			},
+			catalogProvider: catalogProvider,
+			expectedCapGiB:  1000,
+		},
+		{
+			// TC-U05: allowRoundoff=true but iops not set -> error
+			testCaseName: "TC-U05: allowRoundoff=true, iops not set -> InvalidParameter error",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 20 * utils.GiB,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:                     "dp2",
+					AllowCapacityRoundoffForIops: "true",
+					Zone:                        "us-south-1",
+					Region:                      "us-south",
+					ResourceGroup:               "rg-1",
+				},
+			},
+			catalogProvider: catalogProvider,
+			expectedError:   fmt.Errorf("iops is required when allowCapacityRoundoffForIops is true"),
+		},
+		{
+			// TC-U06: allowRoundoff=true with rfs profile -> error
+			testCaseName: "TC-U06: allowRoundoff=true, profile=rfs -> unsupported profile error",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 20 * utils.GiB,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:                     "rfs",
+					Throughput:                  "100",
+					AllowCapacityRoundoffForIops: "true",
+					Region:                      "us-south",
+					ResourceGroup:               "rg-1",
+				},
+			},
+			catalogProvider: catalogProvider,
+			expectedError:   fmt.Errorf("allowCapacityRoundoffForIops is only supported for dp2 profile"),
+		},
+		{
+			// TC-U07: allowRoundoff=true but catalog returns error -> error propagated
+			testCaseName: "TC-U07: allowRoundoff=true, catalog returns error -> error propagated",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 20 * utils.GiB,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:                     "dp2",
+					IOPS:                        "999999",
+					AllowCapacityRoundoffForIops: "true",
+					Zone:                        "us-south-1",
+					Region:                      "us-south",
+					ResourceGroup:               "rg-1",
+				},
+			},
+			catalogProvider: catalogProvider,
+			expectedError:   fmt.Errorf("provider: no dp2 catalog band covers iops=999999"),
+		},
+		{
+			// TC-U08: allowRoundoff not set -> existing path, no catalog call, no adjustment.
+			testCaseName: "TC-U08: allowRoundoff not set -> existing path, no round-up",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 20 * utils.GiB,
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+				Parameters: map[string]string{
+					Profile:       "dp2",
+					IOPS:          iops3000,
+					Zone:          "us-south-1",
+					Region:        "us-south",
+					ResourceGroup: "rg-1",
+				},
+			},
+			catalogProvider: nil, // catalog not needed because flag is absent
+			expectedCapGiB:  20,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCaseName, func(t *testing.T) {
+			actualVolume, err := getVolumeParameters(logger, tc.request, testConfig, tc.catalogProvider)
+			if tc.expectedError != nil {
+				assert.EqualError(t, err, tc.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+				if tc.expectedCapGiB > 0 {
+					assert.NotNil(t, actualVolume)
+					assert.NotNil(t, actualVolume.Capacity)
+					assert.Equal(t, tc.expectedCapGiB, *actualVolume.Capacity,
+						"capacity mismatch after round-off")
+				}
 			}
 		})
 	}

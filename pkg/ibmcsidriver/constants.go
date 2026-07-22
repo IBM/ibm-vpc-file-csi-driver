@@ -196,16 +196,6 @@ const (
 	// VMState ... Parameter to identify VM persistent state volumes (vTPM)
 	VMState = "vmState"
 
-	// AllowCapacityRoundoffForIops ... When set to "true" in the StorageClass, the driver will
-	// automatically round up the requested capacity to the minimum size tier that satisfies
-	// the requested IOPS, instead of returning an error when the size/IOPS combination is invalid.
-	AllowCapacityRoundoffForIops = "allowCapacityRoundoffForIops"
-
-	// CatalogDP2URLEnvVar is the environment variable that overrides the IBM Global Catalog
-	// dp2 endpoint. Sourced from ibm-vpc-file-csi-configmap via envFrom on the controller
-	// container. When unset the upstream client.DefaultCatalogEndpoint is used.
-	CatalogDP2URLEnvVar = "CATALOG_DP2_URL"
-
 	// ConfigmapName ...
 	ConfigmapName = "ibm-cloud-provider-data"
 
@@ -217,6 +207,12 @@ const (
 
 	// MinimumRFSVolumeSizeInBytes ... This is minimum size require for rfs profile
 	MinimumRFSVolumeSizeInBytes int64 = 1 * utils.GiB
+
+	// AllowCapacityRoundoffForIops -- when set to "true" in a StorageClass, the
+	// driver fetches the dp2 capacity-to-IOPS catalog bands from the IBM Global
+	// Catalog API and rounds up the requested PVC capacity to the minimum
+	// required for the requested IOPS value. Only valid for dp2 profile.
+	AllowCapacityRoundoffForIops = "allowCapacityRoundoffForIops"
 )
 
 // SupportedFS the supported FS types
