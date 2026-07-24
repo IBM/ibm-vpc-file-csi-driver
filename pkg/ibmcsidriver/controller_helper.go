@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
+	fileprovider "github.com/IBM/ibmcloud-volume-file-vpc/file/provider"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
@@ -132,11 +133,12 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 
 // getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
-func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) {
+func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, catalogProvider fileprovider.CapacityRoundoff) (*provider.Volume, error) {
 	var encrypt = "undef"
 	var err error
 	var uid int
 	var gid int
+	var allowRoundoff bool
 	volume := &provider.Volume{}
 	volume.Name = &req.Name
 	volume.VPCVolume.AccessControlMode = SecurityGroup //Default mode is ENI/VNI
@@ -262,6 +264,12 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case VMState:
 			// Accept vmState parameter - validation will be handled elsewhere
 			logger.Info("vmState parameter accepted", zap.String("value", value))
+		case AllowCapacityRoundoffForIops:
+			if value == TrueStr {
+				allowRoundoff = true
+			} else if value != FalseStr && value != "" {
+				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+			}
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
@@ -322,6 +330,45 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	err = overrideParams(logger, req, config, volume)
 	if err != nil {
 		return volume, err
+	}
+
+	// Capacity round-off for fixed IOPS: when allowCapacityRoundoffForIops is
+	// true the driver looks up the dp2 catalog bands and rounds the requested
+	// capacity up to the minimum required for the given IOPS value.
+	if allowRoundoff {
+		if volume.VPCVolume.Profile == nil || volume.VPCVolume.Profile.Name != DP2Profile {
+			err = fmt.Errorf("allowCapacityRoundoffForIops is only supported for dp2 profile")
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
+		}
+		if volume.Iops == nil || len(strings.TrimSpace(*volume.Iops)) == 0 {
+			err = fmt.Errorf("iops is required when allowCapacityRoundoffForIops is true")
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
+		}
+		if catalogProvider == nil {
+			err = fmt.Errorf("capacity round-off is unavailable because the DP2 catalog could not be loaded during driver startup; cannot apply allowCapacityRoundoffForIops")
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
+		}
+		requestedIops, parseErr := strconv.Atoi(*volume.Iops)
+		if parseErr != nil || requestedIops <= 0 {
+			err = fmt.Errorf("iops value '%s' is invalid", *volume.Iops)
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
+		}
+		minCapGiB, minCapErr := catalogProvider.GetMinCapacityForIops(requestedIops)
+		if minCapErr != nil {
+			logger.Error("getVolumeParameters: catalog lookup failed", zap.Error(minCapErr))
+			return volume, minCapErr
+		}
+		if volume.Capacity != nil && *volume.Capacity < minCapGiB {
+			logger.Info("Rounding up capacity to meet minimum for requested IOPS",
+				zap.Int("requestedGiB", *volume.Capacity),
+				zap.Int("adjustedGiB", minCapGiB),
+				zap.Int("requestedIops", requestedIops))
+			volume.Capacity = &minCapGiB
+		}
 	}
 
 	// Check if the provided fstype is supported one
