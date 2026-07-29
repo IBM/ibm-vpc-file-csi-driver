@@ -117,7 +117,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	// allowCapacityRoundoffForIops=true will return a clear error at PVC
 	// creation time if the catalog was unavailable here.
 	var catalogProvider fileprovider.CapacityRoundoff
-	bands, catalogErr := fileprovider.FetchCapacityBandsDP2(nil)
+	bands, catalogErr := fileprovider.FetchCapacityBandsDP2(nil, provider.GetConfig().VPC.G2TokenExchangeURL)
 	if catalogErr != nil {
 		lgr.Warn("Failed to fetch dp2 catalog bands; allowCapacityRoundoffForIops will return an error at PVC creation time",
 			zap.Error(catalogErr))
