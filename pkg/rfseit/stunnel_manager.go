@@ -80,13 +80,12 @@ const (
 	UbuntuCAPath = "/etc/host-certs/ssl/certs/ca-certificates.crt"
 
 	// ConfigFilePermissions is the file permissions for stunnel config files.
-	// 0640: owner (root) read/write, group (StunnelGID) read-only.
-	// Allows stunnel process (running as StunnelGID) to read on SIGHUP reload.
+	// 0640: owner (root) read/write, group (stunnelGID) read-only.
+	// Allows stunnel process (running as stunnelGID) to read on SIGHUP reload.
 	ConfigFilePermissions = 0640
 
-	// StunnelGID is the GID the stunnel process runs as (set via runAsGroup in pod spec).
-	// .conf files are chowned to root:StunnelGID so stunnel can read them.
-	StunnelGID = 2121
+	// DefaultStunnelGID is the fallback GID when SIDECAR_GROUP_ID is not set.
+	DefaultStunnelGID = 2121
 )
 
 // StunnelManager manages stunnel service configs for RFS EIT mounts.
@@ -103,6 +102,7 @@ type StunnelManager struct {
 	checkHost      string         // Hostname for TLS certificate verification
 	stunnelStarted bool           // Tracks if stunnel has been confirmed running
 	debugLevel     int            // Stunnel debug level (0-7)
+	stunnelGID     int            // GID the stunnel sidecar runs as (from SIDECAR_GROUP_ID env)
 	logger         *zap.Logger
 
 	// SIGHUP debouncing fields
@@ -137,6 +137,18 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 		return nil, fmt.Errorf("failed to determine checkHost: empty checkHost, ")
 	}
 
+	// Read stunnel GID from SIDECAR_GROUP_ID env var (injected by the operator).
+	// Falls back to DefaultStunnelGID if unset or unparseable.
+	stunnelGID := DefaultStunnelGID
+	if val := os.Getenv("SIDECAR_GROUP_ID"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			stunnelGID = parsed
+		} else {
+			logger.Warn("Invalid SIDECAR_GROUP_ID value, using default",
+				zap.String("value", val), zap.Int("default", DefaultStunnelGID))
+		}
+	}
+
 	// Note: servicesDir is created by Kubernetes hostPath with DirectoryOrCreate
 	sm := &StunnelManager{
 		servicesDir:    DefaultServicesDir,
@@ -147,6 +159,7 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 		caFile:         caFile,
 		checkHost:      checkHost,
 		debugLevel:     DefaultDebugLevel,
+		stunnelGID:     stunnelGID,
 		logger:         logger,
 		debounceWindow: DefaultDebounceWindow,
 	}
@@ -194,9 +207,9 @@ func (sm *StunnelManager) fixExistingConfigPermissions() {
 			failed++
 			continue
 		}
-		if err := os.Chown(path, 0, StunnelGID); err != nil {
-			sm.logger.Warn("Failed to chown existing stunnel config to root:2121",
-				zap.String("file", entry.Name()), zap.Error(err))
+		if err := os.Chown(path, 0, sm.stunnelGID); err != nil {
+			sm.logger.Warn("Failed to chown existing stunnel config",
+				zap.String("file", entry.Name()), zap.Int("gid", sm.stunnelGID), zap.Error(err))
 			failed++
 			continue
 		}
@@ -208,7 +221,7 @@ func (sm *StunnelManager) fixExistingConfigPermissions() {
 	}
 	if failed > 0 {
 		sm.logger.Error("Some existing stunnel configs could not be fixed; stunnel SIGHUP reloads will fail for those tunnels",
-			zap.Int("failed", failed), zap.String("dir", sm.servicesDir))
+			zap.Int("failed", failed), zap.Int("gid", sm.stunnelGID), zap.String("dir", sm.servicesDir))
 	}
 }
 
@@ -580,11 +593,11 @@ func (sm *StunnelManager) writeTunnelConfig(configPath, config string) error {
 	if err := os.WriteFile(configPath, []byte(config), ConfigFilePermissions); err != nil {
 		return fmt.Errorf("failed to write stunnel config file: %w", err)
 	}
-	// chown root:2121 so stunnel (running as GID 2121) can read on SIGHUP reload.
+	// chown root:<stunnelGID> so stunnel can read the file on SIGHUP reload.
 	// Driver runs as root so this always succeeds.
-	if err := os.Chown(configPath, 0, StunnelGID); err != nil {
-		sm.logger.Warn("Failed to chown stunnel config to root:2121, SIGHUP reload may fail",
-			zap.String("path", configPath), zap.Error(err))
+	if err := os.Chown(configPath, 0, sm.stunnelGID); err != nil {
+		sm.logger.Warn("Failed to chown stunnel config, SIGHUP reload may fail",
+			zap.String("path", configPath), zap.Int("gid", sm.stunnelGID), zap.Error(err))
 	}
 	return nil
 }

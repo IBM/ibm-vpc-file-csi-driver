@@ -1602,7 +1602,7 @@ func TestFixExistingConfigPermissions(t *testing.T) {
 				tt.setup(tmpDir)
 			}
 
-			sm := &StunnelManager{servicesDir: servicesDir, logger: logger}
+			sm := &StunnelManager{servicesDir: servicesDir, stunnelGID: DefaultStunnelGID, logger: logger}
 			sm.fixExistingConfigPermissions() // must not panic
 
 			for name, wantMode := range tt.wantMode {
@@ -1662,6 +1662,7 @@ func TestWriteTunnelConfig_Permissions(t *testing.T) {
 				caFile:      "/tmp/ca.pem",
 				checkHost:   "test.example.com",
 				debugLevel:  DefaultDebugLevel,
+				stunnelGID:  DefaultStunnelGID,
 				logger:      logger,
 			}
 
