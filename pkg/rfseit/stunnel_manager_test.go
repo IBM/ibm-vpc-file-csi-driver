@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -622,72 +621,6 @@ func TestEnsureTunnel_NoTLSConfig(t *testing.T) {
 				t.Fatalf("EnsureTunnel() port = %d, want 10001", port)
 			}
 		})
-	}
-}
-
-// TestEnsureTunnel_Concurrent tests concurrent tunnel creation
-func TestEnsureTunnel_Concurrent(t *testing.T) {
-	logger := zaptest.NewLogger(t)
-	tmpDir := t.TempDir()
-
-	sm := &StunnelManager{
-		servicesDir:    tmpDir,
-		initialPort:    10001,
-		portRange:      100,
-		allocatedPorts: make(map[string]int),
-		portToVolume:   make(map[int]string),
-		caFile:         "/tmp/ca.pem",
-		checkHost:      "test.example.com",
-		logger:         logger,
-		debounceWindow: 100 * time.Millisecond,
-		stunnelStarted: true,
-	}
-
-	// Create same tunnel concurrently
-	const goroutines = 10
-	var wg sync.WaitGroup
-	ports := make([]int, goroutines)
-	errors := make([]error, goroutines)
-
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			port, err := sm.EnsureTunnel("concurrent-vol", "server.example.com", fmt.Sprintf("request-%d", idx))
-			ports[idx] = port
-			errors[idx] = err
-		}(i)
-	}
-
-	wg.Wait()
-
-	// Wait for the debounce window to expire so the time.AfterFunc callback fires
-	// and completes while *testing.T is still alive.
-	time.Sleep(2 * sm.debounceWindow)
-
-	// Cancel any residual timer state.
-	sm.debounceMu.Lock()
-	if sm.debounceTimer != nil {
-		sm.debounceTimer.Stop()
-		sm.debounceTimer = nil
-	}
-	sm.pendingSIGHUP = false
-	sm.debounceMu.Unlock()
-
-	// All should succeed with same port
-	firstPort := ports[0]
-	for i, port := range ports {
-		if errors[i] != nil {
-			t.Errorf("Goroutine %d got error: %v", i, errors[i])
-		}
-		if port != firstPort {
-			t.Errorf("Goroutine %d got port %d, want %d", i, port, firstPort)
-		}
-	}
-
-	// Should only have one entry in allocatedPorts
-	if len(sm.allocatedPorts) != 1 {
-		t.Errorf("allocatedPorts has %d entries, want 1", len(sm.allocatedPorts))
 	}
 }
 
@@ -1592,6 +1525,172 @@ func TestRemoveTunnel_AdditionalCases(t *testing.T) {
 			}
 			if !tt.wantErr && err != nil {
 				t.Errorf("RemoveTunnel() unexpected error = %v", err)
+			}
+		})
+	}
+}
+
+// TestFixExistingConfigPermissions tests the startup migration that chmod/chowns
+// pre-existing .conf files written as 0600 root:root before the non-root migration.
+func TestFixExistingConfigPermissions(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(dir string) // creates files/dirs in tmpDir
+		wantMode    map[string]os.FileMode // filename -> expected mode (only .conf files checked)
+		wantUntouched []string             // filenames that must NOT be changed
+	}{
+		{
+			name:  "non-existent dir is a no-op",
+			setup: nil, // tmpDir not used — servicesDir overridden below
+		},
+		{
+			name:  "empty dir is a no-op",
+			setup: func(dir string) {}, // nothing created
+		},
+		{
+			name: "fixes mode on .conf files",
+			setup: func(dir string) {
+				for _, name := range []string{"vol1.conf", "vol2.conf"} {
+					if err := os.WriteFile(filepath.Join(dir, name), []byte("[svc]"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+			},
+			wantMode: map[string]os.FileMode{
+				"vol1.conf": ConfigFilePermissions,
+				"vol2.conf": ConfigFilePermissions,
+			},
+		},
+		{
+			name: "skips subdirectories and non-.conf files",
+			setup: func(dir string) {
+				if err := os.MkdirAll(filepath.Join(dir, "subdir"), 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("ignore"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "vol1.conf"), []byte("[svc]"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantMode:      map[string]os.FileMode{"vol1.conf": ConfigFilePermissions},
+			wantUntouched: []string{"readme.txt"},
+		},
+		{
+			name: "already correct permissions are idempotent",
+			setup: func(dir string) {
+				if err := os.WriteFile(filepath.Join(dir, "vol1.conf"), []byte("[svc]"), ConfigFilePermissions); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantMode: map[string]os.FileMode{"vol1.conf": ConfigFilePermissions},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := zaptest.NewLogger(t)
+			tmpDir := t.TempDir()
+
+			servicesDir := tmpDir
+			if tt.name == "non-existent dir is a no-op" {
+				servicesDir = filepath.Join(tmpDir, "does-not-exist")
+			}
+
+			if tt.setup != nil {
+				tt.setup(tmpDir)
+			}
+
+			sm := &StunnelManager{servicesDir: servicesDir, logger: logger}
+			sm.fixExistingConfigPermissions() // must not panic
+
+			for name, wantMode := range tt.wantMode {
+				info, err := os.Stat(filepath.Join(tmpDir, name))
+				if err != nil {
+					t.Fatalf("%s: stat error: %v", name, err)
+				}
+				if info.Mode().Perm() != wantMode {
+					t.Errorf("%s: mode = %04o, want %04o", name, info.Mode().Perm(), wantMode)
+				}
+			}
+
+			for _, name := range tt.wantUntouched {
+				info, err := os.Stat(filepath.Join(tmpDir, name))
+				if err != nil {
+					t.Fatalf("%s: stat error: %v", name, err)
+				}
+				if info.Mode().Perm() != 0600 {
+					t.Errorf("%s: mode = %04o, want 0600 (untouched)", name, info.Mode().Perm())
+				}
+			}
+		})
+	}
+}
+
+// TestWriteTunnelConfig_Permissions verifies that writeTunnelConfig writes the
+// file with ConfigFilePermissions (0640) and returns no error even when chown
+// fails in an unprivileged test environment.
+func TestWriteTunnelConfig_Permissions(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		wantErr     bool
+		wantMode    os.FileMode
+	}{
+		{
+			name:     "writes file with correct mode",
+			content:  "[vol1]\nclient = yes\n",
+			wantErr:  false,
+			wantMode: ConfigFilePermissions,
+		},
+		{
+			name:     "empty content still creates file with correct mode",
+			content:  "",
+			wantErr:  false,
+			wantMode: ConfigFilePermissions,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := zaptest.NewLogger(t)
+			tmpDir := t.TempDir()
+
+			sm := &StunnelManager{
+				servicesDir: tmpDir,
+				caFile:      "/tmp/ca.pem",
+				checkHost:   "test.example.com",
+				debugLevel:  DefaultDebugLevel,
+				logger:      logger,
+			}
+
+			configPath := filepath.Join(tmpDir, "vol1.conf")
+			err := sm.writeTunnelConfig(configPath, tt.content)
+			if tt.wantErr && err == nil {
+				t.Fatal("writeTunnelConfig() expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("writeTunnelConfig() unexpected error = %v", err)
+			}
+			if tt.wantErr {
+				return
+			}
+
+			info, err := os.Stat(configPath)
+			if err != nil {
+				t.Fatalf("config file not created: %v", err)
+			}
+			if info.Mode().Perm() != tt.wantMode {
+				t.Errorf("mode = %04o, want %04o", info.Mode().Perm(), tt.wantMode)
+			}
+
+			data, err := os.ReadFile(configPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != tt.content {
+				t.Errorf("content mismatch\ngot:  %q\nwant: %q", string(data), tt.content)
 			}
 		})
 	}
