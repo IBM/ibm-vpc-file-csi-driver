@@ -182,7 +182,7 @@ func (sm *StunnelManager) fixExistingConfigPermissions() {
 	if err != nil {
 		return // dir doesn't exist yet — nothing to fix
 	}
-	fixed := 0
+	fixed, failed := 0, 0
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".conf" {
 			continue
@@ -191,11 +191,13 @@ func (sm *StunnelManager) fixExistingConfigPermissions() {
 		if err := os.Chmod(path, ConfigFilePermissions); err != nil {
 			sm.logger.Warn("Failed to chmod existing stunnel config",
 				zap.String("file", entry.Name()), zap.Error(err))
+			failed++
 			continue
 		}
 		if err := os.Chown(path, 0, StunnelGID); err != nil {
-			sm.logger.Warn("Failed to chown existing stunnel config",
+			sm.logger.Warn("Failed to chown existing stunnel config to root:2121",
 				zap.String("file", entry.Name()), zap.Error(err))
+			failed++
 			continue
 		}
 		fixed++
@@ -203,6 +205,10 @@ func (sm *StunnelManager) fixExistingConfigPermissions() {
 	if fixed > 0 {
 		sm.logger.Info("Fixed permissions on existing stunnel configs",
 			zap.Int("count", fixed), zap.String("dir", sm.servicesDir))
+	}
+	if failed > 0 {
+		sm.logger.Error("Some existing stunnel configs could not be fixed; stunnel SIGHUP reloads will fail for those tunnels",
+			zap.Int("failed", failed), zap.String("dir", sm.servicesDir))
 	}
 }
 
@@ -574,10 +580,10 @@ func (sm *StunnelManager) writeTunnelConfig(configPath, config string) error {
 	if err := os.WriteFile(configPath, []byte(config), ConfigFilePermissions); err != nil {
 		return fmt.Errorf("failed to write stunnel config file: %w", err)
 	}
-	// chown root:StunnelGID so stunnel (running as GID 2121) can read on SIGHUP reload.
+	// chown root:2121 so stunnel (running as GID 2121) can read on SIGHUP reload.
 	// Driver runs as root so this always succeeds.
 	if err := os.Chown(configPath, 0, StunnelGID); err != nil {
-		sm.logger.Warn("Failed to chown stunnel config, SIGHUP reload may fail",
+		sm.logger.Warn("Failed to chown stunnel config to root:2121, SIGHUP reload may fail",
 			zap.String("path", configPath), zap.Error(err))
 	}
 	return nil
