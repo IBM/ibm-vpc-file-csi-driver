@@ -79,8 +79,13 @@ const (
 	// UbuntuCAPath is the CA bundle path for Ubuntu systems
 	UbuntuCAPath = "/etc/host-certs/ssl/certs/ca-certificates.crt"
 
-	// ConfigFilePermissions is the file permissions for stunnel config files (owner read/write only)
-	ConfigFilePermissions = 0600
+	// ConfigFilePermissions is the file permissions for stunnel config files.
+	// 0640: owner (root) read/write, group (stunnelGID) read-only.
+	// Allows stunnel process (running as stunnelGID) to read on SIGHUP reload.
+	ConfigFilePermissions = 0640
+
+	// DefaultStunnelGID is the fallback GID when SIDECAR_GROUP_ID is not set.
+	DefaultStunnelGID = 2121
 )
 
 // StunnelManager manages stunnel service configs for RFS EIT mounts.
@@ -97,6 +102,7 @@ type StunnelManager struct {
 	checkHost      string         // Hostname for TLS certificate verification
 	stunnelStarted bool           // Tracks if stunnel has been confirmed running
 	debugLevel     int            // Stunnel debug level (0-7)
+	stunnelGID     int            // GID the stunnel sidecar runs as (from SIDECAR_GROUP_ID env)
 	logger         *zap.Logger
 
 	// SIGHUP debouncing fields
@@ -131,6 +137,18 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 		return nil, fmt.Errorf("failed to determine checkHost: empty checkHost, ")
 	}
 
+	// Read stunnel GID from SIDECAR_GROUP_ID env var (injected by the operator).
+	// Falls back to DefaultStunnelGID if unset or unparseable.
+	stunnelGID := DefaultStunnelGID
+	if val := os.Getenv("SIDECAR_GROUP_ID"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			stunnelGID = parsed
+		} else {
+			logger.Warn("Invalid SIDECAR_GROUP_ID value, using default",
+				zap.String("value", val), zap.Int("default", DefaultStunnelGID))
+		}
+	}
+
 	// Note: servicesDir is created by Kubernetes hostPath with DirectoryOrCreate
 	sm := &StunnelManager{
 		servicesDir:    DefaultServicesDir,
@@ -141,9 +159,14 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 		caFile:         caFile,
 		checkHost:      checkHost,
 		debugLevel:     DefaultDebugLevel,
+		stunnelGID:     stunnelGID,
 		logger:         logger,
 		debounceWindow: DefaultDebounceWindow,
 	}
+
+	// Fix permissions on pre-existing .conf files (written as 0600 before this change).
+	// Idempotent — no-op if files already have correct permissions.
+	sm.fixExistingConfigPermissions()
 
 	// recoverExistingTunnels scans the services directory and rebuilds port allocation map
 	if err := sm.recoverExistingTunnels(); err != nil {
@@ -160,6 +183,40 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 		zap.String("checkHost", sm.checkHost))
 
 	return sm, nil
+}
+
+// fixExistingConfigPermissions fixes permissions on pre-existing .conf files
+// that were written as 0600 root:root before the non-root stunnel migration.
+// Called once at startup — idempotent, safe to call on every pod start.
+// Driver runs as root so chmod/chown always succeed.
+func (sm *StunnelManager) fixExistingConfigPermissions() {
+	entries, err := os.ReadDir(sm.servicesDir)
+	if err != nil {
+		return // dir doesn't exist yet — nothing to fix
+	}
+	failed := 0
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".conf" {
+			continue
+		}
+		path := filepath.Join(sm.servicesDir, entry.Name())
+		if err := os.Chmod(path, ConfigFilePermissions); err != nil {
+			sm.logger.Warn("Failed to chmod existing stunnel config",
+				zap.String("file", entry.Name()), zap.Error(err))
+			failed++
+			continue
+		}
+		if err := os.Chown(path, 0, sm.stunnelGID); err != nil {
+			sm.logger.Warn("Failed to chown existing stunnel config",
+				zap.String("file", entry.Name()), zap.Int("gid", sm.stunnelGID), zap.Error(err))
+			failed++
+			continue
+		}
+	}
+	if failed > 0 {
+		sm.logger.Error("Some existing stunnel configs could not be fixed; stunnel SIGHUP reloads will fail for those tunnels",
+			zap.Int("failed", failed), zap.Int("gid", sm.stunnelGID), zap.String("dir", sm.servicesDir))
+	}
 }
 
 // detectCABundle determines the system CA bundle path based on OS_TYPE environment variable.
@@ -528,6 +585,12 @@ func (sm *StunnelManager) writeTunnelConfig(configPath, config string) error {
 	// where servicesDir is a fixed operator-controlled directory. No path traversal possible.
 	if err := os.WriteFile(configPath, []byte(config), ConfigFilePermissions); err != nil {
 		return fmt.Errorf("failed to write stunnel config file: %w", err)
+	}
+	// chown root:<stunnelGID> so stunnel can read the file on SIGHUP reload.
+	// Driver runs as root so this always succeeds.
+	if err := os.Chown(configPath, 0, sm.stunnelGID); err != nil {
+		sm.logger.Warn("Failed to chown stunnel config, SIGHUP reload may fail",
+			zap.String("path", configPath), zap.Int("gid", sm.stunnelGID), zap.Error(err))
 	}
 	return nil
 }
