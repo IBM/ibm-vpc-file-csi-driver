@@ -194,7 +194,7 @@ func (sm *StunnelManager) fixExistingConfigPermissions() {
 	if err != nil {
 		return // dir doesn't exist yet — nothing to fix
 	}
-	fixed, failed := 0, 0
+	failed := 0
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".conf" {
 			continue
@@ -212,7 +212,6 @@ func (sm *StunnelManager) fixExistingConfigPermissions() {
 			failed++
 			continue
 		}
-		fixed++
 	}
 	if failed > 0 {
 		sm.logger.Error("Some existing stunnel configs could not be fixed; stunnel SIGHUP reloads will fail for those tunnels",
