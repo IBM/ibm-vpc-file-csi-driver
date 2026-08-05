@@ -185,7 +185,6 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 	return sm, nil
 }
 
-
 // fixExistingConfigPermissions fixes permissions on pre-existing .conf files
 // that were written as 0600 root:root before the non-root stunnel migration.
 // Called once at startup — idempotent, safe to call on every pod start.
@@ -215,16 +214,11 @@ func (sm *StunnelManager) fixExistingConfigPermissions() {
 		}
 		fixed++
 	}
-	if fixed > 0 {
-		sm.logger.Info("Fixed permissions on existing stunnel configs",
-			zap.Int("count", fixed), zap.String("dir", sm.servicesDir))
-	}
 	if failed > 0 {
 		sm.logger.Error("Some existing stunnel configs could not be fixed; stunnel SIGHUP reloads will fail for those tunnels",
 			zap.Int("failed", failed), zap.Int("gid", sm.stunnelGID), zap.String("dir", sm.servicesDir))
 	}
 }
-
 
 // detectCABundle determines the system CA bundle path based on OS_TYPE environment variable.
 // Returns error if OS_TYPE is not set or is unknown.
