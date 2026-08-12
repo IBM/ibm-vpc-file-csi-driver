@@ -116,13 +116,13 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	// on CSIControllerServer for the pod lifetime. StorageClasses that set
 	// allowCapacityRoundoffForIops=true will return a clear error at PVC
 	// creation time if the catalog was unavailable here.
-	var catalogProvider fileprovider.CapacityRoundoff
+	var catalogProvider CapacityRoundoff
 	bands, catalogErr := fileprovider.FetchCapacityBandsDP2(nil, provider.GetConfig().VPC.IKSTokenExchangePrivateURL)
 	if catalogErr != nil {
 		lgr.Warn("Failed to fetch dp2 catalog bands; allowCapacityRoundoffForIops will return an error at PVC creation time",
 			zap.Error(catalogErr))
 	} else {
-		catalogProvider, catalogErr = fileprovider.NewCapacityRoundoff(bands)
+		catalogProvider, catalogErr = NewCapacityRoundoff(bands)
 		if catalogErr != nil {
 			lgr.Warn("Failed to build capacity roundoff service from dp2 bands; allowCapacityRoundoffForIops will return an error at PVC creation time",
 				zap.Error(catalogErr))
@@ -268,7 +268,7 @@ func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUt
 }
 
 // NewControllerServer ...
-func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface, catalogProvider fileprovider.CapacityRoundoff) *CSIControllerServer {
+func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface, catalogProvider CapacityRoundoff) *CSIControllerServer {
 	return &CSIControllerServer{
 		Driver:          icDriver,
 		CSIProvider:     provider,

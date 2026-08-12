@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	fileprovider "github.com/IBM/ibmcloud-volume-file-vpc/file/provider"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
@@ -133,7 +132,7 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 
 // getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
-func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, catalogProvider fileprovider.CapacityRoundoff) (*provider.Volume, error) {
+func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, catalogProvider CapacityRoundoff) (*provider.Volume, error) {
 	var encrypt = "undef"
 	var err error
 	var uid int

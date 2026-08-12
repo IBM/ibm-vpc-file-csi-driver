@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	fileprovider "github.com/IBM/ibmcloud-volume-file-vpc/file/provider"
+	"github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
@@ -1553,7 +1553,7 @@ func TestGetPrefedTopologyParams(t *testing.T) {
 }
 
 // testDP2Bands mirrors the IBM Global Catalog dp2 bands used for round-off tests.
-var testDP2Bands = []fileprovider.CatalogBand{
+var testDP2Bands = []catalog.CatalogBand{
 	{CapMin: 10, CapMax: 39, IOPSMin: 100, IOPSMax: 1000},
 	{CapMin: 40, CapMax: 79, IOPSMin: 100, IOPSMax: 2000},
 	{CapMin: 80, CapMax: 99, IOPSMin: 100, IOPSMax: 4000},
@@ -1581,7 +1581,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 		},
 	}
 
-	catalogProvider, err := fileprovider.NewCapacityRoundoff(testDP2Bands)
+	catalogProvider, err := NewCapacityRoundoff(testDP2Bands)
 	require.NoError(t, err)
 	// iops strings
 	iops3000 := "3000"
@@ -1591,7 +1591,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 	testCases := []struct {
 		testCaseName    string
 		request         *csi.CreateVolumeRequest
-		catalogProvider fileprovider.CapacityRoundoff
+		catalogProvider CapacityRoundoff
 		expectedError   error
 		// expectedCapGiB is the capacity the volume should have after round-off.
 		// 0 means we only check the error path.
@@ -1744,7 +1744,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 			},
 			catalogProvider: catalogProvider,
-			expectedError:   fmt.Errorf("provider: no dp2 catalog band covers iops=999999"),
+			expectedError:   fmt.Errorf("ibmcsidriver: no dp2 catalog band covers iops=999999"),
 		},
 		{
 			// TC-U08: allowRoundoff not set -> existing path, no catalog call, no adjustment.
