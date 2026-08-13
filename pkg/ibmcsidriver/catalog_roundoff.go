@@ -32,7 +32,7 @@ import (
 // Implementations must be safe for concurrent use after construction.
 type CapacityRoundoff interface {
 	// GetMinCapacityForIops returns the minimum share capacity in GiB that
-	// satisfies the requested IOPS according to the dp2 catalog bands.
+	// satisfies the requested IOPS according to the dp2 volume profile bands.
 	//
 	// It scans the bands (ordered from the smallest capacity band to the
 	// largest) and returns the CapMin of the first band whose IOPSMax is >=
@@ -42,14 +42,24 @@ type CapacityRoundoff interface {
 	GetMinCapacityForIops(requestedIops int) (int, error)
 }
 
+// VolumeProfileBand is one capacity-to-IOPS band as returned by the
+// armada-storage-api GET /v2/storage/vpc/getVolumeProfiles endpoint.
+// Field names match the JSON tags used by armada-storage-api's globalcatalog.CatalogBand.
+type VolumeProfileBand struct {
+	CapacityMin int64 `json:"capacityMin"`
+	CapacityMax int64 `json:"capacityMax"`
+	IOPSMin     int64 `json:"iopsMin"`
+	IOPSMax     int64 `json:"iopsMax"`
+}
+
 // capacityRoundoff is the production implementation of CapacityRoundoff.
-// It is a pure algorithm over a fixed band slice; it never touches the network.
+// It is a pure algorithm over a fixed volume profile band slice; it never touches the network.
 type capacityRoundoff struct {
 	bands []catalog.CatalogBand
 }
 
 // NewCapacityRoundoff constructs a CapacityRoundoff from a pre-fetched slice
-// of dp2 catalog bands.
+// of dp2 volume profile bands.
 //
 // The caller is responsible for fetching the bands (via
 // fileprovider.FetchCapacityBandsDP2) and for deciding when to refresh them.
@@ -73,5 +83,14 @@ func (r *capacityRoundoff) GetMinCapacityForIops(requestedIops int) (int, error)
 			return band.CapMin, nil
 		}
 	}
-	return 0, fmt.Errorf("ibmcsidriver: no dp2 catalog band covers iops=%d", requestedIops)
+	return 0, fmt.Errorf("ibmcsidriver: no dp2 volume profile band covers iops=%d", requestedIops)
+}
+
+// VolumeProfileBandsFetcher is satisfied by any session that can fetch
+// VPC file volume profile capacity-to-IOPS bands from armada-storage-api.
+// IksVpcSession implements this; the base VPCSession does not (it always errors).
+type VolumeProfileBandsFetcher interface {
+	// GetVolumeProfileBands returns the ordered capacity-to-IOPS bands for
+	// the named VPC file profile (e.g. globalcatalog.ProfileDP2 = "dp2").
+	GetVolumeProfileBands(profile string) ([]VolumeProfileBand, error)
 }

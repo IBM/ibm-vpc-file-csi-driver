@@ -1598,7 +1598,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 		expectedCapGiB int
 	}{
 		{
-			// TC-U01: requested 20 GiB with iops=3000 -> catalog band 80-99 GiB (IOPSMax=4000)
+			// TC-U01: requested 20 GiB with iops=3000 -> volume profile band 80-99 GiB (IOPSMax=4000)
 			// -> minCap=80 GiB -> capacity rounded up to 80 GiB.
 			testCaseName: "TC-U01: allowRoundoff=true, iops=3000, requestedGiB=20 -> adjusted to 80",
 			request: &csi.CreateVolumeRequest{
@@ -1620,7 +1620,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 			expectedCapGiB:  80,
 		},
 		{
-			// TC-U02: requested 100 GiB with iops=3000 -> catalog says minCap=80 GiB
+			// TC-U02: requested 100 GiB with iops=3000 -> volume profile says minCap=80 GiB
 			// -> 100 >= 80 -> no adjustment.
 			testCaseName: "TC-U02: allowRoundoff=true, iops=3000, requestedGiB=100 -> no adjustment",
 			request: &csi.CreateVolumeRequest{
@@ -1665,7 +1665,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 		},
 		{
 			// TC-U04: high IOPS — iops=20000, requestedGiB=50
-			// -> catalog band 1000-1999 GiB (IOPSMax=20000) -> minCap=1000 -> adjusted.
+			// -> volume profile band 1000-1999 GiB (IOPSMax=20000) -> minCap=1000 -> adjusted.
 			testCaseName: "TC-U04: allowRoundoff=true, iops=20000, requestedGiB=50 -> adjusted to 1000",
 			request: &csi.CreateVolumeRequest{
 				Name: volumeName,
@@ -1726,8 +1726,8 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 			expectedError:   fmt.Errorf("allowCapacityRoundoffForIops is only supported for dp2 profile"),
 		},
 		{
-			// TC-U07: allowRoundoff=true but catalog returns error -> error propagated
-			testCaseName: "TC-U07: allowRoundoff=true, catalog returns error -> error propagated",
+			// TC-U07: allowRoundoff=true but volume profile returns error -> error propagated
+			testCaseName: "TC-U07: allowRoundoff=true, volume profile returns error -> error propagated",
 			request: &csi.CreateVolumeRequest{
 				Name: volumeName,
 				CapacityRange: &csi.CapacityRange{
@@ -1744,10 +1744,10 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 			},
 			catalogProvider: catalogProvider,
-			expectedError:   fmt.Errorf("ibmcsidriver: no dp2 catalog band covers iops=999999"),
+			expectedError:   fmt.Errorf("ibmcsidriver: no dp2 volume profile band covers iops=999999"),
 		},
 		{
-			// TC-U08: allowRoundoff not set -> existing path, no catalog call, no adjustment.
+			// TC-U08: allowRoundoff not set -> existing path, no volume profile call, no adjustment.
 			testCaseName: "TC-U08: allowRoundoff not set -> existing path, no round-up",
 			request: &csi.CreateVolumeRequest{
 				Name: volumeName,
@@ -1763,7 +1763,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup: "rg-1",
 				},
 			},
-			catalogProvider: nil, // catalog not needed because flag is absent
+			catalogProvider: nil, // volume profile not needed because flag is absent
 			expectedCapGiB:  20,
 		},
 	}

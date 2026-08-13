@@ -28,7 +28,7 @@ import (
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
-	fileprovider "github.com/IBM/ibmcloud-volume-file-vpc/file/provider"
+	"github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -111,22 +111,44 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	icDriver.ids = NewIdentityServer(icDriver)
 	icDriver.ns = NewNodeServer(icDriver, mounter, statsUtil, metadata)
 
-	// Fetch dp2 catalog bands once at startup and build a CapacityRoundoff
+	// Fetch dp2 volume profile bands once at startup and build a CapacityRoundoff
 	// service. This is the driver's caching point: the returned value is stored
 	// on CSIControllerServer for the pod lifetime. StorageClasses that set
 	// allowCapacityRoundoffForIops=true will return a clear error at PVC
-	// creation time if the catalog was unavailable here.
+	// creation time if the volume profile catalog was unavailable here.
+	//
+	// GetVolumeProfileBands is called on the authenticated provider session so
+	// that the request goes through the existing session client — which already
+	// carries the IAM bearer token set during OpenSession → Login() — exactly
+	// the same way createAttachment, getVolume, and all other API calls work.
 	var catalogProvider CapacityRoundoff
-	bands, catalogErr := fileprovider.FetchCapacityBandsDP2(nil, provider.GetConfig().VPC.IKSTokenExchangePrivateURL)
-	if catalogErr != nil {
-		lgr.Warn("Failed to fetch dp2 catalog bands; allowCapacityRoundoffForIops will return an error at PVC creation time",
-			zap.Error(catalogErr))
-	} else {
-		catalogProvider, catalogErr = NewCapacityRoundoff(bands)
+	profileSession, profileSessionErr := provider.GetProviderSession(context.Background(), lgr)
+	if profileSessionErr != nil {
+		lgr.Warn("Failed to open provider session for volume profile bands fetch; allowCapacityRoundoffForIops will return an error at PVC creation time",
+			zap.Error(profileSessionErr))
+	} else if fetcher, ok := profileSession.(VolumeProfileBandsFetcher); ok {
+		rawBands, catalogErr := fetcher.GetVolumeProfileBands("dp2")
 		if catalogErr != nil {
-			lgr.Warn("Failed to build capacity roundoff service from dp2 bands; allowCapacityRoundoffForIops will return an error at PVC creation time",
+			lgr.Warn("Failed to fetch dp2 volume profile bands; allowCapacityRoundoffForIops will return an error at PVC creation time",
 				zap.Error(catalogErr))
+		} else {
+			bands := make([]catalog.CatalogBand, len(rawBands))
+			for i, b := range rawBands {
+				bands[i] = catalog.CatalogBand{
+					CapMin:  int(b.CapacityMin),
+					CapMax:  int(b.CapacityMax),
+					IOPSMin: int(b.IOPSMin),
+					IOPSMax: int(b.IOPSMax),
+				}
+			}
+			catalogProvider, catalogErr = NewCapacityRoundoff(bands)
+			if catalogErr != nil {
+				lgr.Warn("Failed to build capacity roundoff service from dp2 volume profile bands; allowCapacityRoundoffForIops will return an error at PVC creation time",
+					zap.Error(catalogErr))
+			}
 		}
+	} else {
+		lgr.Warn("Provider session does not support GetVolumeProfileBands; allowCapacityRoundoffForIops will return an error at PVC creation time")
 	}
 
 	icDriver.cs = NewControllerServer(icDriver, provider, catalogProvider)
