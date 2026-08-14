@@ -112,15 +112,9 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	icDriver.ns = NewNodeServer(icDriver, mounter, statsUtil, metadata)
 
 	// Fetch dp2 volume profile bands once at startup and build a CapacityRoundoff
-	// service. This is the driver's caching point: the returned value is stored
-	// on CSIControllerServer for the pod lifetime. StorageClasses that set
+	// service. This is the driver's caching point: StorageClasses that set
 	// allowCapacityRoundoffForIops=true will return a clear error at PVC
 	// creation time if the volume profile catalog was unavailable here.
-	//
-	// GetVolumeProfileBands is called on the authenticated provider session so
-	// that the request goes through the existing session client — which already
-	// carries the IAM bearer token set during OpenSession → Login() — exactly
-	// the same way createAttachment, getVolume, and all other API calls work.
 	var catalogProvider CapacityRoundoff
 	profileSession, profileSessionErr := provider.GetProviderSession(context.Background(), lgr)
 	if profileSessionErr != nil {
