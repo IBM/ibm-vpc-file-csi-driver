@@ -42,15 +42,8 @@ type CapacityRoundoff interface {
 	GetMinCapacityForIops(requestedIops int) (int, error)
 }
 
-// VolumeProfileBand is one capacity-to-IOPS band as returned by the
-// armada-storage-api GET /v2/storage/vpc/getVolumeProfiles endpoint.
-// Field names match the JSON tags used by armada-storage-api's globalcatalog.CatalogBand.
-type VolumeProfileBand struct {
-	CapacityMin int64 `json:"capacityMin"`
-	CapacityMax int64 `json:"capacityMax"`
-	IOPSMin     int64 `json:"iopsMin"`
-	IOPSMax     int64 `json:"iopsMax"`
-}
+// VolumeProfileBand is a type alias for catalog.VolumeProfileBand
+type VolumeProfileBand = catalog.VolumeProfileBand
 
 // capacityRoundoff is the production implementation of CapacityRoundoff.
 // It is a pure algorithm over a fixed volume profile band slice; it never touches the network.
