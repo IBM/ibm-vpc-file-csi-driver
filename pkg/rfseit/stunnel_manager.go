@@ -744,7 +744,7 @@ func (sm *StunnelManager) RemoveTunnel(volumeID, requestID string) error {
 
 // handleLastTunnelCleanup handles the special case of removing the last tunnel.
 // Must be called with sm.mu NOT held. Acquires only debounceMu internally.
-func (sm *StunnelManager) handleLastTunnelCleanup(volumeID string, _ int, requestID string) error {
+func (sm *StunnelManager) handleLastTunnelCleanup(volumeID string, tunnelPort int, requestID string) error {
 	sm.logger.Info("Last tunnel being removed, handling cleanup",
 		zap.String("RequestID", requestID),
 		zap.String("volumeID", volumeID))
