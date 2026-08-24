@@ -505,6 +505,7 @@ func TestEnsureTunnel(t *testing.T) {
 		debounceWindow: 100 * time.Millisecond,
 		stunnelStarted: true, // Skip stunnel check
 	}
+	t.Cleanup(func() { sm.stopDebounce() })
 
 	tests := []struct {
 		name      string
@@ -612,6 +613,7 @@ func TestEnsureTunnel_NoTLSConfig(t *testing.T) {
 				logger:         logger,
 				stunnelStarted: true,
 			}
+			t.Cleanup(func() { sm.stopDebounce() })
 
 			port, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 			if err != nil {
@@ -641,6 +643,7 @@ func TestRemoveTunnel(t *testing.T) {
 		debounceWindow: 100 * time.Millisecond,
 		stunnelStarted: true,
 	}
+	t.Cleanup(func() { sm.stopDebounce() })
 
 	// Create a tunnel first
 	port, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
@@ -745,7 +748,7 @@ func TestIsTunnelPortInUse(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// Just verify it doesn't panic and returns a boolean
 			result := sm.isTunnelPortInUse(tt.port)
 			_ = result
@@ -944,16 +947,7 @@ func TestScheduleDebouncedSIGHUP(t *testing.T) {
 	}
 	sm.debounceMu.Unlock()
 
-	// Ensure any residual timer is stopped when the test ends so the AfterFunc
-	// callback cannot fire against a torn-down *testing.T.
-	t.Cleanup(func() {
-		sm.debounceMu.Lock()
-		if sm.debounceTimer != nil {
-			sm.debounceTimer.Stop()
-			sm.debounceTimer = nil
-		}
-		sm.debounceMu.Unlock()
-	})
+	t.Cleanup(func() { sm.stopDebounce() })
 
 	// Wait for debounce window to expire and the callback goroutine to finish.
 	time.Sleep(200 * time.Millisecond)
@@ -1008,6 +1002,7 @@ func TestRemoveTunnel_LastTunnel(t *testing.T) {
 		debounceWindow: 50 * time.Millisecond,
 		stunnelStarted: true,
 	}
+	t.Cleanup(func() { sm.stopDebounce() })
 
 	_, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 	if err != nil {
@@ -1290,6 +1285,7 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 		debounceWindow: 50 * time.Millisecond,
 		stunnelStarted: true,
 	}
+	t.Cleanup(func() { sm.stopDebounce() })
 
 	_, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 	if err != nil {
@@ -1518,6 +1514,7 @@ func TestRemoveTunnel_AdditionalCases(t *testing.T) {
 				debounceWindow: 50 * time.Millisecond,
 				stunnelStarted: true,
 			}
+			t.Cleanup(func() { sm.stopDebounce() })
 
 			err := sm.RemoveTunnel(tt.volumeID, "test-request")
 			if tt.wantErr && err == nil {
@@ -1545,7 +1542,7 @@ func TestFixExistingConfigPermissions(t *testing.T) {
 		},
 		{
 			name:  "empty dir is a no-op",
-			setup: func(dir string) {}, // nothing created
+			setup: func(_ string) {}, // nothing created
 		},
 		{
 			name: "fixes mode on .conf files",
