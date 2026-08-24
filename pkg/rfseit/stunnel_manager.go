@@ -556,26 +556,6 @@ func (sm *StunnelManager) scheduleDebouncedSIGHUP(requestID string) {
 		zap.Duration("debounceWindow", sm.debounceWindow))
 }
 
-// stopDebounce cancels any pending debounce timer and waits for an already-running
-// callback to finish. After this returns no timer goroutine holds a reference to
-// the logger, making it safe to tear down a zaptest.Logger.
-func (sm *StunnelManager) stopDebounce() {
-	sm.debounceMu.Lock()
-	if sm.debounceTimer != nil {
-		sm.debounceTimer.Stop()
-		sm.debounceTimer = nil
-	}
-	sm.pendingSIGHUP = false
-	sm.debounceMu.Unlock()
-
-	// Acquire and immediately release the lock a second time. If the timer
-	// callback had already started before Stop() was called it holds debounceMu
-	// for the duration of its execution; waiting to acquire here ensures we
-	// return only after that goroutine has fully exited.
-	sm.debounceMu.Lock()
-	sm.debounceMu.Unlock() //nolint:staticcheck
-}
-
 // isStunnelRunning checks if the stunnel process is currently running.
 func (sm *StunnelManager) isStunnelRunning() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), PgrepTimeout)
