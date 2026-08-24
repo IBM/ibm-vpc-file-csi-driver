@@ -164,10 +164,6 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 		debounceWindow: DefaultDebounceWindow,
 	}
 
-	// Fix permissions on pre-existing .conf files (written as 0600 before this change).
-	// Idempotent — no-op if files already have correct permissions.
-	sm.fixExistingConfigPermissions()
-
 	// recoverExistingTunnels scans the services directory and rebuilds port allocation map
 	if err := sm.recoverExistingTunnels(); err != nil {
 		logger.Warn("Failed to rebuild port allocation map", zap.Error(err))
@@ -183,40 +179,6 @@ func NewStunnelManager(logger *zap.Logger) (*StunnelManager, error) {
 		zap.String("checkHost", sm.checkHost))
 
 	return sm, nil
-}
-
-// fixExistingConfigPermissions fixes permissions on pre-existing .conf files
-// that were written as 0600 root:root before the non-root stunnel migration.
-// Called once at startup — idempotent, safe to call on every pod start.
-// Driver runs as root so chmod/chown always succeed.
-func (sm *StunnelManager) fixExistingConfigPermissions() {
-	entries, err := os.ReadDir(sm.servicesDir)
-	if err != nil {
-		return // dir doesn't exist yet — nothing to fix
-	}
-	failed := 0
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".conf" {
-			continue
-		}
-		path := filepath.Join(sm.servicesDir, entry.Name())
-		if err := os.Chmod(path, ConfigFilePermissions); err != nil {
-			sm.logger.Warn("Failed to chmod existing stunnel config",
-				zap.String("file", entry.Name()), zap.Error(err))
-			failed++
-			continue
-		}
-		if err := os.Chown(path, 0, sm.stunnelGID); err != nil {
-			sm.logger.Warn("Failed to chown existing stunnel config",
-				zap.String("file", entry.Name()), zap.Int("gid", sm.stunnelGID), zap.Error(err))
-			failed++
-			continue
-		}
-	}
-	if failed > 0 {
-		sm.logger.Error("Some existing stunnel configs could not be fixed; stunnel SIGHUP reloads will fail for those tunnels",
-			zap.Int("failed", failed), zap.Int("gid", sm.stunnelGID), zap.String("dir", sm.servicesDir))
-	}
 }
 
 // detectCABundle determines the system CA bundle path based on OS_TYPE environment variable.
