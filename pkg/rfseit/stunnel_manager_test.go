@@ -748,7 +748,7 @@ func TestIsTunnelPortInUse(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(_ *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			// Just verify it doesn't panic and returns a boolean
 			result := sm.isTunnelPortInUse(tt.port)
 			_ = result
@@ -1531,10 +1531,10 @@ func TestRemoveTunnel_AdditionalCases(t *testing.T) {
 // pre-existing .conf files written as 0600 root:root before the non-root migration.
 func TestFixExistingConfigPermissions(t *testing.T) {
 	tests := []struct {
-		name        string
-		setup       func(dir string) // creates files/dirs in tmpDir
-		wantMode    map[string]os.FileMode // filename -> expected mode (only .conf files checked)
-		wantUntouched []string             // filenames that must NOT be changed
+		name          string
+		setup         func(dir string)       // creates files/dirs in tmpDir
+		wantMode      map[string]os.FileMode // filename -> expected mode (only .conf files checked)
+		wantUntouched []string               // filenames that must NOT be changed
 	}{
 		{
 			name:  "non-existent dir is a no-op",
@@ -1542,7 +1542,7 @@ func TestFixExistingConfigPermissions(t *testing.T) {
 		},
 		{
 			name:  "empty dir is a no-op",
-			setup: func(_ string) {}, // nothing created
+			setup: func(dir string) {}, // nothing created
 		},
 		{
 			name: "fixes mode on .conf files",
@@ -1630,10 +1630,10 @@ func TestFixExistingConfigPermissions(t *testing.T) {
 // fails in an unprivileged test environment.
 func TestWriteTunnelConfig_Permissions(t *testing.T) {
 	tests := []struct {
-		name        string
-		content     string
-		wantErr     bool
-		wantMode    os.FileMode
+		name     string
+		content  string
+		wantErr  bool
+		wantMode os.FileMode
 	}{
 		{
 			name:     "writes file with correct mode",
