@@ -1,6 +1,6 @@
 module github.com/IBM/ibm-vpc-file-csi-driver
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.27
