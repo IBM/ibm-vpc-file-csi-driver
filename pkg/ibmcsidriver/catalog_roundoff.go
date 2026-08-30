@@ -26,13 +26,13 @@ import (
 )
 
 // CapacityRoundoff is the interface the CSI driver uses to determine the
-// minimum capacity (GiB) that satisfies a requested IOPS value for the dp2
-// profile.
+// minimum capacity (GiB) that satisfies a requested IOPS value for a given
+// volume profile's bands.
 //
 // Implementations must be safe for concurrent use after construction.
 type CapacityRoundoff interface {
 	// GetMinCapacityForIops returns the minimum share capacity in GiB that
-	// satisfies the requested IOPS according to the dp2 volume profile bands.
+	// satisfies the requested IOPS according to the volume profile bands.
 	//
 	// It scans the bands (ordered from the smallest capacity band to the
 	// largest) and returns the CapMin of the first band whose IOPSMax is >=
@@ -42,7 +42,7 @@ type CapacityRoundoff interface {
 	GetMinCapacityForIops(requestedIops int) (int, error)
 }
 
-// VolumeProfileBand is a type alias for catalog.VolumeProfileBand
+// VolumeProfileBand is a type alias for catalog.VolumeProfileBand.
 type VolumeProfileBand = catalog.VolumeProfileBand
 
 // capacityRoundoff is the production implementation of CapacityRoundoff.
@@ -52,10 +52,10 @@ type capacityRoundoff struct {
 }
 
 // NewCapacityRoundoff constructs a CapacityRoundoff from a pre-fetched slice
-// of dp2 volume profile bands.
+// of volume profile bands.
 //
 // The caller is responsible for fetching the bands (via
-// fileprovider.FetchCapacityBandsDP2) and for deciding when to refresh them.
+// fileprovider.FetchCapacityBands) and for deciding when to refresh them.
 // This function contains no I/O — the driver can re-create it on any refresh
 // cycle without making an HTTP call.
 //
@@ -72,11 +72,11 @@ func NewCapacityRoundoff(bands []catalog.CatalogBand) (CapacityRoundoff, error) 
 // IOPSMax >= requestedIops.
 func (r *capacityRoundoff) GetMinCapacityForIops(requestedIops int) (int, error) {
 	for _, band := range r.bands {
-		if band.IOPSMax >= requestedIops {
-			return band.CapMin, nil
+		if int(band.IOPSMax) >= requestedIops {
+			return int(band.CapMin), nil
 		}
 	}
-	return 0, fmt.Errorf("ibmcsidriver: no dp2 volume profile band covers iops=%d", requestedIops)
+	return 0, fmt.Errorf("ibmcsidriver: no volume profile band covers iops=%d", requestedIops)
 }
 
 // VolumeProfileBandsFetcher is satisfied by any session that can fetch
@@ -84,6 +84,6 @@ func (r *capacityRoundoff) GetMinCapacityForIops(requestedIops int) (int, error)
 // IksVpcSession implements this; the base VPCSession does not (it always errors).
 type VolumeProfileBandsFetcher interface {
 	// GetVolumeProfileBands returns the ordered capacity-to-IOPS bands for
-	// the named VPC file profile (e.g. globalcatalog.ProfileDP2 = "dp2").
+	// the named VPC file profile (e.g. "dp2", "rfs").
 	GetVolumeProfileBands(profile string) ([]VolumeProfileBand, error)
 }

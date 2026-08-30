@@ -358,8 +358,12 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		}
 		minCapGiB, minCapErr := catalogProvider.GetMinCapacityForIops(requestedIops)
 		if minCapErr != nil {
-			logger.Error("getVolumeParameters: catalog lookup failed", zap.Error(minCapErr))
-			return volume, minCapErr
+			logger.Error("getVolumeParameters: IOPS value exceeds the maximum supported by the dp2 profile",
+				zap.Int("requestedIops", requestedIops),
+				zap.Error(minCapErr))
+			err = fmt.Errorf("the capacity or IOPS specified in the request is not valid for the 'dp2' profile")
+			logger.Error("getVolumeParameters", zap.NamedError("InvalidParameter", err))
+			return volume, err
 		}
 		if volume.Capacity != nil && *volume.Capacity < minCapGiB {
 			logger.Info("Rounding up capacity to meet minimum for requested IOPS",

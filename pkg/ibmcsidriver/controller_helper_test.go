@@ -1744,7 +1744,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 			},
 			catalogProvider: catalogProvider,
-			expectedError:   fmt.Errorf("ibmcsidriver: no dp2 volume profile band covers iops=999999"),
+			expectedError:   fmt.Errorf("the capacity or IOPS specified in the request is not valid for the 'dp2' profile"),
 		},
 		{
 			// TC-U08: allowRoundoff not set -> existing path, no volume profile call, no adjustment.

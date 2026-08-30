@@ -129,10 +129,10 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 			bands := make([]catalog.CatalogBand, len(rawBands))
 			for i, b := range rawBands {
 				bands[i] = catalog.CatalogBand{
-					CapMin:  int(b.CapacityMin),
-					CapMax:  int(b.CapacityMax),
-					IOPSMin: int(b.IOPSMin),
-					IOPSMax: int(b.IOPSMax),
+					CapMin:  b.CapacityMin,
+					CapMax:  b.CapacityMax,
+					IOPSMin: b.IOPSMin,
+					IOPSMax: b.IOPSMax,
 				}
 			}
 			catalogProvider, catalogErr = NewCapacityRoundoff(bands)
