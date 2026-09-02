@@ -573,56 +573,56 @@ func TestEnsureTunnel(t *testing.T) {
 
 // TestEnsureTunnel_NoTLSConfig documents current behavior: TLS config validation
 // happens in NewStunnelManager/NewStunnelManagerForTesting, not in EnsureTunnel.
-// func TestEnsureTunnel_NoTLSConfig(t *testing.T) {
-// 	logger := zaptest.NewLogger(t)
-// 	tmpDir := t.TempDir()
+func TestEnsureTunnel_NoTLSConfig(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	tmpDir := t.TempDir()
 
-// 	tests := []struct {
-// 		name      string
-// 		caFile    string
-// 		checkHost string
-// 	}{
-// 		{
-// 			name:      "missing CA file",
-// 			caFile:    "",
-// 			checkHost: "test.example.com",
-// 		},
-// 		{
-// 			name:      "missing checkHost",
-// 			caFile:    "/tmp/ca.pem",
-// 			checkHost: "",
-// 		},
-// 		{
-// 			name:      "both missing",
-// 			caFile:    "",
-// 			checkHost: "",
-// 		},
-// 	}
+	tests := []struct {
+		name      string
+		caFile    string
+		checkHost string
+	}{
+		{
+			name:      "missing CA file",
+			caFile:    "",
+			checkHost: "test.example.com",
+		},
+		{
+			name:      "missing checkHost",
+			caFile:    "/tmp/ca.pem",
+			checkHost: "",
+		},
+		{
+			name:      "both missing",
+			caFile:    "",
+			checkHost: "",
+		},
+	}
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			sm := &StunnelManager{
-// 				servicesDir:    tmpDir,
-// 				initialPort:    10001,
-// 				portRange:      100,
-// 				allocatedPorts: make(map[string]int),
-// 				portToVolume:   make(map[int]string),
-// 				caFile:         tt.caFile,
-// 				checkHost:      tt.checkHost,
-// 				logger:         logger,
-// 				stunnelStarted: true,
-// 			}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sm := &StunnelManager{
+				servicesDir:    tmpDir,
+				initialPort:    10001,
+				portRange:      100,
+				allocatedPorts: make(map[string]int),
+				portToVolume:   make(map[int]string),
+				caFile:         tt.caFile,
+				checkHost:      tt.checkHost,
+				logger:         logger,
+				stunnelStarted: true,
+			}
 
-// 			port, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
-// 			if err != nil {
-// 				t.Fatalf("EnsureTunnel() unexpected error = %v", err)
-// 			}
-// 			if port != 10001 {
-// 				t.Fatalf("EnsureTunnel() port = %d, want 10001", port)
-// 			}
-// 		})
-// 	}
-// }
+			port, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
+			if err != nil {
+				t.Fatalf("EnsureTunnel() unexpected error = %v", err)
+			}
+			if port != 10001 {
+				t.Fatalf("EnsureTunnel() port = %d, want 10001", port)
+			}
+		})
+	}
+}
 
 // TestRemoveTunnel tests tunnel removal
 func TestRemoveTunnel(t *testing.T) {

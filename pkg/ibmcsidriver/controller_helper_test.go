@@ -1710,6 +1710,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					Profile:                      "rfs",
 					Throughput:                   "100",
 					AllowCapacityRoundoffForIops: "true",
+					Zone:                         "us-south-1",
 					Region:                       "us-south",
 					ResourceGroup:                "rg-1",
 				},

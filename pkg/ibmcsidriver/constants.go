@@ -209,9 +209,9 @@ const (
 	MinimumRFSVolumeSizeInBytes int64 = 1 * utils.GiB
 
 	// AllowCapacityRoundoffForIops -- when set to "true" in a StorageClass, the
-	// driver fetches the dp2 capacity-to-IOPS catalog bands from the IBM Global
-	// Catalog API and rounds up the requested PVC capacity to the minimum
-	// required for the requested IOPS value. Only valid for dp2 profile.
+	// driver fetches the dp2 capacity-to-IOPS catalog bands from the
+	// armada-storage-api proxy and rounds up the requested PVC capacity to the
+	// minimum required for the requested IOPS value. Only valid for dp2 profile.
 	AllowCapacityRoundoffForIops = "allowCapacityRoundoffForIops"
 )
 

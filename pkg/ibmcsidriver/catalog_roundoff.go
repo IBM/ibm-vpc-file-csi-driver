@@ -54,7 +54,12 @@ type capacityRoundoff struct {
 // This function contains no I/O — the driver can re-create it on any refresh
 // cycle without making an HTTP call.
 //
-// Returns an error if bands is empty.
+// The caller is responsible for passing bands in ascending IOPSMax order.
+// Ordering is not enforced here because the bands are sourced from the
+// armada-storage-api, which already returns them in the correct order.
+// Revalidating the order on every CSI call would add unnecessary overhead.
+//
+// Returns an error if bands is nil or empty.
 func NewCapacityRoundoff(bands []provider.VolumeProfileBand) (CapacityRoundoff, error) {
 	if len(bands) == 0 {
 		return nil, fmt.Errorf("ibmcsidriver: cannot create CapacityRoundoff with empty bands slice")
