@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2026- IBM Inc. All rights reserved
+ * Copyright 2021- IBM Inc. All rights reserved
  * SPDX-License-Identifier: Apache2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -115,6 +115,13 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	// profile check below, avoiding two separate token/session acquisitions.
 	// If this fetch fails the driver continues; only PVCs that set
 	// allowCapacityRoundoffForIops=true AND need capacity rounded up will error.
+	//
+	// TODO: The bands are cached at startup only. If the IBM Global Catalog dp2
+	// profile is updated (new tiers added, IOPSMax values changed), the driver
+	// must be restarted to pick up the new bands. A periodic refresh is not
+	// implemented because it would require a background goroutine, a mutex
+	// around CatalogProvider, and added complexity for a catalog that changes
+	// infrequently. Revisit if live catalog updates become a requirement.
 	var catalogProvider CapacityRoundoff
 	session, sessionErr := provider.GetProviderSession(context.Background(), lgr)
 	if sessionErr != nil {

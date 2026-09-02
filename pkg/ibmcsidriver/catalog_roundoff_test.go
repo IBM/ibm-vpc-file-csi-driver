@@ -27,7 +27,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testBands is a representative dp2 band table used across test cases.
+// testBands is the authoritative dp2 band table shared across all round-off
+// test files. It exactly mirrors the IBM Global Catalog response for profile
+// "dp2" as returned by armada-storage-api (verified against the live staging
+// endpoint). Any change to the real catalog must be reflected here.
 var testBands = []provider.VolumeProfileBand{
 	{CapacityMin: 10, CapacityMax: 39, IOPSMin: 100, IOPSMax: 1000},
 	{CapacityMin: 40, CapacityMax: 79, IOPSMin: 100, IOPSMax: 2000},
@@ -35,7 +38,10 @@ var testBands = []provider.VolumeProfileBand{
 	{CapacityMin: 100, CapacityMax: 499, IOPSMin: 100, IOPSMax: 6000},
 	{CapacityMin: 500, CapacityMax: 999, IOPSMin: 100, IOPSMax: 10000},
 	{CapacityMin: 1000, CapacityMax: 1999, IOPSMin: 100, IOPSMax: 20000},
-	{CapacityMin: 2000, CapacityMax: 32000, IOPSMin: 100, IOPSMax: 64000},
+	{CapacityMin: 2000, CapacityMax: 3999, IOPSMin: 200, IOPSMax: 40000},
+	{CapacityMin: 4000, CapacityMax: 7999, IOPSMin: 300, IOPSMax: 40000},
+	{CapacityMin: 8000, CapacityMax: 15999, IOPSMin: 500, IOPSMax: 64000},
+	{CapacityMin: 16000, CapacityMax: 32000, IOPSMin: 2000, IOPSMax: 96000},
 }
 
 // TestNewCapacityRoundoff covers construction-time validation.
@@ -93,19 +99,50 @@ func TestGetMinCapacityForIops(t *testing.T) {
 			expectedCap:   80,
 		},
 		{
-			name:          "IOPS at the highest band boundary returns last band CapacityMin",
-			requestedIops: 64000, // IOPSMax of the last band exactly
+			// The two bands at 2000-3999 and 4000-7999 both have IOPSMax=40000;
+			// the lookup returns the first matching band (CapacityMin=2000).
+			name:          "IOPS exactly at the shared 40000 boundary returns first matching band CapacityMin",
+			requestedIops: 40000,
 			expectedCap:   2000,
 		},
 		{
+			// 40001 exceeds both 40000-IOPS bands; next band is 8000-15999 (IOPSMax=64000).
+			name:          "IOPS one above the 40000 shared boundary falls into the 8000 GiB band",
+			requestedIops: 40001,
+			expectedCap:   8000,
+		},
+		{
+			name:          "IOPS at the highest band boundary returns last band CapacityMin",
+			requestedIops: 96000, // IOPSMax of the last band (16000-32000 GiB) exactly
+			expectedCap:   16000,
+		},
+		{
 			name:          "IOPS one above the highest band returns error",
-			requestedIops: 64001,
+			requestedIops: 96001,
 			expectError:   true,
 		},
 		{
 			name:          "IOPS far above all bands returns error",
 			requestedIops: 999999,
 			expectError:   true,
+		},
+		// The following two cases document the contract for non-positive IOPS.
+		// GetMinCapacityForIops itself does not validate the sign; the caller
+		// (applyCapacityRoundoffForIops) is responsible for rejecting <= 0 values
+		// before invoking this function. A zero or negative value would trivially
+		// satisfy band.IOPSMax >= requestedIops for any band and return the first
+		// band's CapacityMin — which is a silently wrong result. These tests make
+		// that behaviour explicit so that any future change to add internal
+		// validation here is caught immediately.
+		{
+			name:          "zero IOPS satisfies first band and returns first band CapacityMin (caller must prevent this)",
+			requestedIops: 0,
+			expectedCap:   10,
+		},
+		{
+			name:          "negative IOPS satisfies first band and returns first band CapacityMin (caller must prevent this)",
+			requestedIops: -1,
+			expectedCap:   10,
 		},
 	}
 

@@ -39,6 +39,11 @@ type CapacityRoundoff interface {
 	// >= requestedIops.
 	//
 	// Returns an error if no band covers the requested IOPS.
+	//
+	// Callers are responsible for ensuring requestedIops > 0 before calling
+	// this function. A zero or negative value trivially satisfies every band
+	// and returns the first band's CapacityMin,
+	// applyCapacityRoundoffForIops enforces this precondition.
 	GetMinCapacityForIops(requestedIops int) (int, error)
 }
 
