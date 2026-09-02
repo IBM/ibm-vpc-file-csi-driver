@@ -28,7 +28,7 @@ import (
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
-	"github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
+
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -111,38 +111,31 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	icDriver.ids = NewIdentityServer(icDriver)
 	icDriver.ns = NewNodeServer(icDriver, mounter, statsUtil, metadata)
 
-	// Fetch dp2 volume profile bands once at startup and build a CapacityRoundoff
-	// service. This is the driver's caching point: StorageClasses that set
-	// allowCapacityRoundoffForIops=true will return a clear error at PVC
-	// creation time if the volume profile catalog was unavailable here.
+	// Fetch dp2 file share profile bands once at startup and build a CapacityRoundoff
+	// service. This pre-warms the capacity round-off cache so that PVC creation
+	// with allowCapacityRoundoffForIops=true can resolve the minimum capacity for
+	// a requested IOPS value without a network call per request.
+	// If this fetch fails the driver continues normally; only PVCs that both set
+	// allowCapacityRoundoffForIops=true AND need their capacity rounded up will
+	// receive an error at creation time.
 	var catalogProvider CapacityRoundoff
 	profileSession, profileSessionErr := provider.GetProviderSession(context.Background(), lgr)
 	if profileSessionErr != nil {
-		lgr.Warn("Failed to open provider session for volume profile bands fetch; allowCapacityRoundoffForIops will return an error at PVC creation time",
+		lgr.Warn("dp2 profile bands unavailable: could not open provider session at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
 			zap.Error(profileSessionErr))
-	} else if fetcher, ok := profileSession.(VolumeProfileBandsFetcher); ok {
-		rawBands, catalogErr := fetcher.GetVolumeProfileBands("dp2")
+	} else {
+		rawBands, catalogErr := profileSession.GetShareProfileBands(DP2Profile)
 		if catalogErr != nil {
-			lgr.Warn("Failed to fetch dp2 volume profile bands; allowCapacityRoundoffForIops will return an error at PVC creation time",
+			lgr.Warn("dp2 profile bands unavailable: failed to fetch bands at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
 				zap.Error(catalogErr))
 		} else {
-			bands := make([]catalog.CatalogBand, len(rawBands))
-			for i, b := range rawBands {
-				bands[i] = catalog.CatalogBand{
-					CapMin:  b.CapacityMin,
-					CapMax:  b.CapacityMax,
-					IOPSMin: b.IOPSMin,
-					IOPSMax: b.IOPSMax,
-				}
-			}
-			catalogProvider, catalogErr = NewCapacityRoundoff(bands)
-			if catalogErr != nil {
-				lgr.Warn("Failed to build capacity roundoff service from dp2 volume profile bands; allowCapacityRoundoffForIops will return an error at PVC creation time",
-					zap.Error(catalogErr))
+			var buildErr error
+			catalogProvider, buildErr = NewCapacityRoundoff(rawBands)
+			if buildErr != nil {
+				lgr.Warn("dp2 profile bands unavailable: failed to build capacity round-off service; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
+					zap.Error(buildErr))
 			}
 		}
-	} else {
-		lgr.Warn("Provider session does not support GetVolumeProfileBands; allowCapacityRoundoffForIops will return an error at PVC creation time")
 	}
 
 	icDriver.cs = NewControllerServer(icDriver, provider, catalogProvider)

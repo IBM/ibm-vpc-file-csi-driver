@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/IBM/ibm-csi-common/pkg/utils"
-	"github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
@@ -762,7 +761,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
-			expectedError:  fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property from storage class"),
+			expectedError:  fmt.Errorf("bandwidth is not supported for dp2 file share profile; please remove the property from storage class"),
 		},
 		{
 			testCaseName: "subnetID is missing if primaryIPAddress is provided",
@@ -1553,17 +1552,17 @@ func TestGetPrefedTopologyParams(t *testing.T) {
 }
 
 // testDP2Bands mirrors the IBM Global Catalog dp2 bands used for round-off tests.
-var testDP2Bands = []catalog.CatalogBand{
-	{CapMin: 10, CapMax: 39, IOPSMin: 100, IOPSMax: 1000},
-	{CapMin: 40, CapMax: 79, IOPSMin: 100, IOPSMax: 2000},
-	{CapMin: 80, CapMax: 99, IOPSMin: 100, IOPSMax: 4000},
-	{CapMin: 100, CapMax: 499, IOPSMin: 100, IOPSMax: 6000},
-	{CapMin: 500, CapMax: 999, IOPSMin: 100, IOPSMax: 10000},
-	{CapMin: 1000, CapMax: 1999, IOPSMin: 100, IOPSMax: 20000},
-	{CapMin: 2000, CapMax: 3999, IOPSMin: 200, IOPSMax: 40000},
-	{CapMin: 4000, CapMax: 7999, IOPSMin: 300, IOPSMax: 40000},
-	{CapMin: 8000, CapMax: 15999, IOPSMin: 500, IOPSMax: 64000},
-	{CapMin: 16000, CapMax: 32000, IOPSMin: 2000, IOPSMax: 96000},
+var testDP2Bands = []provider.ShareProfileBand{
+	{CapacityMin: 10, CapacityMax: 39, IOPSMin: 100, IOPSMax: 1000},
+	{CapacityMin: 40, CapacityMax: 79, IOPSMin: 100, IOPSMax: 2000},
+	{CapacityMin: 80, CapacityMax: 99, IOPSMin: 100, IOPSMax: 4000},
+	{CapacityMin: 100, CapacityMax: 499, IOPSMin: 100, IOPSMax: 6000},
+	{CapacityMin: 500, CapacityMax: 999, IOPSMin: 100, IOPSMax: 10000},
+	{CapacityMin: 1000, CapacityMax: 1999, IOPSMin: 100, IOPSMax: 20000},
+	{CapacityMin: 2000, CapacityMax: 3999, IOPSMin: 200, IOPSMax: 40000},
+	{CapacityMin: 4000, CapacityMax: 7999, IOPSMin: 300, IOPSMax: 40000},
+	{CapacityMin: 8000, CapacityMax: 15999, IOPSMin: 500, IOPSMax: 64000},
+	{CapacityMin: 16000, CapacityMax: 32000, IOPSMin: 2000, IOPSMax: 96000},
 }
 
 // TestGetVolumeParameters_AllowCapacityRoundoffForIops covers the round-off
@@ -1608,12 +1607,12 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{
-					Profile:                     "dp2",
-					IOPS:                        iops3000,
+					Profile:                      "dp2",
+					IOPS:                         iops3000,
 					AllowCapacityRoundoffForIops: "true",
-					Zone:                        "us-south-1",
-					Region:                      "us-south",
-					ResourceGroup:               "rg-1",
+					Zone:                         "us-south-1",
+					Region:                       "us-south",
+					ResourceGroup:                "rg-1",
 				},
 			},
 			catalogProvider: catalogProvider,
@@ -1630,12 +1629,12 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{
-					Profile:                     "dp2",
-					IOPS:                        iops3000,
+					Profile:                      "dp2",
+					IOPS:                         iops3000,
 					AllowCapacityRoundoffForIops: "true",
-					Zone:                        "us-south-1",
-					Region:                      "us-south",
-					ResourceGroup:               "rg-1",
+					Zone:                         "us-south-1",
+					Region:                       "us-south",
+					ResourceGroup:                "rg-1",
 				},
 			},
 			catalogProvider: catalogProvider,
@@ -1652,12 +1651,12 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{
-					Profile:                     "dp2",
-					IOPS:                        iops3000,
+					Profile:                      "dp2",
+					IOPS:                         iops3000,
 					AllowCapacityRoundoffForIops: "true",
-					Zone:                        "us-south-1",
-					Region:                      "us-south",
-					ResourceGroup:               "rg-1",
+					Zone:                         "us-south-1",
+					Region:                       "us-south",
+					ResourceGroup:                "rg-1",
 				},
 			},
 			catalogProvider: catalogProvider,
@@ -1674,12 +1673,12 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{
-					Profile:                     "dp2",
-					IOPS:                        iops20000,
+					Profile:                      "dp2",
+					IOPS:                         iops20000,
 					AllowCapacityRoundoffForIops: "true",
-					Zone:                        "us-south-1",
-					Region:                      "us-south",
-					ResourceGroup:               "rg-1",
+					Zone:                         "us-south-1",
+					Region:                       "us-south",
+					ResourceGroup:                "rg-1",
 				},
 			},
 			catalogProvider: catalogProvider,
@@ -1695,11 +1694,11 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{
-					Profile:                     "dp2",
+					Profile:                      "dp2",
 					AllowCapacityRoundoffForIops: "true",
-					Zone:                        "us-south-1",
-					Region:                      "us-south",
-					ResourceGroup:               "rg-1",
+					Zone:                         "us-south-1",
+					Region:                       "us-south",
+					ResourceGroup:                "rg-1",
 				},
 			},
 			catalogProvider: catalogProvider,
@@ -1715,11 +1714,11 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{
-					Profile:                     "rfs",
-					Throughput:                  "100",
+					Profile:                      "rfs",
+					Throughput:                   "100",
 					AllowCapacityRoundoffForIops: "true",
-					Region:                      "us-south",
-					ResourceGroup:               "rg-1",
+					Region:                       "us-south",
+					ResourceGroup:                "rg-1",
 				},
 			},
 			catalogProvider: catalogProvider,
@@ -1735,16 +1734,16 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
 				Parameters: map[string]string{
-					Profile:                     "dp2",
-					IOPS:                        "999999",
+					Profile:                      "dp2",
+					IOPS:                         "999999",
 					AllowCapacityRoundoffForIops: "true",
-					Zone:                        "us-south-1",
-					Region:                      "us-south",
-					ResourceGroup:               "rg-1",
+					Zone:                         "us-south-1",
+					Region:                       "us-south",
+					ResourceGroup:                "rg-1",
 				},
 			},
 			catalogProvider: catalogProvider,
-			expectedError:   fmt.Errorf("the capacity or IOPS specified in the request is not valid for the 'dp2' profile"),
+			expectedError:   fmt.Errorf("the capacity or IOPS specified in the request is not valid for the 'dp2' file share profile"),
 		},
 		{
 			// TC-U08: allowRoundoff not set -> existing path, no volume profile call, no adjustment.

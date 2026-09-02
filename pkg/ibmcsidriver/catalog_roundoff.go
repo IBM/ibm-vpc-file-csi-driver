@@ -22,7 +22,7 @@ package ibmcsidriver
 import (
 	"fmt"
 
-	"github.com/IBM/ibmcloud-volume-file-vpc/common/catalog"
+	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 )
 
 // CapacityRoundoff is the interface the CSI driver uses to determine the
@@ -35,32 +35,31 @@ type CapacityRoundoff interface {
 	// satisfies the requested IOPS according to the volume profile bands.
 	//
 	// It scans the bands (ordered from the smallest capacity band to the
-	// largest) and returns the CapMin of the first band whose IOPSMax is >=
-	// requestedIops.
+	// largest) and returns the CapacityMin of the first band whose IOPSMax is
+	// >= requestedIops.
 	//
 	// Returns an error if no band covers the requested IOPS.
 	GetMinCapacityForIops(requestedIops int) (int, error)
 }
 
-// VolumeProfileBand is a type alias for catalog.VolumeProfileBand.
-type VolumeProfileBand = catalog.VolumeProfileBand
+// ShareProfileBand is a type alias for provider.ShareProfileBand.
+// The canonical definition lives in ibmcloud-volume-interface.
+type ShareProfileBand = provider.ShareProfileBand
 
 // capacityRoundoff is the production implementation of CapacityRoundoff.
 // It is a pure algorithm over a fixed volume profile band slice; it never touches the network.
 type capacityRoundoff struct {
-	bands []catalog.CatalogBand
+	bands []ShareProfileBand
 }
 
 // NewCapacityRoundoff constructs a CapacityRoundoff from a pre-fetched slice
-// of volume profile bands.
+// of volume profile bands (as returned by Session.GetShareProfileBands).
 //
-// The caller is responsible for fetching the bands (via
-// fileprovider.FetchCapacityBands) and for deciding when to refresh them.
 // This function contains no I/O — the driver can re-create it on any refresh
 // cycle without making an HTTP call.
 //
 // Returns an error if bands is empty.
-func NewCapacityRoundoff(bands []catalog.CatalogBand) (CapacityRoundoff, error) {
+func NewCapacityRoundoff(bands []ShareProfileBand) (CapacityRoundoff, error) {
 	if len(bands) == 0 {
 		return nil, fmt.Errorf("ibmcsidriver: cannot create CapacityRoundoff with empty bands slice")
 	}
@@ -68,22 +67,13 @@ func NewCapacityRoundoff(bands []catalog.CatalogBand) (CapacityRoundoff, error) 
 }
 
 // GetMinCapacityForIops satisfies CapacityRoundoff.
-// It scans the band slice and returns the CapMin of the first band whose
+// It scans the band slice and returns the CapacityMin of the first band whose
 // IOPSMax >= requestedIops.
 func (r *capacityRoundoff) GetMinCapacityForIops(requestedIops int) (int, error) {
 	for _, band := range r.bands {
 		if int(band.IOPSMax) >= requestedIops {
-			return int(band.CapMin), nil
+			return int(band.CapacityMin), nil
 		}
 	}
 	return 0, fmt.Errorf("ibmcsidriver: no volume profile band covers iops=%d", requestedIops)
-}
-
-// VolumeProfileBandsFetcher is satisfied by any session that can fetch
-// VPC file volume profile capacity-to-IOPS bands from armada-storage-api.
-// IksVpcSession implements this; the base VPCSession does not (it always errors).
-type VolumeProfileBandsFetcher interface {
-	// GetVolumeProfileBands returns the ordered capacity-to-IOPS bands for
-	// the named VPC file profile (e.g. "dp2", "rfs").
-	GetVolumeProfileBands(profile string) ([]VolumeProfileBand, error)
 }
