@@ -42,24 +42,20 @@ type CapacityRoundoff interface {
 	GetMinCapacityForIops(requestedIops int) (int, error)
 }
 
-// ShareProfileBand is a type alias for provider.ShareProfileBand.
-// The canonical definition lives in ibmcloud-volume-interface.
-type ShareProfileBand = provider.ShareProfileBand
-
 // capacityRoundoff is the production implementation of CapacityRoundoff.
 // It is a pure algorithm over a fixed volume profile band slice; it never touches the network.
 type capacityRoundoff struct {
-	bands []ShareProfileBand
+	bands []provider.VolumeProfileBand
 }
 
 // NewCapacityRoundoff constructs a CapacityRoundoff from a pre-fetched slice
-// of volume profile bands (as returned by Session.GetShareProfileBands).
+// of volume profile bands (as returned by Session.GetVolumeProfileBands).
 //
 // This function contains no I/O — the driver can re-create it on any refresh
 // cycle without making an HTTP call.
 //
 // Returns an error if bands is empty.
-func NewCapacityRoundoff(bands []ShareProfileBand) (CapacityRoundoff, error) {
+func NewCapacityRoundoff(bands []provider.VolumeProfileBand) (CapacityRoundoff, error) {
 	if len(bands) == 0 {
 		return nil, fmt.Errorf("ibmcsidriver: cannot create CapacityRoundoff with empty bands slice")
 	}
@@ -69,6 +65,11 @@ func NewCapacityRoundoff(bands []ShareProfileBand) (CapacityRoundoff, error) {
 // GetMinCapacityForIops satisfies CapacityRoundoff.
 // It scans the band slice and returns the CapacityMin of the first band whose
 // IOPSMax >= requestedIops.
+//
+// Note: IOPSMin is intentionally not checked here. The VPC API enforces the
+// minimum IOPS constraint at volume creation time; this function is only
+// responsible for deriving the minimum capacity that supports the requested
+// IOPS upper bound.
 func (r *capacityRoundoff) GetMinCapacityForIops(requestedIops int) (int, error) {
 	for _, band := range r.bands {
 		if int(band.IOPSMax) >= requestedIops {

@@ -615,13 +615,6 @@ func TestGetVolumeParameters(t *testing.T) {
 			expectedError:  fmt.Errorf("unable to fetch zone information: 'could not get zones from preferred topology: preferred topologies specified but no segments'"),
 		},
 		{
-			testCaseName:   "Wrong profile name",
-			request:        &csi.CreateVolumeRequest{Parameters: map[string]string{Profile: "wrong-profile"}},
-			expectedVolume: &provider.Volume{},
-			expectedStatus: true,
-			expectedError:  fmt.Errorf("%s:<%v> unsupported profile. Supported profiles are: %v", Profile, "wrong-profile", SupportedProfile),
-		},
-		{
 			testCaseName: "Max length exceeded for zone name",
 			request: &csi.CreateVolumeRequest{Parameters: map[string]string{
 				Zone: exceededZoneName,
@@ -1552,7 +1545,7 @@ func TestGetPrefedTopologyParams(t *testing.T) {
 }
 
 // testDP2Bands mirrors the IBM Global Catalog dp2 bands used for round-off tests.
-var testDP2Bands = []provider.ShareProfileBand{
+var testDP2Bands = []provider.VolumeProfileBand{
 	{CapacityMin: 10, CapacityMax: 39, IOPSMin: 100, IOPSMax: 1000},
 	{CapacityMin: 40, CapacityMax: 79, IOPSMin: 100, IOPSMax: 2000},
 	{CapacityMin: 80, CapacityMax: 99, IOPSMin: 100, IOPSMax: 4000},

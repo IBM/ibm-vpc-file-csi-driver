@@ -217,6 +217,3 @@ const (
 
 // SupportedFS the supported FS types
 var SupportedFS = []string{"nfs"}
-
-// SupportedProfile the supported profile names
-var SupportedProfile = []string{DP2Profile, RFSProfile}

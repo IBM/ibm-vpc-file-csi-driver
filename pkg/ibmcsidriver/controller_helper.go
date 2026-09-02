@@ -144,11 +144,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	for key, value := range req.GetParameters() {
 		switch key {
 		case Profile:
-			if utils.ListContainsSubstr(SupportedProfile, value) {
-				volume.VPCVolume.Profile = &provider.Profile{Name: value}
-			} else {
-				err = fmt.Errorf("%s:<%v> unsupported profile. Supported profiles are: %v", key, value, SupportedProfile)
-			}
+			volume.VPCVolume.Profile = &provider.Profile{Name: value}
 		case Zone:
 			if len(value) > ZoneNameMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ZoneNameMaxLen)
@@ -304,7 +300,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	if volume.VPCVolume.Profile == nil {
-		err = fmt.Errorf("Volume profile is empty. Supported profiles are: %v", SupportedProfile)
+		err = fmt.Errorf("Share profile is required")
 		logger.Error("getVolumeParameters", zap.NamedError("InvalidRequest", err))
 		return volume, err
 	}
@@ -455,16 +451,11 @@ func applyCapacityRoundoffForIops(logger *zap.Logger, volume *provider.Volume, c
 	}
 	minCapGiB, minCapErr := catalogProvider.GetMinCapacityForIops(requestedIops)
 	if minCapErr != nil {
-		logger.Error("applyCapacityRoundoffForIops: IOPS value exceeds the maximum supported by the dp2 file share profile",
+		err := fmt.Errorf("the capacity or IOPS specified in the request is not valid for the '%s' file share profile", DP2Profile)
+		logger.Error("applyCapacityRoundoffForIops",
+			zap.NamedError("InvalidParameter", err),
 			zap.Int("requestedIops", requestedIops),
 			zap.Error(minCapErr))
-		err := fmt.Errorf("the capacity or IOPS specified in the request is not valid for the '%s' file share profile", DP2Profile)
-		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
-		return err
-	}
-	if volume.Capacity == nil {
-		err := fmt.Errorf("volume capacity is nil; cannot apply allowCapacityRoundoffForIops")
-		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
 		return err
 	}
 	if *volume.Capacity < minCapGiB {

@@ -111,20 +111,17 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	icDriver.ids = NewIdentityServer(icDriver)
 	icDriver.ns = NewNodeServer(icDriver, mounter, statsUtil, metadata)
 
-	// Fetch dp2 file share profile bands once at startup and build a CapacityRoundoff
-	// service. This pre-warms the capacity round-off cache so that PVC creation
-	// with allowCapacityRoundoffForIops=true can resolve the minimum capacity for
-	// a requested IOPS value without a network call per request.
-	// If this fetch fails the driver continues normally; only PVCs that both set
-	// allowCapacityRoundoffForIops=true AND need their capacity rounded up will
-	// receive an error at creation time.
+	// Open a single provider session for both the dp2 band fetch and the RFS
+	// profile check below, avoiding two separate token/session acquisitions.
+	// If this fetch fails the driver continues; only PVCs that set
+	// allowCapacityRoundoffForIops=true AND need capacity rounded up will error.
 	var catalogProvider CapacityRoundoff
-	profileSession, profileSessionErr := provider.GetProviderSession(context.Background(), lgr)
-	if profileSessionErr != nil {
+	session, sessionErr := provider.GetProviderSession(context.Background(), lgr)
+	if sessionErr != nil {
 		lgr.Warn("dp2 profile bands unavailable: could not open provider session at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
-			zap.Error(profileSessionErr))
+			zap.Error(sessionErr))
 	} else {
-		rawBands, catalogErr := profileSession.GetShareProfileBands(DP2Profile)
+		rawBands, catalogErr := session.GetVolumeProfileBands(DP2Profile)
 		if catalogErr != nil {
 			lgr.Warn("dp2 profile bands unavailable: failed to fetch bands at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
 				zap.Error(catalogErr))
@@ -149,10 +146,10 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	}
 	icDriver.region = regionMetadata.GetRegion()
 
-	// get the session
+	// Reuse the session opened above for the RFS profile check; if it was
+	// unavailable at startup, warn and skip the check.
 	icDriver.rfsEnabled = false
-	session, err := provider.GetProviderSession(context.Background(), lgr)
-	if err != nil {
+	if sessionErr != nil {
 		icDriver.logger.Warn("Cannot fetch session for verifying RFS profile")
 		return nil
 	}
