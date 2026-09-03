@@ -519,10 +519,13 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIExpandVolume", time.Now())
 	ctxLogger.Info("CSIControllerServer-ControllerExpandVolume", zap.Reflect("Request", requestID))
 	volumeID := req.GetVolumeId()
-	capacity := req.GetCapacityRange().GetRequiredBytes()
 	if len(volumeID) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
+	if req.GetCapacityRange() == nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, nil)
+	}
+	capacity := req.GetCapacityRange().GetRequiredBytes()
 
 	// get the session
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
