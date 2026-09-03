@@ -83,6 +83,9 @@ const (
 	nfs4FsType = "nfs4"
 )
 
+// defaultMountOptions are injected when the StorageClass provides no mountOptions.
+var defaultMountOptions = []string{"nfsvers=4.1", "sec=sys"}
+
 // NFSSource represents a parsed NFS source with server and export path
 type NFSSource struct {
 	Server     string
@@ -264,6 +267,10 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 	}
 	mnt := volumeCapability.GetMount()
 	options := mnt.MountFlags
+	if len(options) == 0 {
+		ctxLogger.Info("No mountOptions provided in StorageClass, applying defaults", zap.Strings("defaultMountOptions", defaultMountOptions))
+		options = defaultMountOptions
+	}
 	// Get volume context
 	volumeContext := req.GetVolumeContext()
 
