@@ -358,6 +358,46 @@ func TestGetVolumeParameters(t *testing.T) {
 			expectedError:  fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class"),
 		},
 		{
+			testCaseName: "Negative IOPS value - invalid parameter",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				Parameters: map[string]string{
+					Profile:       "dp2",
+					Zone:          "testzone",
+					Region:        "us-south",
+					ResourceGroup: "myresourcegroups",
+					IOPS:          "-100",
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+			},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("'<-100>' is invalid, value of 'iops' must be greater than 0"),
+		},
+		{
+			testCaseName: "Zero IOPS value - invalid parameter",
+			request: &csi.CreateVolumeRequest{
+				Name: volumeName,
+				Parameters: map[string]string{
+					Profile:       "dp2",
+					Zone:          "testzone",
+					Region:        "us-south",
+					ResourceGroup: "myresourcegroups",
+					IOPS:          "0",
+				},
+				VolumeCapabilities: []*csi.VolumeCapability{
+					{AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					}},
+				},
+			},
+			expectedStatus: true,
+			expectedError:  fmt.Errorf("'<0>' is invalid, value of 'iops' must be greater than 0"),
+		},
+		{
 			testCaseName: "Valid create volume request-success with PrimaryIPID",
 			request: &csi.CreateVolumeRequest{Name: volumeName, CapacityRange: &csi.CapacityRange{RequiredBytes: 11811160064, LimitBytes: utils.MinimumVolumeSizeInBytes + utils.MinimumVolumeSizeInBytes},
 				VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},

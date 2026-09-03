@@ -232,8 +232,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case IOPS:
 			// Default IOPS can be specified in Custom class
 			if len(value) != 0 {
-				iops := value
-				volume.Iops = &iops
+				iopsVal, parseErr := strconv.Atoi(value)
+				if parseErr != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be a positive integer", value, key)
+				} else if iopsVal <= 0 {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' must be greater than 0", value, key)
+				} else {
+					iops := value
+					volume.Iops = &iops
+				}
 			}
 		case Throughput:
 			// getting throughput value from storage class if it is provided
