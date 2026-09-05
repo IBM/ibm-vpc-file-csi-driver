@@ -260,6 +260,13 @@ var messagesEn = map[string]util.Message{
 		RC:          404,
 		Action:      "Please check the snapshot name once, You many need to verify by using 'ibmcloud is share-snapshots --share <share-id>' cli.",
 	},
+	"FailedToModifyVolume": {
+		Code:        "FailedToModifyVolume",
+		Description: "Unable to modify file share '%s'.",
+		Type:        util.ProvisioningFailed,
+		RC:          500,
+		Action:      "Check the backend error for more details. Run 'ibmcloud is share <SHARE-ID>' to verify the current state of the file share.",
+	},
 }
 
 // InitMessages ...

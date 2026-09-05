@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 IBM Corp.
+ * Copyright 2026 IBM Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,21 +33,25 @@ func (vpcs *VPCSession) ModifyVolume(modifyVolumeRequest provider.ModifyVolumeRe
 	defer vpcs.Logger.Debug("Exit from ModifyVolume method...")
 	defer metrics.UpdateDurationFromStart(vpcs.Logger, "ModifyVolume", time.Now())
 
-	// Get volume details
-	existingVolume, err := vpcs.GetVolume(modifyVolumeRequest.VolumeID)
-	if err != nil {
-		return nil, err
-	}
-
 	isIopsUpdate := modifyVolumeRequest.Iops > 0
 	isBandwidthUpdate := modifyVolumeRequest.Bandwidth > 0
 
+	// Return early without a GetVolume round-trip when nothing to update
 	if !isIopsUpdate && !isBandwidthUpdate {
-		vpcs.Logger.Warn("No updates requested")
+		vpcs.Logger.Warn("No updates requested, fetching current volume state")
+
+		existingVolume, err := vpcs.GetVolume(modifyVolumeRequest.VolumeID)
+		if err != nil {
+			return nil, err
+		}
 
 		var currIops int64
 		if existingVolume.Iops != nil && *existingVolume.Iops != "" {
-			currIops, _ = strconv.ParseInt(*existingVolume.Iops, 10, 64)
+			var parseErr error
+			currIops, parseErr = strconv.ParseInt(*existingVolume.Iops, 10, 64)
+			if parseErr != nil {
+				vpcs.Logger.Warn("Failed to parse current IOPS value", zap.String("iops", *existingVolume.Iops), zap.Error(parseErr))
+			}
 		}
 
 		return &provider.ModifyVolumeResponse{
@@ -77,7 +81,10 @@ func (vpcs *VPCSession) ModifyVolume(modifyVolumeRequest provider.ModifyVolumeRe
 	}
 
 	vpcs.Logger.Info("Calling VPC provider for volume Modify...")
-	var share *models.Share
+	var (
+		share *models.Share
+		err   error
+	)
 	err = retry(vpcs.Logger, func() error {
 		share, err = vpcs.Apiclient.FileShareService().ModifyVolume(
 			modifyVolumeRequest.VolumeID,
