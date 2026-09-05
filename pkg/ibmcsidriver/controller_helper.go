@@ -21,6 +21,7 @@ package ibmcsidriver
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -154,8 +155,17 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		logger.Info("VolumeAttributesClass parameter detected", zap.String("key", key), zap.String("value", value))
 		allParameters[key] = value
 	}
+
+	// Sort keys for deterministic processing order
+	allKeys := make([]string, 0, len(allParameters))
+	for key := range allParameters {
+		allKeys = append(allKeys, key)
+	}
+	sort.Strings(allKeys)
+
 	// Process all merged parameters
-	for key, value := range allParameters {
+	for _, key := range allKeys {
+		value := allParameters[key]
 		switch key {
 		case Profile:
 			if utils.ListContainsSubstr(SupportedProfile, value) {
@@ -388,6 +398,12 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	throughputFromVAC := false
 	if mutable := req.GetMutableParameters(); mutable != nil {
 		_, iopsFromVAC = mutable[IOPS]
+		// throughputFromVAC is true when "throughput" was supplied via a
+		// VolumeAttributesClass (mutable parameters). A common VAC may carry
+		// both "iops" (for dp2) and "throughput" (for rfs) so that a single
+		// VAC works across both profile types. When that happens the driver
+		// silently drops whichever field doesn't apply to the current volume's
+		// profile, instead of failing the request with an invalid-parameter error.
 		_, throughputFromVAC = mutable[Throughput]
 	}
 

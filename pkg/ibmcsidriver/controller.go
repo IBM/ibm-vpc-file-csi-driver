@@ -767,7 +767,7 @@ func (csiCS *CSIControllerServer) ControllerGetVolume(ctx context.Context, req *
 // ControllerModifyVolume ...
 func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
 	ctxLogger, requestID := utils.GetContextLogger(ctx, false)
-	_ = context.WithValue(ctx, provider.RequestID, requestID)
+	ctx = context.WithValue(ctx, provider.RequestID, requestID)
 	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIModifyVolume", time.Now())
 
 	ctxLogger.Info("CSIControllerServer-ControllerModifyVolume",
@@ -824,18 +824,34 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 	case RFSProfile:
 		// rfs: accept "throughput" or "bandwidth" as the bandwidth value
 		if val, ok := params[Throughput]; ok {
-			parsed, _ := strconv.ParseInt(val, 10, 32)
+			parsed, err := strconv.ParseInt(val, 10, 32)
+			if err != nil {
+				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err, Throughput, val)
+			}
 			bandwidth = int32(parsed)
 		} else if val, ok := params["bandwidth"]; ok {
-			parsed, _ := strconv.ParseInt(val, 10, 32)
+			parsed, err := strconv.ParseInt(val, 10, 32)
+			if err != nil {
+				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err, "bandwidth", val)
+			}
 			bandwidth = int32(parsed)
 		}
 	default:
 		// dp2 (and any future profile): accept "iops"
 		if val, ok := params[IOPS]; ok {
-			parsed, _ := strconv.ParseInt(val, 10, 64)
+			parsed, err := strconv.ParseInt(val, 10, 64)
+			if err != nil {
+				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err, IOPS, val)
+			}
 			iops = parsed
 		}
+	}
+
+	// Skip the VPC API call when no recognised parameter produced a non-zero value
+	if iops == 0 && bandwidth == 0 {
+		ctxLogger.Info("ControllerModifyVolume: no recognised parameters, skipping API call",
+			zap.String("VolumeID", requestedVolume.VolumeID))
+		return &csi.ControllerModifyVolumeResponse{}, nil
 	}
 
 	modifyReq := provider.ModifyVolumeRequest{
@@ -844,7 +860,11 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 		Bandwidth: bandwidth,
 	}
 
-	ctxLogger.Info("ModifyVolume Request", zap.String("VolumeID", modifyReq.VolumeID), zap.Int64("IOPS", modifyReq.Iops), zap.Int32("Bandwidth", modifyReq.Bandwidth))
+	ctxLogger.Info("ModifyVolume Request",
+		zap.String("VolumeID", modifyReq.VolumeID),
+		zap.Int64("IOPS", modifyReq.Iops),
+		zap.Int32("Bandwidth", modifyReq.Bandwidth),
+	)
 	_, err = session.ModifyVolume(modifyReq)
 	if err != nil {
 		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)

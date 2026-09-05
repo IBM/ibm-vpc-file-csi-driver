@@ -1611,21 +1611,96 @@ func TestControllerGetVolume(t *testing.T) {
 func TestControllerModifyVolume(t *testing.T) {
 	// test cases
 	testCases := []struct {
-		name        string
-		req         *csi.ControllerModifyVolumeRequest
-		expResponse *csi.ControllerModifyVolumeResponse
-		expErrCode  codes.Code
+		name              string
+		req               *csi.ControllerModifyVolumeRequest
+		libVolumeResponse *provider.Volume
+		libVolumeErr      error
+		libModifyErr      error
+		expErrCode        codes.Code
 	}{
 		{
-			name:        "Unsupported operation modify volume",
-			req:         &csi.ControllerModifyVolumeRequest{},
-			expResponse: nil,
-			expErrCode:  codes.OK,
+			name:       "Empty VolumeID returns EmptyVolumeID error",
+			req:        &csi.ControllerModifyVolumeRequest{},
+			expErrCode: codes.InvalidArgument,
+		},
+		{
+			name: "Invalid VolumeID format returns InternalError",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId: "not-a-valid-volume-id",
+			},
+			expErrCode: codes.Internal,
+		},
+		{
+			name: "Volume not found returns NotFound error",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000"},
+			},
+			libVolumeResponse: nil,
+			libVolumeErr:      nil,
+			expErrCode:        codes.NotFound,
+		},
+		{
+			name: "Non-numeric IOPS param returns InvalidArgument",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "not-a-number"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: "dp2"},
+				},
+			},
+			expErrCode: codes.InvalidArgument,
+		},
+		{
+			name: "Non-numeric throughput param for rfs returns InvalidArgument",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Throughput: "not-a-number"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode: codes.InvalidArgument,
+		},
+		{
+			name: "All-zero params (unrecognised) returns OK without API call",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{"unknown-key": "value"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: "dp2"},
+				},
+			},
+			expErrCode: codes.OK,
+		},
+		{
+			name: "Backend ModifyVolume error returns error",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: "dp2"},
+				},
+			},
+			libModifyErr: errors.New("backend error"),
+				expErrCode:   codes.InvalidArgument,
 		},
 	}
 
 	// Creating test logger
-	_, teardown := cloudProvider.GetTestLogger(t)
+	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
 
 	// Run test cases
@@ -1634,9 +1709,18 @@ func TestControllerModifyVolume(t *testing.T) {
 		// Setup new driver each time so no interference
 		icDriver := initIBMCSIDriver(t)
 
-		_, err := icDriver.cs.ControllerModifyVolume(context.Background(), tc.req)
+		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
+		assert.Nil(t, err)
+		fakeStructSession, ok := fakeSession.(*fake.FakeSession)
+		assert.True(t, ok)
+
+		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeErr)
+		if tc.libModifyErr != nil {
+			fakeStructSession.ModifyVolumeReturns(nil, tc.libModifyErr)
+		}
+
+		_, err = icDriver.cs.ControllerModifyVolume(context.Background(), tc.req)
 		if tc.expErrCode != codes.OK {
-			t.Logf("Error code")
 			assert.NotNil(t, err)
 			serverError, ok := status.FromError(err)
 			if !ok {
@@ -1645,6 +1729,8 @@ func TestControllerModifyVolume(t *testing.T) {
 			if serverError.Code() != tc.expErrCode {
 				t.Fatalf("Expected error code-> %v, Actual error code: %v. err : %v", tc.expErrCode, serverError.Code(), err)
 			}
+		} else {
+			assert.Nil(t, err)
 		}
 	}
 }
