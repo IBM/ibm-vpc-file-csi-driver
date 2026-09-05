@@ -4,8 +4,8 @@ go 1.26.6
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.27
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.22-0.20260831092218-00f3dc52db95
-	github.com/IBM/ibmcloud-volume-interface v1.2.22-0.20260831085440-6dec7a5b0281
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.24-0.20260905183035-f5d4f91e3904
+	github.com/IBM/ibmcloud-volume-interface v1.2.23-0.20260905174412-9d469a6ac6db
 	github.com/IBM/secret-utils-lib v1.1.16
 	github.com/container-storage-interface/spec v1.12.0
 	github.com/golang/glog v1.2.5
@@ -14,8 +14,8 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.0
-	golang.org/x/sys v0.45.0
-	google.golang.org/grpc v1.83.0
+	golang.org/x/sys v0.47.0
+	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 	k8s.io/api v0.35.4
 	k8s.io/apimachinery v0.35.4
@@ -86,11 +86,11 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/term v0.43.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
