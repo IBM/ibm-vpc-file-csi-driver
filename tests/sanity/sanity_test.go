@@ -34,12 +34,13 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	nodeInfo "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata/fake"
 	"github.com/IBM/ibmcloud-volume-interface/config"
 	"github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	providerError "github.com/IBM/ibmcloud-volume-interface/lib/utils"
-	"github.com/kubernetes-csi/csi-test/v4/pkg/sanity"
+	"github.com/kubernetes-csi/csi-test/v5/pkg/sanity"
 
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
@@ -103,22 +104,22 @@ func TestSanity(t *testing.T) {
 	}()
 
 	// Run sanity test
-	config := sanity.TestConfig{
-		TargetPath:               TargetPath,
-		StagingPath:              StagePath,
-		Address:                  CSIEndpoint,
-		DialOptions:              []grpc.DialOption{grpc.WithInsecure()}, //nolint
-		IDGen:                    &providerIDGenerator{},
-		TestVolumeParametersFile: os.Getenv("SANITY_PARAMS_FILE"),
-		TestVolumeSize:           10737418240, // i.e 10 GB
-		CreateTargetDir: func(targetPath string) (string, error) {
-			targetPath = path.Join(TempDir, targetPath)
-			return targetPath, createTargetDir(targetPath)
-		},
-		CreateStagingDir: func(stagePath string) (string, error) {
-			stagePath = path.Join(TempDir, stagePath)
-			return stagePath, createTargetDir(stagePath)
-		},
+	config := sanity.NewTestConfig()
+	config.TargetPath = TargetPath
+	config.StagingPath = StagePath
+	config.Address = CSIEndpoint
+	config.DialOptions = []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	config.IDGen = &providerIDGenerator{}
+	config.TestVolumeParametersFile = os.Getenv("SANITY_PARAMS_FILE")
+	config.TestVolumeSize = 10737418240 // i.e 10 GB
+	config.TestVolumeMutableParameters = map[string]string{"iops": "3000"}
+	config.CreateTargetDir = func(targetPath string) (string, error) {
+		targetPath = path.Join(TempDir, targetPath)
+		return targetPath, createTargetDir(targetPath)
+	}
+	config.CreateStagingDir = func(stagePath string) (string, error) {
+		stagePath = path.Join(TempDir, stagePath)
+		return stagePath, createTargetDir(stagePath)
 	}
 	sanity.Test(t, config)
 }
