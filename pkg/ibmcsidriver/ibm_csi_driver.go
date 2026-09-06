@@ -28,6 +28,7 @@ import (
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
+
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -109,7 +110,39 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	// Set up CSI RPC Servers
 	icDriver.ids = NewIdentityServer(icDriver)
 	icDriver.ns = NewNodeServer(icDriver, mounter, statsUtil, metadata)
-	icDriver.cs = NewControllerServer(icDriver, provider)
+
+	// Open a single provider session for both the dp2 band fetch and the RFS
+	// profile check below, avoiding two separate token/session acquisitions.
+	// If this fetch fails the driver continues; only PVCs that set
+	// allowCapacityRoundoffForIops=true AND need capacity rounded up will error.
+	//
+	// TODO: The bands are cached at startup only. If the IBM Global Catalog dp2
+	// profile is updated (new tiers added, IOPSMax values changed), the driver
+	// must be restarted to pick up the new bands. A periodic refresh is not
+	// implemented because it would require a background goroutine, a mutex
+	// around CatalogProvider, and added complexity for a catalog that changes
+	// infrequently. Revisit if live catalog updates become a requirement.
+	var catalogProvider CapacityRoundoff
+	session, sessionErr := provider.GetProviderSession(context.Background(), lgr)
+	if sessionErr != nil {
+		lgr.Warn("dp2 profile bands unavailable: could not open provider session at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
+			zap.Error(sessionErr))
+	} else {
+		rawBands, catalogErr := session.GetVolumeProfileBands(DP2Profile)
+		if catalogErr != nil {
+			lgr.Warn("dp2 profile bands unavailable: failed to fetch bands at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
+				zap.Error(catalogErr))
+		} else {
+			var buildErr error
+			catalogProvider, buildErr = NewCapacityRoundoff(rawBands)
+			if buildErr != nil {
+				lgr.Warn("dp2 profile bands unavailable: failed to build capacity round-off service; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
+					zap.Error(buildErr))
+			}
+		}
+	}
+
+	icDriver.cs = NewControllerServer(icDriver, provider, catalogProvider)
 
 	icDriver.logger.Info("Successfully setup IBM CSI driver")
 
@@ -120,10 +153,10 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	}
 	icDriver.region = regionMetadata.GetRegion()
 
-	// get the session
+	// Reuse the session opened above for the RFS profile check; if it was
+	// unavailable at startup, warn and skip the check.
 	icDriver.rfsEnabled = false
-	session, err := provider.GetProviderSession(context.Background(), lgr)
-	if err != nil {
+	if sessionErr != nil {
 		icDriver.logger.Warn("Cannot fetch session for verifying RFS profile")
 		return nil
 	}
@@ -248,10 +281,11 @@ func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUt
 }
 
 // NewControllerServer ...
-func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface) *CSIControllerServer {
+func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface, catalogProvider CapacityRoundoff) *CSIControllerServer {
 	return &CSIControllerServer{
-		Driver:      icDriver,
-		CSIProvider: provider,
+		Driver:          icDriver,
+		CSIProvider:     provider,
+		CatalogProvider: catalogProvider,
 	}
 }
 

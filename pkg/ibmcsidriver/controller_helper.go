@@ -132,22 +132,24 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 
 // getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
-func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) {
+func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, catalogProvider CapacityRoundoff) (*provider.Volume, error) {
 	var encrypt = "undef"
 	var err error
 	var uid int
 	var gid int
+	var allowRoundoff bool
 	volume := &provider.Volume{}
 	volume.Name = &req.Name
 	volume.VPCVolume.AccessControlMode = SecurityGroup //Default mode is ENI/VNI
 	for key, value := range req.GetParameters() {
 		switch key {
 		case Profile:
-			if utils.ListContainsSubstr(SupportedProfile, value) {
-				volume.VPCVolume.Profile = &provider.Profile{Name: value}
-			} else {
-				err = fmt.Errorf("%s:<%v> unsupported profile. Supported profiles are: %v", key, value, SupportedProfile)
-			}
+			// Profile name validation is intentionally delegated to the VPC API
+			// (open/closed principle). The driver no longer maintains a static
+			// SupportedProfile allowlist so that new VPC profiles are accepted
+			// without driver changes. An unsupported name will be rejected by
+			// the VPC API with its own error message.
+			volume.VPCVolume.Profile = &provider.Profile{Name: value}
 		case Zone:
 			if len(value) > ZoneNameMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ZoneNameMaxLen)
@@ -230,8 +232,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case IOPS:
 			// Default IOPS can be specified in Custom class
 			if len(value) != 0 {
-				iops := value
-				volume.Iops = &iops
+				iopsVal, parseErr := strconv.Atoi(value)
+				if parseErr != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be a positive integer", value, key)
+				} else if iopsVal <= 0 {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' must be greater than 0", value, key)
+				} else {
+					iops := value
+					volume.Iops = &iops
+				}
 			}
 		case Throughput:
 			// getting throughput value from storage class if it is provided
@@ -262,6 +271,12 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case VMState:
 			// Accept vmState parameter - validation will be handled elsewhere
 			logger.Info("vmState parameter accepted", zap.String("value", value))
+		case AllowCapacityRoundoffForIops:
+			if value == TrueStr {
+				allowRoundoff = true
+			} else if value != FalseStr && value != "" {
+				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+			}
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
@@ -297,7 +312,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	if volume.VPCVolume.Profile == nil {
-		err = fmt.Errorf("Volume profile is empty. Supported profiles are: %v", SupportedProfile)
+		err = fmt.Errorf("Share profile is required")
 		logger.Error("getVolumeParameters", zap.NamedError("InvalidRequest", err))
 		return volume, err
 	}
@@ -322,6 +337,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	err = overrideParams(logger, req, config, volume)
 	if err != nil {
 		return volume, err
+	}
+
+	// Capacity round-off for fixed IOPS: when allowCapacityRoundoffForIops is
+	// true the driver looks up the dp2 catalog bands and rounds the requested
+	// capacity up to the minimum required for the given IOPS value.
+	if allowRoundoff {
+		if err = applyCapacityRoundoffForIops(logger, volume, catalogProvider); err != nil {
+			return volume, err
+		}
 	}
 
 	// Check if the provided fstype is supported one
@@ -361,7 +385,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	// validate bandwidth for dp2 profile
 	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
-		err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property from storage class")
+		err = fmt.Errorf("bandwidth is not supported for %s file share profile; please remove the property from storage class", DP2Profile)
 		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 		return volume, err
 	}
@@ -403,6 +427,57 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	return volume, nil
+}
+
+// applyCapacityRoundoffForIops validates the allowCapacityRoundoffForIops
+// prerequisites and, when they are satisfied, rounds the volume's requested
+// capacity up to the minimum GiB required for the requested IOPS value.
+//
+// It must be called only when the allowCapacityRoundoffForIops StorageClass
+// parameter is "true". The volume's Profile, Iops, and Capacity fields must
+// already be populated by getVolumeParameters before this function is called.
+//
+// Returns an error (already logged) if any precondition fails or if the
+// requested IOPS exceeds the maximum supported by the dp2 file share profile.
+func applyCapacityRoundoffForIops(logger *zap.Logger, volume *provider.Volume, catalogProvider CapacityRoundoff) error {
+	if volume.VPCVolume.Profile == nil || volume.VPCVolume.Profile.Name != DP2Profile {
+		err := fmt.Errorf("allowCapacityRoundoffForIops is only supported for %s profile", DP2Profile)
+		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
+		return err
+	}
+	if volume.Iops == nil || len(strings.TrimSpace(*volume.Iops)) == 0 {
+		err := fmt.Errorf("iops is required when allowCapacityRoundoffForIops is true")
+		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
+		return err
+	}
+	if catalogProvider == nil {
+		err := fmt.Errorf("%s profile bands were not loaded at driver startup; cannot apply allowCapacityRoundoffForIops", DP2Profile)
+		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
+		return err
+	}
+	requestedIops, parseErr := strconv.Atoi(*volume.Iops)
+	if parseErr != nil || requestedIops <= 0 {
+		err := fmt.Errorf("iops value '%s' is invalid", *volume.Iops)
+		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
+		return err
+	}
+	minCapGiB, minCapErr := catalogProvider.GetMinCapacityForIops(requestedIops)
+	if minCapErr != nil {
+		err := fmt.Errorf("the capacity or IOPS specified in the request is not valid for the '%s' file share profile", DP2Profile)
+		logger.Error("applyCapacityRoundoffForIops",
+			zap.NamedError("InvalidParameter", err),
+			zap.Int("requestedIops", requestedIops),
+			zap.Error(minCapErr))
+		return err
+	}
+	if *volume.Capacity < minCapGiB {
+		logger.Info("Rounding up capacity to meet minimum for requested IOPS",
+			zap.Int("requestedGiB", *volume.Capacity),
+			zap.Int("adjustedGiB", minCapGiB),
+			zap.Int("requestedIops", requestedIops))
+		volume.Capacity = &minCapGiB
+	}
+	return nil
 }
 
 // setSecurityGroupList
