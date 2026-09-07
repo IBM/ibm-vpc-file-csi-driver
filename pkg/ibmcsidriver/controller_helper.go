@@ -429,30 +429,25 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 // applyCapacityRoundoffForIops rounds the volume's requested capacity up to
 // the minimum GiB required for the requested IOPS value.
 func applyCapacityRoundoffForIops(logger *zap.Logger, volume *provider.Volume, dp2Bands []provider.VolumeProfileBand) error {
-	if volume.VPCVolume.Profile == nil || volume.VPCVolume.Profile.Name != DP2Profile {
+	if volume.VPCVolume.Profile.Name != DP2Profile {
 		err := fmt.Errorf("allowCapacityRoundoffForIops is only supported for %s profile", DP2Profile)
-		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
+		logger.Error("applyCapacityRoundoffForIops", zap.Error(err))
 		return err
 	}
 	if volume.Iops == nil || len(strings.TrimSpace(*volume.Iops)) == 0 {
 		err := fmt.Errorf("iops is required when allowCapacityRoundoffForIops is true")
-		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
+		logger.Error("applyCapacityRoundoffForIops", zap.Error(err))
 		return err
 	}
 	if len(dp2Bands) == 0 {
 		err := fmt.Errorf("%s profile bands were not loaded at driver startup; cannot apply allowCapacityRoundoffForIops", DP2Profile)
-		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
+		logger.Error("applyCapacityRoundoffForIops", zap.Error(err))
 		return err
 	}
-	requestedIops, parseErr := strconv.Atoi(*volume.Iops)
-	if parseErr != nil || requestedIops <= 0 {
-		err := fmt.Errorf("iops value '%s' is invalid", *volume.Iops)
-		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", err))
-		return err
-	}
+	requestedIops, _ := strconv.Atoi(*volume.Iops)
 	minCapGiB, minCapErr := getMinCapacityForIops(dp2Bands, requestedIops)
 	if minCapErr != nil {
-		err := fmt.Errorf("the capacity or IOPS specified in the request is not valid for the '%s' file share profile", DP2Profile)
+		err := fmt.Errorf("iops value %d exceeds the maximum supported by the '%s' file share profile", requestedIops, DP2Profile)
 		logger.Error("applyCapacityRoundoffForIops",
 			zap.NamedError("InvalidParameter", err),
 			zap.Int("requestedIops", requestedIops),
@@ -628,9 +623,11 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case IOPS:
 			if len(value) != 0 {
-				_, err = strconv.Atoi(value)
-				if err != nil {
-					err = fmt.Errorf("%v:<%v> invalid value", key, value)
+				iopsVal, parseErr := strconv.Atoi(value)
+				if parseErr != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be a positive integer", value, key)
+				} else if iopsVal <= 0 {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' must be greater than 0", value, key)
 				} else {
 					iopsStr := value
 					logger.Info("override", zap.Any(IOPS, value))

@@ -1763,7 +1763,7 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 				},
 			},
 			dp2Bands:      testBands,
-			expectedError: fmt.Errorf("the capacity or IOPS specified in the request is not valid for the 'dp2' file share profile"),
+			expectedError: fmt.Errorf("iops value 999999 exceeds the maximum supported by the 'dp2' file share profile"),
 		},
 		{
 			// TC-U08: allowRoundoff=true but dp2Bands is nil (bands failed to load at
