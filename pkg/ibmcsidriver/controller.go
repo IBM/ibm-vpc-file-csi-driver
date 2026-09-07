@@ -20,7 +20,6 @@
 package ibmcsidriver
 
 import (
-	"errors"
 	"os"
 	"strings"
 	"time"
@@ -40,9 +39,9 @@ import (
 
 // CSIControllerServer ...
 type CSIControllerServer struct {
-	Driver          *IBMCSIDriver
-	CSIProvider     cloudProvider.CloudProviderInterface
-	CatalogProvider CapacityRoundoff
+	Driver       *IBMCSIDriver
+	CSIProvider  cloudProvider.CloudProviderInterface
+	ProfileBands []provider.VolumeProfileBand
 	csi.UnimplementedControllerServer
 }
 
@@ -96,7 +95,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	}
 
 	// Get volume input Parameters
-	requestedVolume, err := getVolumeParameters(ctxLogger, req, csiCS.CSIProvider.GetConfig(), csiCS.CatalogProvider)
+	requestedVolume, err := getVolumeParameters(ctxLogger, req, csiCS.CSIProvider.GetConfig(), csiCS.ProfileBands)
 	if requestedVolume != nil {
 		// For logging mask VolumeEncryptionKey
 		// Create copy of the requestedVolume
@@ -520,13 +519,10 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIExpandVolume", time.Now())
 	ctxLogger.Info("CSIControllerServer-ControllerExpandVolume", zap.Reflect("Request", requestID))
 	volumeID := req.GetVolumeId()
+	capacity := req.GetCapacityRange().GetRequiredBytes()
 	if len(volumeID) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
-	if req.GetCapacityRange() == nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, errors.New("CapacityRange is required for ControllerExpandVolume"))
-	}
-	capacity := req.GetCapacityRange().GetRequiredBytes()
 
 	// get the session
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)

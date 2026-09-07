@@ -31,6 +31,7 @@ import (
 
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
+	libprovider "github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
 )
@@ -113,7 +114,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 
 	// Fetch dp2 profile bands at startup for capacity round-off.
 	// If unavailable the driver continues; only PVCs with allowCapacityRoundoffForIops=true will error.
-	var catalogProvider CapacityRoundoff
+	var dp2Bands []libprovider.VolumeProfileBand
 	session, sessionErr := provider.GetProviderSession(context.Background(), lgr)
 	if sessionErr != nil {
 		lgr.Warn("dp2 profile bands unavailable: could not open provider session at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
@@ -123,17 +124,14 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 		if catalogErr != nil {
 			lgr.Warn("dp2 profile bands unavailable: failed to fetch bands at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
 				zap.Error(catalogErr))
+		} else if len(rawBands) == 0 {
+			lgr.Warn("dp2 profile bands unavailable: empty bands returned at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail")
 		} else {
-			var buildErr error
-			catalogProvider, buildErr = NewCapacityRoundoff(rawBands)
-			if buildErr != nil {
-				lgr.Warn("dp2 profile bands unavailable: failed to build capacity round-off service; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
-					zap.Error(buildErr))
-			}
+			dp2Bands = rawBands
 		}
 	}
 
-	icDriver.cs = NewControllerServer(icDriver, provider, catalogProvider)
+	icDriver.cs = NewControllerServer(icDriver, provider, dp2Bands)
 
 	icDriver.logger.Info("Successfully setup IBM CSI driver")
 
@@ -271,11 +269,11 @@ func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUt
 }
 
 // NewControllerServer ...
-func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface, catalogProvider CapacityRoundoff) *CSIControllerServer {
+func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface, dp2Bands []libprovider.VolumeProfileBand) *CSIControllerServer {
 	return &CSIControllerServer{
-		Driver:          icDriver,
-		CSIProvider:     provider,
-		CatalogProvider: catalogProvider,
+		Driver:       icDriver,
+		CSIProvider:  provider,
+		ProfileBands: dp2Bands,
 	}
 }
 

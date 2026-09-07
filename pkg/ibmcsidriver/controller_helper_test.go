@@ -1601,18 +1601,16 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 		},
 	}
 
-	catalogProvider, err := NewCapacityRoundoff(testBands)
-	require.NoError(t, err)
 	// iops strings
 	iops3000 := "3000"
 	iops20000 := "20000"
 	volumeName := "vol-roundoff"
 
 	testCases := []struct {
-		testCaseName    string
-		request         *csi.CreateVolumeRequest
-		catalogProvider CapacityRoundoff
-		expectedError   error
+		testCaseName  string
+		request       *csi.CreateVolumeRequest
+		dp2Bands      []provider.VolumeProfileBand
+		expectedError error
 		// expectedCapGiB is the capacity the volume should have after round-off.
 		// 0 means we only check the error path.
 		expectedCapGiB int
@@ -1636,8 +1634,8 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup:                "rg-1",
 				},
 			},
-			catalogProvider: catalogProvider,
-			expectedCapGiB:  80,
+			dp2Bands:       testBands,
+			expectedCapGiB: 80,
 		},
 		{
 			// TC-U02: requested 100 GiB with iops=3000 -> volume profile says minCap=80 GiB
@@ -1658,8 +1656,8 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup:                "rg-1",
 				},
 			},
-			catalogProvider: catalogProvider,
-			expectedCapGiB:  100,
+			dp2Bands:       testBands,
+			expectedCapGiB: 100,
 		},
 		{
 			// TC-U03: requested 200 GiB with iops=3000 -> minCap=80 GiB
@@ -1680,8 +1678,8 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup:                "rg-1",
 				},
 			},
-			catalogProvider: catalogProvider,
-			expectedCapGiB:  200,
+			dp2Bands:       testBands,
+			expectedCapGiB: 200,
 		},
 		{
 			// TC-U04: high IOPS — iops=20000, requestedGiB=50
@@ -1702,8 +1700,8 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup:                "rg-1",
 				},
 			},
-			catalogProvider: catalogProvider,
-			expectedCapGiB:  1000,
+			dp2Bands:       testBands,
+			expectedCapGiB: 1000,
 		},
 		{
 			// TC-U05: allowRoundoff=true but iops not set -> error
@@ -1722,8 +1720,8 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup:                "rg-1",
 				},
 			},
-			catalogProvider: catalogProvider,
-			expectedError:   fmt.Errorf("iops is required when allowCapacityRoundoffForIops is true"),
+			dp2Bands:      testBands,
+			expectedError: fmt.Errorf("iops is required when allowCapacityRoundoffForIops is true"),
 		},
 		{
 			// TC-U06: allowRoundoff=true with rfs profile -> error
@@ -1743,8 +1741,8 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup:                "rg-1",
 				},
 			},
-			catalogProvider: catalogProvider,
-			expectedError:   fmt.Errorf("allowCapacityRoundoffForIops is only supported for dp2 profile"),
+			dp2Bands:      testBands,
+			expectedError: fmt.Errorf("allowCapacityRoundoffForIops is only supported for dp2 profile"),
 		},
 		{
 			// TC-U07: allowRoundoff=true but volume profile returns error -> error propagated
@@ -1764,13 +1762,13 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup:                "rg-1",
 				},
 			},
-			catalogProvider: catalogProvider,
-			expectedError:   fmt.Errorf("the capacity or IOPS specified in the request is not valid for the 'dp2' file share profile"),
+			dp2Bands:      testBands,
+			expectedError: fmt.Errorf("the capacity or IOPS specified in the request is not valid for the 'dp2' file share profile"),
 		},
 		{
-			// TC-U08: allowRoundoff=true but catalogProvider is nil (bands failed to load at
+			// TC-U08: allowRoundoff=true but dp2Bands is nil (bands failed to load at
 			// driver startup) -> error reported clearly so the user knows to restart the driver.
-			testCaseName: "TC-U08: allowRoundoff=true, catalogProvider=nil -> startup failure error",
+			testCaseName: "TC-U08: allowRoundoff=true, dp2Bands=nil -> startup failure error",
 			request: &csi.CreateVolumeRequest{
 				Name: volumeName,
 				CapacityRange: &csi.CapacityRange{
@@ -1786,8 +1784,8 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup:                "rg-1",
 				},
 			},
-			catalogProvider: nil,
-			expectedError:   fmt.Errorf("dp2 profile bands were not loaded at driver startup; cannot apply allowCapacityRoundoffForIops"),
+			dp2Bands:      nil,
+			expectedError: fmt.Errorf("dp2 profile bands were not loaded at driver startup; cannot apply allowCapacityRoundoffForIops"),
 		},
 		{
 			// TC-U09: allowRoundoff not set -> existing path, no volume profile call, no adjustment.
@@ -1806,14 +1804,14 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 					ResourceGroup: "rg-1",
 				},
 			},
-			catalogProvider: nil, // catalogProvider not needed because flag is absent
-			expectedCapGiB:  20,
+			dp2Bands:       nil, // dp2Bands not needed because flag is absent
+			expectedCapGiB: 20,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.testCaseName, func(t *testing.T) {
-			actualVolume, err := getVolumeParameters(logger, tc.request, testConfig, tc.catalogProvider)
+			actualVolume, err := getVolumeParameters(logger, tc.request, testConfig, tc.dp2Bands)
 			if tc.expectedError != nil {
 				assert.EqualError(t, err, tc.expectedError.Error())
 			} else {
@@ -1827,4 +1825,96 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 			}
 		})
 	}
+}
+
+// testBands is the dp2 band table used across round-off tests.
+var testBands = []provider.VolumeProfileBand{
+	{CapacityMin: 10, CapacityMax: 39, IOPSMin: 100, IOPSMax: 1000},
+	{CapacityMin: 40, CapacityMax: 79, IOPSMin: 100, IOPSMax: 2000},
+	{CapacityMin: 80, CapacityMax: 99, IOPSMin: 100, IOPSMax: 4000},
+	{CapacityMin: 100, CapacityMax: 499, IOPSMin: 100, IOPSMax: 6000},
+	{CapacityMin: 500, CapacityMax: 999, IOPSMin: 100, IOPSMax: 10000},
+	{CapacityMin: 1000, CapacityMax: 1999, IOPSMin: 100, IOPSMax: 20000},
+	{CapacityMin: 2000, CapacityMax: 3999, IOPSMin: 200, IOPSMax: 40000},
+	{CapacityMin: 4000, CapacityMax: 7999, IOPSMin: 300, IOPSMax: 40000},
+	{CapacityMin: 8000, CapacityMax: 15999, IOPSMin: 500, IOPSMax: 64000},
+	{CapacityMin: 16000, CapacityMax: 32000, IOPSMin: 2000, IOPSMax: 96000},
+}
+
+// TestGetMinCapacityForIops covers the band-scan lookup logic in getMinCapacityForIops.
+func TestGetMinCapacityForIops(t *testing.T) {
+	testCases := []struct {
+		name          string
+		requestedIops int
+		expectedCap   int
+		expectError   bool
+	}{
+		{
+			name:          "IOPS below first band maximum returns first band CapacityMin",
+			requestedIops: 500,
+			expectedCap:   10,
+		},
+		{
+			name:          "IOPS exactly at a band boundary returns that band CapacityMin",
+			requestedIops: 4000,
+			expectedCap:   80,
+		},
+		{
+			name:          "IOPS one above a band boundary falls into the next band",
+			requestedIops: 4001,
+			expectedCap:   100,
+		},
+		{
+			name:          "IOPS requiring mid-table band returns correct CapacityMin",
+			requestedIops: 3000,
+			expectedCap:   80,
+		},
+		{
+			// Both 2000-3999 and 4000-7999 bands have IOPSMax=40000; first match wins.
+			name:          "IOPS exactly at the shared 40000 boundary returns first matching band CapacityMin",
+			requestedIops: 40000,
+			expectedCap:   2000,
+		},
+		{
+			name:          "IOPS one above the 40000 shared boundary falls into the 8000 GiB band",
+			requestedIops: 40001,
+			expectedCap:   8000,
+		},
+		{
+			name:          "IOPS at the highest band boundary returns last band CapacityMin",
+			requestedIops: 96000,
+			expectedCap:   16000,
+		},
+		{
+			name:          "IOPS one above the highest band returns error",
+			requestedIops: 96001,
+			expectError:   true,
+		},
+		{
+			name:          "IOPS far above all bands returns error",
+			requestedIops: 999999,
+			expectError:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := getMinCapacityForIops(testBands, tc.requestedIops)
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Equal(t, 0, got)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedCap, got)
+			}
+		})
+	}
+}
+
+// TestGetMinCapacityForIops_EmptyBands documents that an empty slice always returns an error.
+func TestGetMinCapacityForIops_EmptyBands(t *testing.T) {
+	got, err := getMinCapacityForIops([]provider.VolumeProfileBand{}, 1000)
+	require.Error(t, err)
+	assert.Equal(t, 0, got)
 }
