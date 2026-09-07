@@ -111,17 +111,8 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	icDriver.ids = NewIdentityServer(icDriver)
 	icDriver.ns = NewNodeServer(icDriver, mounter, statsUtil, metadata)
 
-	// Open a single provider session for both the dp2 band fetch and the RFS
-	// profile check below, avoiding two separate token/session acquisitions.
-	// If this fetch fails the driver continues; only PVCs that set
-	// allowCapacityRoundoffForIops=true AND need capacity rounded up will error.
-	//
-	// TODO: The bands are cached at startup only. If the IBM Global Catalog dp2
-	// profile is updated (new tiers added, IOPSMax values changed), the driver
-	// must be restarted to pick up the new bands. A periodic refresh is not
-	// implemented because it would require a background goroutine, a mutex
-	// around CatalogProvider, and added complexity for a catalog that changes
-	// infrequently. Revisit if live catalog updates become a requirement.
+	// Fetch dp2 profile bands at startup for capacity round-off.
+	// If unavailable the driver continues; only PVCs with allowCapacityRoundoffForIops=true will error.
 	var catalogProvider CapacityRoundoff
 	session, sessionErr := provider.GetProviderSession(context.Background(), lgr)
 	if sessionErr != nil {
@@ -153,8 +144,7 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	}
 	icDriver.region = regionMetadata.GetRegion()
 
-	// Reuse the session opened above for the RFS profile check; if it was
-	// unavailable at startup, warn and skip the check.
+	// Check RFS profile availability using the session opened above.
 	icDriver.rfsEnabled = false
 	if sessionErr != nil {
 		icDriver.logger.Warn("Cannot fetch session for verifying RFS profile")

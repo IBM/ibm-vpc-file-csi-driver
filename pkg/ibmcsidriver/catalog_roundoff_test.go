@@ -27,10 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testBands is the authoritative dp2 band table shared across all round-off
-// test files. It exactly mirrors the IBM Global Catalog response for profile
-// "dp2" as returned by armada-storage-api (verified against the live staging
-// endpoint). Any change to the real catalog must be reflected here.
+// testBands is the dp2 band table shared across round-off test files.
 var testBands = []provider.VolumeProfileBand{
 	{CapacityMin: 10, CapacityMax: 39, IOPSMin: 100, IOPSMax: 1000},
 	{CapacityMin: 40, CapacityMax: 79, IOPSMin: 100, IOPSMax: 2000},
@@ -126,14 +123,8 @@ func TestGetMinCapacityForIops(t *testing.T) {
 			requestedIops: 999999,
 			expectError:   true,
 		},
-		// The following two cases document the contract for non-positive IOPS.
-		// GetMinCapacityForIops itself does not validate the sign; the caller
-		// (applyCapacityRoundoffForIops) is responsible for rejecting <= 0 values
-		// before invoking this function. A zero or negative value would trivially
-		// satisfy band.IOPSMax >= requestedIops for any band and return the first
-		// band's CapacityMin — which is a silently wrong result. These tests make
-		// that behaviour explicit so that any future change to add internal
-		// validation here is caught immediately.
+		// Non-positive IOPS is rejected by the caller before reaching this func;
+		// these cases document the passthrough behaviour.
 		{
 			name:          "zero IOPS satisfies first band and returns first band CapacityMin (caller must prevent this)",
 			requestedIops: 0,

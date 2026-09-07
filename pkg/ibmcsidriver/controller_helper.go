@@ -339,9 +339,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		return volume, err
 	}
 
-	// Capacity round-off for fixed IOPS: when allowCapacityRoundoffForIops is
-	// true the driver looks up the dp2 catalog bands and rounds the requested
-	// capacity up to the minimum required for the given IOPS value.
+	// Round up capacity to the minimum required for the requested IOPS.
 	if allowRoundoff {
 		if err = applyCapacityRoundoffForIops(logger, volume, catalogProvider); err != nil {
 			return volume, err
@@ -429,16 +427,8 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	return volume, nil
 }
 
-// applyCapacityRoundoffForIops validates the allowCapacityRoundoffForIops
-// prerequisites and, when they are satisfied, rounds the volume's requested
-// capacity up to the minimum GiB required for the requested IOPS value.
-//
-// It must be called only when the allowCapacityRoundoffForIops StorageClass
-// parameter is "true". The volume's Profile, Iops, and Capacity fields must
-// already be populated by getVolumeParameters before this function is called.
-//
-// Returns an error (already logged) if any precondition fails or if the
-// requested IOPS exceeds the maximum supported by the dp2 file share profile.
+// applyCapacityRoundoffForIops rounds the volume's requested capacity up to
+// the minimum GiB required for the requested IOPS value.
 func applyCapacityRoundoffForIops(logger *zap.Logger, volume *provider.Volume, catalogProvider CapacityRoundoff) error {
 	if volume.VPCVolume.Profile == nil || volume.VPCVolume.Profile.Name != DP2Profile {
 		err := fmt.Errorf("allowCapacityRoundoffForIops is only supported for %s profile", DP2Profile)
