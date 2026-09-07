@@ -20,6 +20,7 @@
 package ibmcsidriver
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"time"
@@ -523,7 +524,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 	if req.GetCapacityRange() == nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, nil)
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, errors.New("CapacityRange is required for ControllerExpandVolume"))
 	}
 	capacity := req.GetCapacityRange().GetRequiredBytes()
 

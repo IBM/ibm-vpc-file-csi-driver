@@ -144,12 +144,11 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	for key, value := range req.GetParameters() {
 		switch key {
 		case Profile:
-			// Profile name validation is intentionally delegated to the VPC API
-			// (open/closed principle). The driver no longer maintains a static
-			// SupportedProfile allowlist so that new VPC profiles are accepted
-			// without driver changes. An unsupported name will be rejected by
-			// the VPC API with its own error message.
-			volume.VPCVolume.Profile = &provider.Profile{Name: value}
+			if utils.ListContainsSubstr(SupportedProfile, value) {
+				volume.VPCVolume.Profile = &provider.Profile{Name: value}
+			} else {
+				err = fmt.Errorf("%s:<%v> unsupported profile. Supported profiles are: %v", key, value, SupportedProfile)
+			}
 		case Zone:
 			if len(value) > ZoneNameMaxLen {
 				err = fmt.Errorf("%s:<%v> exceeds %d chars", key, value, ZoneNameMaxLen)
@@ -312,7 +311,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	if volume.VPCVolume.Profile == nil {
-		err = fmt.Errorf("Share profile is required")
+		err = fmt.Errorf("Share profile is empty. Supported profiles are: %v", SupportedProfile)
 		logger.Error("getVolumeParameters", zap.NamedError("InvalidRequest", err))
 		return volume, err
 	}
