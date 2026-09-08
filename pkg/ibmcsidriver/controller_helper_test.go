@@ -1845,7 +1845,7 @@ var testBands = []provider.VolumeProfileBand{
 func TestGetMinCapacityForIops(t *testing.T) {
 	testCases := []struct {
 		name          string
-		requestedIops int
+		requestedIops int64
 		expectedCap   int
 		expectError   bool
 	}{
@@ -1914,7 +1914,7 @@ func TestGetMinCapacityForIops(t *testing.T) {
 
 // TestGetMinCapacityForIops_EmptyBands documents that an empty slice always returns an error.
 func TestGetMinCapacityForIops_EmptyBands(t *testing.T) {
-	got, err := getMinCapacityForIops([]provider.VolumeProfileBand{}, 1000)
+	got, err := getMinCapacityForIops([]provider.VolumeProfileBand{}, int64(1000))
 	require.Error(t, err)
 	assert.Equal(t, 0, got)
 }

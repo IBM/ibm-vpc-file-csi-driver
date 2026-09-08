@@ -444,13 +444,13 @@ func applyCapacityRoundoffForIops(logger *zap.Logger, volume *provider.Volume, d
 		logger.Error("applyCapacityRoundoffForIops", zap.Error(err))
 		return err
 	}
-	requestedIops, _ := strconv.Atoi(*volume.Iops)
+	requestedIops, _ := strconv.ParseInt(*volume.Iops, 10, 64)
 	minCapGiB, minCapErr := getMinCapacityForIops(dp2Bands, requestedIops)
 	if minCapErr != nil {
 		err := fmt.Errorf("iops value %d exceeds the maximum supported by the '%s' file share profile", requestedIops, DP2Profile)
 		logger.Error("applyCapacityRoundoffForIops",
 			zap.NamedError("InvalidParameter", err),
-			zap.Int("requestedIops", requestedIops),
+			zap.Int64("requestedIops", requestedIops),
 			zap.Error(minCapErr))
 		return err
 	}
@@ -458,7 +458,7 @@ func applyCapacityRoundoffForIops(logger *zap.Logger, volume *provider.Volume, d
 		logger.Info("Rounding up capacity to meet minimum for requested IOPS",
 			zap.Int("requestedGiB", *volume.Capacity),
 			zap.Int("adjustedGiB", minCapGiB),
-			zap.Int("requestedIops", requestedIops))
+			zap.Int64("requestedIops", requestedIops))
 		volume.Capacity = &minCapGiB
 	}
 	return nil
@@ -466,9 +466,9 @@ func applyCapacityRoundoffForIops(logger *zap.Logger, volume *provider.Volume, d
 
 // getMinCapacityForIops scans the band slice and returns the CapacityMin of
 // the first band whose IOPSMax >= requestedIops.
-func getMinCapacityForIops(bands []provider.VolumeProfileBand, requestedIops int) (int, error) {
+func getMinCapacityForIops(bands []provider.VolumeProfileBand, requestedIops int64) (int, error) {
 	for _, band := range bands {
-		if int(band.IOPSMax) >= requestedIops {
+		if band.IOPSMax >= requestedIops {
 			return int(band.CapacityMin), nil
 		}
 	}
