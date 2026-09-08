@@ -263,6 +263,10 @@ func (csiNS *CSINodeServer) NodePublishVolume(ctx context.Context, req *csi.Node
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 	mnt := volumeCapability.GetMount()
+	if mnt == nil {
+		// access type is block, not mount — this driver only supports file (NFS) mounts
+		return nil, commonError.GetCSIError(ctxLogger, commonError.VolumeCapabilitiesNotSupported, requestID, nil)
+	}
 	options := mnt.MountFlags
 	// Get volume context
 	volumeContext := req.GetVolumeContext()
