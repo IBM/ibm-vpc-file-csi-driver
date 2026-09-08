@@ -444,7 +444,12 @@ func applyCapacityRoundoffForIops(logger *zap.Logger, volume *provider.Volume, d
 		logger.Error("applyCapacityRoundoffForIops", zap.Error(err))
 		return err
 	}
-	requestedIops, _ := strconv.ParseInt(*volume.Iops, 10, 64)
+	requestedIops, err := strconv.ParseInt(*volume.Iops, 10, 64)
+	if err != nil {
+		parseErr := fmt.Errorf("iops value %q is not a valid integer: %w", *volume.Iops, err)
+		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", parseErr))
+		return parseErr
+	}
 	minCapGiB, minCapErr := getMinCapacityForIops(dp2Bands, requestedIops)
 	if minCapErr != nil {
 		err := fmt.Errorf("iops value %d exceeds the maximum supported by the '%s' file share profile", requestedIops, DP2Profile)
