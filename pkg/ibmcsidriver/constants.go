@@ -207,10 +207,14 @@ const (
 
 	// MinimumRFSVolumeSizeInBytes ... This is minimum size require for rfs profile
 	MinimumRFSVolumeSizeInBytes int64 = 1 * utils.GiB
+
+	// AllowCapacityRoundoffForIops -- rounds up PVC capacity to meet the
+	// minimum required for the requested IOPS. Only valid for dp2 profile.
+	AllowCapacityRoundoffForIops = "allowCapacityRoundoffForIops"
 )
 
 // SupportedFS the supported FS types
 var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
-var SupportedProfile = []string{"dp2", "rfs"}
+var SupportedProfile = []string{DP2Profile, RFSProfile}

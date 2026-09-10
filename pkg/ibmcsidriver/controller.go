@@ -40,8 +40,9 @@ import (
 
 // CSIControllerServer ...
 type CSIControllerServer struct {
-	Driver      *IBMCSIDriver
-	CSIProvider cloudProvider.CloudProviderInterface
+	Driver       *IBMCSIDriver
+	CSIProvider  cloudProvider.CloudProviderInterface
+	ProfileBands []provider.VolumeProfileBand
 	csi.UnimplementedControllerServer
 }
 
@@ -95,7 +96,7 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 	}
 
 	// Get volume input Parameters
-	requestedVolume, err := getVolumeParameters(ctxLogger, req, csiCS.CSIProvider.GetConfig())
+	requestedVolume, err := getVolumeParameters(ctxLogger, req, csiCS.CSIProvider.GetConfig(), csiCS.ProfileBands)
 	if requestedVolume != nil {
 		// For logging mask VolumeEncryptionKey
 		// Create copy of the requestedVolume

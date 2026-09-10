@@ -221,6 +221,44 @@ func TestNodePublishVolume(t *testing.T) {
 			},
 			expErrCode: codes.InvalidArgument,
 		},
+		{
+			name: "Block access type capability (e.g. CDI/KubeVirt) must be rejected without crash",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Block{
+						Block: &csi.VolumeCapability_BlockVolume{},
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{NFSServerPath: "10.245.0.32:/someshare"},
+			},
+			expErrCode: codes.InvalidArgument,
+		},
+		{
+			name: "No mountOptions in StorageClass — default options injected",
+			req: &csi.NodePublishVolumeRequest{
+				VolumeId:          defaultVolumeID,
+				TargetPath:        defaultTargetPath,
+				StagingTargetPath: defaultSourcePath,
+				Readonly:          false,
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{}, // empty MountFlags
+					},
+					AccessMode: &csi.VolumeCapability_AccessMode{
+						Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+					},
+				},
+				VolumeContext: map[string]string{NFSServerPath: "10.245.0.32:/someshare"},
+			},
+			expErrCode: codes.OK,
+		},
 	}
 
 	icDriver := initIBMCSIDriver(t)

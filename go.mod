@@ -6,6 +6,8 @@ require (
 	github.com/IBM/ibm-csi-common v1.1.27
 	github.com/IBM/ibmcloud-volume-file-vpc v1.2.24-0.20260905214157-ac4eaad83965
 	github.com/IBM/ibmcloud-volume-interface v1.2.23-0.20260905190036-ad92602ec0a4
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.23
+	github.com/IBM/ibmcloud-volume-interface v1.2.22
 	github.com/IBM/secret-utils-lib v1.1.16
 	github.com/container-storage-interface/spec v1.13.0
 	github.com/golang/glog v1.2.5

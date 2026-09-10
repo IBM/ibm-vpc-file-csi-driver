@@ -28,8 +28,10 @@ import (
 	mountManager "github.com/IBM/ibm-csi-common/pkg/mountmanager"
 	"github.com/IBM/ibm-csi-common/pkg/utils"
 	"github.com/IBM/ibm-vpc-file-csi-driver/pkg/rfseit"
+
 	cloudProvider "github.com/IBM/ibmcloud-volume-file-vpc/pkg/ibmcloudprovider"
 	nodeMetadata "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata"
+	libprovider "github.com/IBM/ibmcloud-volume-interface/lib/provider"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"go.uber.org/zap"
 )
@@ -110,7 +112,27 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	// Set up CSI RPC Servers
 	icDriver.ids = NewIdentityServer(icDriver)
 	icDriver.ns = NewNodeServer(icDriver, mounter, statsUtil, metadata)
-	icDriver.cs = NewControllerServer(icDriver, provider)
+
+	// Fetch dp2 profile bands at startup for capacity round-off.
+	// If unavailable the driver continues; only PVCs with allowCapacityRoundoffForIops=true will error.
+	var dp2Bands []libprovider.VolumeProfileBand
+	session, sessionErr := provider.GetProviderSession(context.Background(), lgr)
+	if sessionErr != nil {
+		lgr.Warn("dp2 profile bands unavailable: could not open provider session at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
+			zap.Error(sessionErr))
+	} else {
+		rawBands, catalogErr := session.GetVolumeProfileBands(DP2Profile)
+		if catalogErr != nil {
+			lgr.Warn("dp2 profile bands unavailable: failed to fetch bands at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail",
+				zap.Error(catalogErr))
+		} else if len(rawBands) == 0 {
+			lgr.Warn("dp2 profile bands unavailable: empty bands returned at startup; PVCs using allowCapacityRoundoffForIops that require capacity adjustment will fail")
+		} else {
+			dp2Bands = rawBands
+		}
+	}
+
+	icDriver.cs = NewControllerServer(icDriver, provider, dp2Bands)
 
 	icDriver.logger.Info("Successfully setup IBM CSI driver")
 
@@ -121,10 +143,9 @@ func (icDriver *IBMCSIDriver) SetupIBMCSIDriver(provider cloudProvider.CloudProv
 	}
 	icDriver.region = regionMetadata.GetRegion()
 
-	// get the session
+	// Check RFS profile availability using the session opened above.
 	icDriver.rfsEnabled = false
-	session, err := provider.GetProviderSession(context.Background(), lgr)
-	if err != nil {
+	if sessionErr != nil {
 		icDriver.logger.Warn("Cannot fetch session for verifying RFS profile")
 		return nil
 	}
@@ -249,10 +270,11 @@ func NewNodeServer(icDriver *IBMCSIDriver, mounter mountManager.Mounter, statsUt
 }
 
 // NewControllerServer ...
-func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface) *CSIControllerServer {
+func NewControllerServer(icDriver *IBMCSIDriver, provider cloudProvider.CloudProviderInterface, dp2Bands []libprovider.VolumeProfileBand) *CSIControllerServer {
 	return &CSIControllerServer{
-		Driver:      icDriver,
-		CSIProvider: provider,
+		Driver:       icDriver,
+		CSIProvider:  provider,
+		ProfileBands: dp2Bands,
 	}
 }
 

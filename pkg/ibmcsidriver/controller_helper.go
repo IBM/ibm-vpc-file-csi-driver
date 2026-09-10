@@ -133,11 +133,12 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 
 // getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
-func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config) (*provider.Volume, error) {
+func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, dp2Bands []provider.VolumeProfileBand) (*provider.Volume, error) {
 	var encrypt = "undef"
 	var err error
 	var uid int
 	var gid int
+	var allowRoundoff bool
 	volume := &provider.Volume{}
 	volume.Name = &req.Name
 	volume.VPCVolume.AccessControlMode = SecurityGroup //Default mode is ENI/VNI
@@ -255,8 +256,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case IOPS:
 			// Default IOPS can be specified in Custom class
 			if len(value) != 0 {
-				iops := value
-				volume.Iops = &iops
+				iopsVal, parseErr := strconv.Atoi(value)
+				if parseErr != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be a positive integer", value, key)
+				} else if iopsVal <= 0 {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' must be greater than 0", value, key)
+				} else {
+					iops := value
+					volume.Iops = &iops
+				}
 			}
 		case Throughput:
 			// getting throughput value from storage class if it is provided
@@ -287,6 +295,12 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		case VMState:
 			// Accept vmState parameter - validation will be handled elsewhere
 			logger.Info("vmState parameter accepted", zap.String("value", value))
+		case AllowCapacityRoundoffForIops:
+			if value == TrueStr {
+				allowRoundoff = true
+			} else if value != FalseStr && value != "" {
+				err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be [true|false]", value, key)
+			}
 		default:
 			err = fmt.Errorf("<%s> is an invalid parameter", key)
 		}
@@ -322,7 +336,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	if volume.VPCVolume.Profile == nil {
-		err = fmt.Errorf("Volume profile is empty. Supported profiles are: %v", SupportedProfile)
+		err = fmt.Errorf("Share profile is empty. Supported profiles are: %v", SupportedProfile)
 		logger.Error("getVolumeParameters", zap.NamedError("InvalidRequest", err))
 		return volume, err
 	}
@@ -347,6 +361,13 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	err = overrideParams(logger, req, config, volume)
 	if err != nil {
 		return volume, err
+	}
+
+	// Round up capacity to the minimum required for the requested IOPS.
+	if allowRoundoff {
+		if err = applyCapacityRoundoffForIops(logger, volume, dp2Bands); err != nil {
+			return volume, err
+		}
 	}
 
 	// Check if the provided fstype is supported one
@@ -420,6 +441,9 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
+		err = fmt.Errorf("bandwidth is not supported for %s file share profile; please remove the property from storage class", DP2Profile)
+		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+		return volume, err
 	}
 
 	// rfs: iops and zone are not valid attributes.
@@ -467,6 +491,60 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	return volume, nil
+}
+
+// applyCapacityRoundoffForIops rounds the volume's requested capacity up to
+// the minimum GiB required for the requested IOPS value.
+func applyCapacityRoundoffForIops(logger *zap.Logger, volume *provider.Volume, dp2Bands []provider.VolumeProfileBand) error {
+	if volume.VPCVolume.Profile.Name != DP2Profile {
+		err := fmt.Errorf("allowCapacityRoundoffForIops is only supported for %s profile", DP2Profile)
+		logger.Error("applyCapacityRoundoffForIops", zap.Error(err))
+		return err
+	}
+	if volume.Iops == nil || len(strings.TrimSpace(*volume.Iops)) == 0 {
+		err := fmt.Errorf("iops is required when allowCapacityRoundoffForIops is true")
+		logger.Error("applyCapacityRoundoffForIops", zap.Error(err))
+		return err
+	}
+	if len(dp2Bands) == 0 {
+		err := fmt.Errorf("%s profile bands were not loaded at driver startup; cannot apply allowCapacityRoundoffForIops", DP2Profile)
+		logger.Error("applyCapacityRoundoffForIops", zap.Error(err))
+		return err
+	}
+	requestedIops, err := strconv.ParseInt(*volume.Iops, 10, 64)
+	if err != nil {
+		parseErr := fmt.Errorf("iops value %q is not a valid integer: %w", *volume.Iops, err)
+		logger.Error("applyCapacityRoundoffForIops", zap.NamedError("InvalidParameter", parseErr))
+		return parseErr
+	}
+	minCapGiB, minCapErr := getMinCapacityForIops(dp2Bands, requestedIops)
+	if minCapErr != nil {
+		err := fmt.Errorf("iops value %d exceeds the maximum supported by the '%s' file share profile", requestedIops, DP2Profile)
+		logger.Error("applyCapacityRoundoffForIops",
+			zap.NamedError("InvalidParameter", err),
+			zap.Int64("requestedIops", requestedIops),
+			zap.Error(minCapErr))
+		return err
+	}
+	if *volume.Capacity < minCapGiB {
+		logger.Info("Rounding up capacity to meet minimum for requested IOPS",
+			zap.Int("requestedGiB", *volume.Capacity),
+			zap.Int("adjustedGiB", minCapGiB),
+			zap.Int64("requestedIops", requestedIops))
+		volume.Capacity = &minCapGiB
+	}
+	return nil
+}
+
+// getMinCapacityForIops scans the band slice and returns the CapacityMin of
+// the first band whose IOPSMax >= requestedIops.
+func getMinCapacityForIops(bands []provider.VolumeProfileBand, requestedIops int64) (int, error) {
+	for _, band := range bands {
+		if band.IOPSMax >= requestedIops {
+			return int(band.CapacityMin), nil
+		}
+	}
+	return 0, fmt.Errorf("ibmcsidriver: no volume profile band covers iops=%d", requestedIops)
 }
 
 // setSecurityGroupList
@@ -617,9 +695,11 @@ func overrideParams(logger *zap.Logger, req *csi.CreateVolumeRequest, config *co
 			}
 		case IOPS:
 			if len(value) != 0 {
-				_, err = strconv.Atoi(value)
-				if err != nil {
-					err = fmt.Errorf("%v:<%v> invalid value", key, value)
+				iopsVal, parseErr := strconv.Atoi(value)
+				if parseErr != nil {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' should be a positive integer", value, key)
+				} else if iopsVal <= 0 {
+					err = fmt.Errorf("'<%v>' is invalid, value of '%s' must be greater than 0", value, key)
 				} else {
 					iopsStr := value
 					logger.Info("override", zap.Any(IOPS, value))
