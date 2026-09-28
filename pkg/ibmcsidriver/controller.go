@@ -20,6 +20,7 @@
 package ibmcsidriver
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -360,7 +361,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getTokens(volumeID)
+	tokens := getvolumeid(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-DeleteVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -430,7 +431,7 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 	}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getTokens(volumeID)
+	tokens := getvolumeid(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -533,7 +534,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	requestedVolume := &provider.Volume{}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getTokens(volumeID)
+	tokens := getvolumeid(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-ExpandVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -616,7 +617,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	}
 
 	//Volume ID is in format volumeID#accesspointID
-	volumeID := getTokens(sourceVolumeID)
+	volumeID := getvolumeid(sourceVolumeID)
 	if len(volumeID) != 2 {
 		ctxLogger.Info("CSIControllerServer-CreateSnapshot...", zap.Reflect("Volume ID is not in format volumeID#accesspointID", volumeID))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, nil)
@@ -788,7 +789,7 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 
 	requestedVolume := &provider.Volume{}
 
-	tokens := getTokens(volumeID)
+	tokens := getvolumeid(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("Invalid VolumeID format", zap.Any("tokens", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -821,6 +822,12 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 	ctxLogger.Info("ControllerModifyVolume: resolved volume profile",
 		zap.String("profile", volumeProfile))
 
+	if !utils.ListContainsSubstr(SupportedProfile, volumeProfile) {
+		err = fmt.Errorf("volume profile %q is not supported for modify; supported profiles are: %v", volumeProfile, SupportedProfile)
+		ctxLogger.Error("ControllerModifyVolume", zap.NamedError("unsupportedProfile", err))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
+	}
+
 	switch volumeProfile {
 	case RFSProfile:
 		// rfs: accept "throughput" or "bandwidth" as the bandwidth value
@@ -830,10 +837,10 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err, Throughput, val)
 			}
 			bandwidth = int32(parsed)
-		} else if val, ok := params["bandwidth"]; ok {
+		} else if val, ok := params[Bandwidth]; ok {
 			parsed, err := strconv.ParseInt(val, 10, 32)
 			if err != nil {
-				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err, "bandwidth", val)
+				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err, Bandwidth, val)
 			}
 			bandwidth = int32(parsed)
 		}

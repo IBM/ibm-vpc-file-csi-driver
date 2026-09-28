@@ -21,7 +21,6 @@ package ibmcsidriver
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -157,16 +156,8 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		allParameters[key] = value
 	}
 
-	// Sort keys for deterministic processing order
-	allKeys := make([]string, 0, len(allParameters))
-	for key := range allParameters {
-		allKeys = append(allKeys, key)
-	}
-	sort.Strings(allKeys)
-
 	// Process all merged parameters
-	for _, key := range allKeys {
-		value := allParameters[key]
+	for key, value := range allParameters {
 		switch key {
 		case Profile:
 			if utils.ListContainsSubstr(SupportedProfile, value) {
@@ -437,7 +428,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 				zap.Int32("bandwidth", volume.VPCVolume.Bandwidth))
 			volume.VPCVolume.Bandwidth = 0
 		} else {
-			err = fmt.Errorf("bandwidth is not supported for dp2 profile; please remove the property from storage class")
+			err = fmt.Errorf("bandwidth is not supported for %s file share profile; please remove the property from storage class", DP2Profile)
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
@@ -933,7 +924,7 @@ func createCSISnapshotResponse(snapshot provider.Snapshot) *csi.CreateSnapshotRe
 	}
 }
 
-func getTokens(volumeID string) []string {
+func getvolumeid(volumeID string) []string {
 	if strings.Contains(volumeID, VolumeIDSeperator) {
 		//Volume ID is in format volumeID#volumeAccessPointID
 		return strings.Split(volumeID, VolumeIDSeperator)
