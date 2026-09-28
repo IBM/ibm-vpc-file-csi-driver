@@ -648,6 +648,15 @@ kubectl get pvc my-wffc-pvc \
 # test-<clusterID>-default-<nodeID>
 ```
 
+```bash
+# Verify subdir was created on the share
+kubectl exec -n kube-system deploy/csi-nfs-controller -c nfs -- \
+  sh -c "mkdir -p /tmp/v && \
+         mount -t nfs4 <NFS_SERVER_IP>:<NFS_EXPORT_PATH> /tmp/v && \
+         ls /tmp/v/ && umount /tmp/v"
+# my-wffc-pvc/   ← subdir created after pod triggered provisioning ✅
+```
+
 | Mode | PVC binds | Use when |
 |---|---|---|
 | `Immediate` (default) | As soon as PVC is created | No topology constraints, simple setup |
