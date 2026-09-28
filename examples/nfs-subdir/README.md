@@ -38,7 +38,16 @@ no VPC API calls per PVC, no IP exhaustion.
 | Dev / test / scratch workloads without EIT requirement | ✅ |
 | Multiple RWX consumers sharing one NFS path | ✅ |
 | Workloads requiring EIT (DP2 IPSec or RFS Stunnel) | ❌ Use IBM 1:1 mode |
-| Regulated / multi-tenant workloads | ❌ POSIX isolation only |
+| Regulated / multi-tenant workloads (HIPAA, PCI-DSS, etc.) | ❌ Use IBM 1:1 mode |
+
+> **Why not for regulated / multi-tenant workloads?**
+> All PVCs on this pattern share one NFS mount target and one VNI. The only thing
+> separating tenant data is Linux filesystem permissions (POSIX `chmod`/`chown`).
+> There is no encryption in transit, no VPC-level network isolation between subdirectories,
+> and no per-PVC quota enforcement. A privileged container or misconfigured workload could
+> traverse into another tenant's subdirectory.
+> For regulated or true multi-tenant workloads use IBM VPC File CSI driver in 1:1 mode —
+> each PVC gets its own VPC File Share, its own VNI, and optionally EIT (DP2 IPSec or RFS Stunnel).
 
 ---
 
@@ -592,6 +601,57 @@ The snapshot tar is stored on the share at:
 
 > ⚠️ **Snapshot lives on the same share as the source data.**
 > If the share is lost, the snapshot is also lost. This is **not an off-share backup**.
+
+---
+
+## Use Case 9 — WaitForFirstConsumer (Topology-Aware Binding)
+
+`WaitForFirstConsumer` keeps the PVC in `Pending` state until a pod that references it
+is scheduled onto a node. Only then does the CSI provisioner create the volume.
+
+This is useful when your cluster spans multiple zones and you want the PVC to be
+provisioned after the scheduler has decided which node (and zone) the pod will run on.
+
+> **NFS-specific note:** IBM VPC File Shares are available in two availability modes:
+>
+> - **Zonal** — share is in one zone but the VNI is reachable from **any zone within the same VPC**.
+>   A pod scheduled on a node in `us-south-2` can mount a share whose VNI is in `us-south-1` — no problem.
+> - **Regional** — share is replicated across zones; mount works from any zone in the region.
+>
+> Because NFS is not zone-local (unlike block storage), `WaitForFirstConsumer` with `csi-driver-nfs`
+> simply defers binding until the pod's node is known — it does **not** constrain or change which
+> NFS server is used. Whatever zone the pod lands on, the mount will work.
+> Use `WaitForFirstConsumer` only when you have pod affinity, node selector, or taints/tolerations
+> that must be resolved by the scheduler before the volume is provisioned.
+
+```bash
+kubectl apply -f examples/nfs-subdir/16-storageclass-wffc.yaml
+kubectl apply -f examples/nfs-subdir/17-pvc-wffc.yaml
+
+# PVC stays Pending until a pod references it — confirm:
+kubectl get pvc my-wffc-pvc
+# NAME          STATUS    VOLUME   ...
+# my-wffc-pvc   Pending            ← no pod yet, binding deferred ✅
+
+# Now deploy the app
+kubectl apply -f examples/nfs-subdir/18-deployment-wffc.yaml
+
+# PVC binds as soon as pod is scheduled onto a node
+kubectl wait pvc/my-wffc-pvc --for=jsonpath='{.status.phase}'=Bound --timeout=120s
+kubectl get pvc my-wffc-pvc
+# NAME          STATUS   VOLUME             CAPACITY   ...
+# my-wffc-pvc   Bound    pvc-<uuid>         10Gi       ← bound after pod scheduled ✅
+
+# Check which node was selected
+kubectl get pvc my-wffc-pvc \
+  -o jsonpath='{.metadata.annotations.volume\.kubernetes\.io/selected-node}'
+# test-<clusterID>-default-<nodeID>
+```
+
+| Mode | PVC binds | Use when |
+|---|---|---|
+| `Immediate` (default) | As soon as PVC is created | No topology constraints, simple setup |
+| `WaitForFirstConsumer` | Only after pod is scheduled | Pod has node/zone affinity, avoid pre-binding to wrong zone |
 
 ---
 
