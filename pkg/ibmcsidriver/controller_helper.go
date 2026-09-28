@@ -432,9 +432,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
-		err = fmt.Errorf("bandwidth is not supported for %s file share profile; please remove the property from storage class", DP2Profile)
-		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-		return volume, err
 	}
 
 	// rfs: iops and zone are not valid attributes.
