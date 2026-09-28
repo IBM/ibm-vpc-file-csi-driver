@@ -1,0 +1,9 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: my-nfs-snap-v1
+  namespace: default
+spec:
+  volumeSnapshotClassName: nfs-snapclass
+  source:
+    persistentVolumeClaimName: my-nfs-subdir-pvc   # ← PVC to snapshot

@@ -1,0 +1,19 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: vpc-file-nfs-subdir-delete
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: "<NFS_SERVER_IP>"       # ← replace with mount target VNI IP from Step 3
+  share: "<NFS_EXPORT_PATH>"      # ← replace with NFS export path from Step 3
+  subDir: "${pvc.metadata.name}"
+  onDelete: "delete"              # WARNING: permanently removes subdir and all data on PVC deletion
+  mountPermissions: "0777"        # required — IBM VPC File root_squash maps uid=0→nobody;
+                                  # os.RemoveAll only succeeds with world-writable subdir (0777)
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: false
+mountOptions:
+  - nfsvers=4.1
+  - hard
+  - sec=sys
