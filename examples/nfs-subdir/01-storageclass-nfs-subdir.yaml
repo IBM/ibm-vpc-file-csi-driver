@@ -1,0 +1,18 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: vpc-file-nfs-subdir
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: "<NFS_SERVER_IP>"       # ← replace with mount target VNI IP from Step 3
+  share: "<NFS_EXPORT_PATH>"      # ← replace with NFS export path from Step 3, e.g. /abc123_def456_...
+  subDir: "${pvc.metadata.name}"  # each PVC gets its own subdirectory named after the PVC
+  onDelete: "retain"              # retain | archive | delete  (see onDelete reference in README)
+  mountPermissions: "0777"        # required when using onDelete: delete or archive
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: false       # per-PVC quota not supported; expand the base share instead
+mountOptions:
+  - nfsvers=4.1
+  - hard
+  - sec=sys

@@ -1,0 +1,22 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: vpc-file-nfs-subdir-readonly
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: "<NFS_SERVER_IP>"       # ← replace with mount target VNI IP from Step 3
+  share: "<NFS_EXPORT_PATH>"      # ← replace with NFS export path from Step 3
+  subDir: "${pvc.metadata.name}"
+  onDelete: "retain"              # retain — data source should survive PVC deletion
+  mountPermissions: "0555"        # r-xr-xr-x — read and traverse only, no writes
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: false
+mountOptions:
+  - nfsvers=4.1
+  - hard
+  - sec=sys
+# NOTE: do NOT add "ro" here — the csi-driver-nfs controller mounts the base share
+# during CreateVolume to mkdir the subdir. "ro" in mountOptions makes that mount
+# read-only too, causing "read-only file system" on mkdir and ProvisioningFailed.
+# Enforce read-only at the pod level using readOnly: true in the pod's volumeMount.

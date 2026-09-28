@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-delete-pvc
+  namespace: default
+spec:
+  storageClassName: vpc-file-nfs-subdir-delete
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi   # metadata only — NFS does not enforce per-subdirectory quotas

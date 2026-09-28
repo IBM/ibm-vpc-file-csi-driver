@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nfs-statefulset
+  namespace: default
+  labels:
+    app: nfs-statefulset
+spec:
+  serviceName: nfs-statefulset
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nfs-statefulset
+  template:
+    metadata:
+      labels:
+        app: nfs-statefulset
+    spec:
+      containers:
+        - name: app
+          image: nginx:stable-alpine
+          volumeMounts:
+            - name: data
+              mountPath: /volume-mount/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: vpc-file-nfs-subdir
+        accessModes:
+          - ReadWriteOnce   # each replica owns its subdirectory exclusively
+        resources:
+          requests:
+            storage: 10Gi

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-nfs-subdir-pvc
+  namespace: default
+spec:
+  storageClassName: vpc-file-nfs-subdir
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi   # metadata only — NFS does not enforce per-subdirectory quotas

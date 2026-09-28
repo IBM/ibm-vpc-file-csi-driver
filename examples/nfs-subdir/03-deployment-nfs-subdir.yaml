@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-subdir-app
+  namespace: default
+  labels:
+    app: nfs-subdir-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nfs-subdir-app
+  template:
+    metadata:
+      labels:
+        app: nfs-subdir-app
+    spec:
+      containers:
+        - name: app
+          image: nginx:stable-alpine
+          volumeMounts:
+            - name: data
+              mountPath: /volume-mount/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: my-nfs-subdir-pvc
