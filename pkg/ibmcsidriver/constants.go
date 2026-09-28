@@ -37,6 +37,9 @@ const (
 	// Throughput ...
 	Throughput = "throughput"
 
+	// Bandwidth ...
+	Bandwidth = "bandwidth"
+
 	// SizeRangeSupported ...
 	SizeRangeSupported = "sizeRange"
 
