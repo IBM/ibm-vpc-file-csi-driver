@@ -302,7 +302,6 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		volumeAccesspointReq.ResourceGroup = requestedVolume.ResourceGroup
 		volumeAccesspointReq.PrimaryIP = requestedVolume.PrimaryIP
 		volumeAccesspointReq.SubnetID = requestedVolume.SubnetID
-		volumeAccesspointReq.TransitEncryption = requestedVolume.TransitEncryption
 
 		repsonse, err := session.CreateVolumeAccessPoint(volumeAccesspointReq)
 		if err != nil {
