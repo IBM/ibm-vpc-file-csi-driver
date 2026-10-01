@@ -1,3 +1,12 @@
+`# PVC — Dynamic NFS Subdirectory Provisioning on IBM VPC File Storage
+#
+# Uses the vpc-file-nfs-subdir StorageClass from 01-storageclass-nfs-subdir.yaml.
+# csi-driver-nfs will create a subdirectory named "my-nfs-subdir-pvc" under
+# the base share's NFS export path.
+#
+# Note: the storage request size (10Gi) is metadata only.
+# NFS does not enforce per-subdirectory quotas.
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -9,4 +18,4 @@ spec:
     - ReadWriteMany
   resources:
     requests:
-      storage: 10Gi   # metadata only — NFS does not enforce per-subdirectory quotas
+      storage: 100Gi

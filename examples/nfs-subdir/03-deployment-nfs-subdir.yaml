@@ -1,3 +1,8 @@
+# Deployment — Application using an NFS subdirectory PVC on IBM VPC File Storage
+#
+# Uses the PVC from 02-pvc-nfs-subdir.yaml.
+# Both replicas share the same ReadWriteMany subdirectory.
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,10 +22,6 @@ spec:
     spec:
       containers:
         - name: app
-          image: nginx:stable-alpine
-          volumeMounts:
-            - name: data
-              mountPath: /volume-mount/data
       volumes:
         - name: data
           persistentVolumeClaim:
