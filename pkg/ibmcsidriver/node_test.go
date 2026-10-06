@@ -569,31 +569,31 @@ func TestNodeUnpublishVolume_BoundsCheck(t *testing.T) {
 			name:        "Valid volume ID with # separator",
 			volumeID:    "share123#target456",
 			expectPanic: false,
-			description: "Normal case: shareID#targetID format - getTokens returns [share123, target456]",
+			description: "Normal case: shareID#targetID format - getvolumeid returns [share123, target456]",
 		},
 		{
 			name:        "Valid volume ID with : separator",
 			volumeID:    "share123:target456",
 			expectPanic: false,
-			description: "Deprecated format: shareID:targetID - getTokens returns [share123, target456]",
+			description: "Deprecated format: shareID:targetID - getvolumeid returns [share123, target456]",
 		},
 		{
 			name:        "Volume ID without separator",
 			volumeID:    "share123",
 			expectPanic: false,
-			description: "Edge case: no separator - getTokens returns [share123]",
+			description: "Edge case: no separator - getvolumeid returns [share123]",
 		},
 		{
 			name:        "Just separator #",
 			volumeID:    "#",
 			expectPanic: false,
-			description: "Edge case: just # - getTokens returns ['', ''] (2 empty strings)",
+			description: "Edge case: just # - getvolumeid returns ['', ''] (2 empty strings)",
 		},
 		{
 			name:        "Just separator :",
 			volumeID:    ":",
 			expectPanic: false,
-			description: "Edge case: just : - getTokens returns ['', ''] (2 empty strings)",
+			description: "Edge case: just : - getvolumeid returns ['', ''] (2 empty strings)",
 		},
 	}
 
