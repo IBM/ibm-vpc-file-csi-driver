@@ -20,7 +20,6 @@
 package ibmcsidriver
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -821,12 +820,6 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 	}
 	ctxLogger.Info("ControllerModifyVolume: resolved volume profile",
 		zap.String("profile", volumeProfile))
-
-	if !utils.ListContainsSubstr(SupportedProfile, volumeProfile) {
-		err = fmt.Errorf("volume profile %q is not supported for modify; supported profiles are: %v", volumeProfile, SupportedProfile)
-		ctxLogger.Error("ControllerModifyVolume", zap.NamedError("unsupportedProfile", err))
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
-	}
 
 	switch volumeProfile {
 	case RFSProfile:
