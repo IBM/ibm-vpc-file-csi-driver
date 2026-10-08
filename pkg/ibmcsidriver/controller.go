@@ -279,14 +279,6 @@ func (csiCS *CSIControllerServer) CreateVolume(ctx context.Context, req *csi.Cre
 		}
 
 		ctxLogger.Info("Volume Created", zap.Reflect("Volume", volumeObj))
-
-		// DEBUG ONLY: set FORCE_ACCESS_POINT_REATTEMPT=true to simulate the rare case
-		// where POST /shares succeeds but returns no inline mount target, forcing the
-		// re-attempt branch. Revert before merging.
-		if os.Getenv("FORCE_ACCESS_POINT_REATTEMPT") == "true" {
-			ctxLogger.Warn("FORCE_ACCESS_POINT_REATTEMPT is set: clearing VolumeAccessPoints to force re-attempt branch")
-			volumeObj.VolumeAccessPoints = nil
-		}
 	}
 
 	// Prepare input for WaitForCreateVolumeAccessPoint
