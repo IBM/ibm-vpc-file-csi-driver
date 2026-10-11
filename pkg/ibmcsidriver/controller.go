@@ -360,7 +360,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getvolumeid(volumeID)
+	tokens := getVolumeID(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-DeleteVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -430,7 +430,7 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 	}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getvolumeid(volumeID)
+	tokens := getVolumeID(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -533,7 +533,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	requestedVolume := &provider.Volume{}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getvolumeid(volumeID)
+	tokens := getVolumeID(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-ExpandVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -616,7 +616,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	}
 
 	//Volume ID is in format volumeID#accesspointID
-	volumeID := getvolumeid(sourceVolumeID)
+	volumeID := getVolumeID(sourceVolumeID)
 	if len(volumeID) != 2 {
 		ctxLogger.Info("CSIControllerServer-CreateSnapshot...", zap.Reflect("Volume ID is not in format volumeID#accesspointID", volumeID))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, nil)
@@ -788,7 +788,7 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 
 	requestedVolume := &provider.Volume{}
 
-	tokens := getvolumeid(volumeID)
+	tokens := getVolumeID(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("Invalid VolumeID format", zap.Any("tokens", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)

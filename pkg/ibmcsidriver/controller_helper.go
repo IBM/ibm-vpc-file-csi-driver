@@ -921,7 +921,7 @@ func createCSISnapshotResponse(snapshot provider.Snapshot) *csi.CreateSnapshotRe
 	}
 }
 
-func getvolumeid(volumeID string) []string {
+func getVolumeID(volumeID string) []string {
 	if strings.Contains(volumeID, VolumeIDSeperator) {
 		//Volume ID is in format volumeID#volumeAccessPointID
 		return strings.Split(volumeID, VolumeIDSeperator)
