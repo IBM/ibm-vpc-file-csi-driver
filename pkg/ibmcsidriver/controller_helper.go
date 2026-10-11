@@ -150,9 +150,24 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		allParameters[key] = value
 	}
 
-	// Then, add/override with VolumeAttributesClass mutable parameters
+	// Then, add/override with VolumeAttributesClass mutable parameters.
+	// "bandwidth" is accepted as an alias of "throughput" (same as ControllerModifyVolume);
+	// if both are present, "throughput" takes precedence.
+	vacParams := make(map[string]string)
 	for key, value := range req.GetMutableParameters() {
 		logger.Info("VolumeAttributesClass parameter detected", zap.String("key", key), zap.String("value", value))
+		vacParams[key] = value
+	}
+	if bw, ok := vacParams[Bandwidth]; ok {
+		if tp, hasTp := vacParams[Throughput]; hasTp {
+			logger.Warn("VolumeAttributesClass has both throughput and bandwidth; using throughput",
+				zap.String(Throughput, tp), zap.String(Bandwidth, bw))
+		} else {
+			vacParams[Throughput] = bw
+		}
+		delete(vacParams, Bandwidth)
+	}
+	for key, value := range vacParams {
 		allParameters[key] = value
 	}
 
@@ -406,21 +421,15 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	// Parameters that come exclusively from the StorageClass (not a VAC) and
 	// conflict with the profile are still treated as a hard configuration error
 	// to catch mismatched StorageClass definitions early.
-	iopsFromVAC := false
-	throughputFromVAC := false
-	if mutable := req.GetMutableParameters(); mutable != nil {
-		_, iopsFromVAC = mutable[IOPS]
-		// throughputFromVAC is true when "throughput" was supplied via a
-		// VolumeAttributesClass (mutable parameters). A common VAC may carry
-		// both "iops" (for dp2) and "throughput" (for rfs) so that a single
-		// VAC works across both profile types. When that happens the driver
-		// silently drops whichever field doesn't apply to the current volume's
-		// profile, instead of failing the request with an invalid-parameter error.
-		_, throughputFromVAC = mutable[Throughput]
-	}
+	// throughputFromVAC is true when "throughput" (or its alias "bandwidth") was
+	// supplied via a VolumeAttributesClass. A common VAC may carry both "iops"
+	// (for dp2) and "throughput" (for rfs); the field that doesn't apply to the
+	// volume's profile is dropped with a warning instead of failing the request.
+	_, iopsFromVAC := vacParams[IOPS]
+	_, throughputFromVAC := vacParams[Throughput]
 
 	// dp2: bandwidth/throughput is not a valid attribute.
-	// Silently drop it when it arrived via a common VAC; error if it came from the SC.
+	// Drop it with a warning when it arrived via a common VAC; error if it came from the SC.
 	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
 		if throughputFromVAC {
 			logger.Warn("getVolumeParameters: throughput is not applicable for dp2 profile; "+

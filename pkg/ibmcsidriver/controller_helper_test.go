@@ -1827,6 +1827,55 @@ func TestGetVolumeParameters_AllowCapacityRoundoffForIops(t *testing.T) {
 	}
 }
 
+// TestGetVolumeParameters_VACThroughputBandwidth covers how "throughput" and its
+// alias "bandwidth" from a VolumeAttributesClass are resolved on CreateVolume.
+func TestGetVolumeParameters_VACThroughputBandwidth(t *testing.T) {
+	logger, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	testConfig := &config.Config{VPC: &config.VPCProviderConfig{ResourceGroupID: "10000000"}}
+
+	newReq := func(profile string, mutable map[string]string) *csi.CreateVolumeRequest {
+		params := map[string]string{
+			Profile:       profile,
+			Region:        "us-south",
+			ResourceGroup: "rg-1",
+		}
+		if profile == DP2Profile {
+			params[Zone] = "us-south-1" // zone is required for dp2, not allowed for rfs
+		}
+		return &csi.CreateVolumeRequest{
+			Name:          "vol-vac",
+			CapacityRange: &csi.CapacityRange{RequiredBytes: 20 * utils.GiB},
+			VolumeCapabilities: []*csi.VolumeCapability{{AccessMode: &csi.VolumeCapability_AccessMode{
+				Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER}}},
+			Parameters:        params,
+			MutableParameters: mutable,
+		}
+	}
+
+	testCases := []struct {
+		name              string
+		profile           string
+		mutable           map[string]string
+		expectedBandwidth int32
+	}{
+		{"rfs: VAC throughput only", RFSProfile, map[string]string{Throughput: "100"}, 100},
+		{"rfs: VAC bandwidth only is treated as throughput", RFSProfile, map[string]string{Bandwidth: "200"}, 200},
+		{"rfs: VAC throughput and bandwidth, throughput wins", RFSProfile, map[string]string{Throughput: "100", Bandwidth: "200"}, 100},
+		{"dp2: VAC bandwidth is ignored", DP2Profile, map[string]string{Bandwidth: "200"}, 0},
+		{"dp2: VAC throughput and bandwidth are ignored", DP2Profile, map[string]string{Throughput: "100", Bandwidth: "200"}, 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			volume, err := getVolumeParameters(logger, newReq(tc.profile, tc.mutable), testConfig, nil)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedBandwidth, volume.VPCVolume.Bandwidth)
+		})
+	}
+}
+
 // testBands is the dp2 band table used across round-off tests.
 var testBands = []provider.VolumeProfileBand{
 	{CapacityMin: 10, CapacityMax: 39, IOPSMin: 100, IOPSMax: 1000},
