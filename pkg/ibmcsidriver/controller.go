@@ -805,6 +805,17 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 
 	params := req.GetMutableParameters()
 
+	// Warn about VAC parameters this driver does not support; they are ignored.
+	for key, val := range params {
+		switch key {
+		case IOPS, Throughput, Bandwidth:
+		default:
+			ctxLogger.Warn("ControllerModifyVolume: unsupported VolumeAttributesClass parameter, ignoring it",
+				zap.String("key", key), zap.String("value", val),
+				zap.Strings("supportedParameters", []string{IOPS, Throughput, Bandwidth}))
+		}
+	}
+
 	var iops int64
 	var bandwidth int32
 
@@ -823,6 +834,10 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 
 	switch volumeProfile {
 	case RFSProfile:
+		if val, ok := params[IOPS]; ok {
+			ctxLogger.Warn("ControllerModifyVolume: iops is not applicable for rfs profile, ignoring it",
+				zap.String("iops", val))
+		}
 		// rfs: accept "throughput" or "bandwidth" as the bandwidth value
 		if val, ok := params[Throughput]; ok {
 			parsed, err := strconv.ParseInt(val, 10, 32)
@@ -838,6 +853,12 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 			bandwidth = int32(parsed)
 		}
 	default:
+		for _, key := range []string{Throughput, Bandwidth} {
+			if val, ok := params[key]; ok {
+				ctxLogger.Warn("ControllerModifyVolume: parameter is not applicable for profile, ignoring it",
+					zap.String("profile", volumeProfile), zap.String("key", key), zap.String("value", val))
+			}
+		}
 		// dp2 (and any future profile): accept "iops"
 		if val, ok := params[IOPS]; ok {
 			parsed, err := strconv.ParseInt(val, 10, 64)
@@ -850,8 +871,8 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 
 	// Skip the VPC API call when no recognised parameter produced a non-zero value
 	if iops == 0 && bandwidth == 0 {
-		ctxLogger.Info("ControllerModifyVolume: no recognised parameters, skipping API call",
-			zap.String("VolumeID", requestedVolume.VolumeID))
+		ctxLogger.Warn("ControllerModifyVolume: no applicable parameters for volume profile, skipping API call",
+			zap.String("VolumeID", requestedVolume.VolumeID), zap.String("profile", volumeProfile))
 		return &csi.ControllerModifyVolumeResponse{}, nil
 	}
 
