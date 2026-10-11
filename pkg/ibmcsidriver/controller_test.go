@@ -1447,8 +1447,8 @@ func TestControllerGetCapabilities(t *testing.T) {
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT}}},
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS}}},
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_EXPAND_VOLUME}}},
-						{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_MODIFY_VOLUME}}},
-						// &csi.ControllerServiceCapability{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_PUBLISH_READONLY}}},
+					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_MODIFY_VOLUME}}},
+					// &csi.ControllerServiceCapability{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_PUBLISH_READONLY}}},
 				},
 			},
 			expErrCode: codes.OK,
@@ -1617,6 +1617,10 @@ func TestControllerModifyVolume(t *testing.T) {
 		libVolumeErr      error
 		libModifyErr      error
 		expErrCode        codes.Code
+		// expModifyReq, when set, is the request expected to reach session.ModifyVolume.
+		expModifyReq *provider.ModifyVolumeRequest
+		// expNoModifyCall asserts that session.ModifyVolume is not called.
+		expNoModifyCall bool
 	}{
 		{
 			name:       "Empty VolumeID returns EmptyVolumeID error",
@@ -1669,6 +1673,66 @@ func TestControllerModifyVolume(t *testing.T) {
 			expErrCode: codes.InvalidArgument,
 		},
 		{
+			name: "Bandwidth param for rfs is sent as bandwidth",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Bandwidth: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", Bandwidth: 500},
+		},
+		{
+			name: "Non-numeric bandwidth param for rfs returns InvalidArgument",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Bandwidth: "not-a-number"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Throughput and bandwidth for rfs, throughput takes precedence",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Throughput: "300", Bandwidth: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", Bandwidth: 300},
+		},
+		{
+			name: "Bandwidth param for dp2 is ignored without API call",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Bandwidth: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:      codes.OK,
+			expNoModifyCall: true,
+		},
+		{
 			name: "All-zero params (unrecognised) returns OK without API call",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
@@ -1695,7 +1759,7 @@ func TestControllerModifyVolume(t *testing.T) {
 				},
 			},
 			libModifyErr: errors.New("backend error"),
-				expErrCode:   codes.InvalidArgument,
+			expErrCode:   codes.InvalidArgument,
 		},
 	}
 
@@ -1731,6 +1795,14 @@ func TestControllerModifyVolume(t *testing.T) {
 			}
 		} else {
 			assert.Nil(t, err)
+		}
+		if tc.expNoModifyCall {
+			assert.Equal(t, 0, fakeStructSession.ModifyVolumeCallCount(), tc.name)
+		}
+		if tc.expModifyReq != nil {
+			if assert.Equal(t, 1, fakeStructSession.ModifyVolumeCallCount(), tc.name) {
+				assert.Equal(t, *tc.expModifyReq, fakeStructSession.ModifyVolumeArgsForCall(0), tc.name)
+			}
 		}
 	}
 }
