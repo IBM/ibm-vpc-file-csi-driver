@@ -1747,6 +1747,36 @@ func TestControllerModifyVolume(t *testing.T) {
 			expErrCode: codes.OK,
 		},
 		{
+			name: "dp2 IOPS happy path sends IOPS to ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", Iops: 3000},
+		},
+		{
+			name: "rfs throughput happy path sends bandwidth to ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Throughput: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", Bandwidth: 500},
+		},
+		{
 			name: "Backend ModifyVolume error returns error",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
@@ -1801,6 +1831,7 @@ func TestControllerModifyVolume(t *testing.T) {
 		}
 		if tc.expModifyReq != nil {
 			if assert.Equal(t, 1, fakeStructSession.ModifyVolumeCallCount(), tc.name) {
+				// ModifyVolume on the session delegates to ModifyShare at the client layer
 				assert.Equal(t, *tc.expModifyReq, fakeStructSession.ModifyVolumeArgsForCall(0), tc.name)
 			}
 		}

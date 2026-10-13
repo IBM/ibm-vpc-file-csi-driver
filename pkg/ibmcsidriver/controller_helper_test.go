@@ -1967,3 +1967,201 @@ func TestGetMinCapacityForIops_EmptyBands(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 0, got)
 }
+
+// vacCreateReq builds a minimal CreateVolumeRequest for VAC routing tests.
+// zone is only set for dp2 (zone is invalid for rfs).
+func vacCreateReq(profile string, sc map[string]string, mutable map[string]string) *csi.CreateVolumeRequest {
+	params := map[string]string{
+		Profile:       profile,
+		Region:        "us-south",
+		ResourceGroup: "rg-vac",
+	}
+	if profile == DP2Profile {
+		params[Zone] = "us-south-1"
+	}
+	for k, v := range sc {
+		params[k] = v
+	}
+	return &csi.CreateVolumeRequest{
+		Name:          "vac-test-vol",
+		CapacityRange: &csi.CapacityRange{RequiredBytes: 20 * utils.GiB},
+		VolumeCapabilities: []*csi.VolumeCapability{{
+			AccessMode: &csi.VolumeCapability_AccessMode{
+				Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+			},
+		}},
+		Parameters:        params,
+		MutableParameters: mutable,
+	}
+}
+
+// TestGetVolumeParameters_VACCommonVAC tests the "common VAC" scenario where a
+// single VolumeAttributesClass carries both "iops" and "throughput" and the
+// driver routes the correct field to each profile.
+func TestGetVolumeParameters_VACCommonVAC(t *testing.T) {
+	logger, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	cfg := &config.Config{VPC: &config.VPCProviderConfig{ResourceGroupID: "rg-vac"}}
+
+	testCases := []struct {
+		name          string
+		profile       string
+		mutable       map[string]string
+		wantIops      string // "" means nil
+		wantBandwidth int32
+		wantErr       bool
+	}{
+		// ── common VAC: both iops and throughput supplied ──────────────────────
+		{
+			name:          "common VAC dp2: throughput dropped, iops applied",
+			profile:       DP2Profile,
+			mutable:       map[string]string{IOPS: "4000", Throughput: "1000"},
+			wantIops:      "4000",
+			wantBandwidth: 0, // throughput silently dropped for dp2
+		},
+		{
+			name:          "common VAC rfs: iops dropped, throughput applied as bandwidth",
+			profile:       RFSProfile,
+			mutable:       map[string]string{IOPS: "4000", Throughput: "1000"},
+			wantIops:      "", // iops silently dropped for rfs
+			wantBandwidth: 1000,
+		},
+
+		// ── VAC with single field ──────────────────────────────────────────────
+		{
+			name:          "dp2 VAC: iops only",
+			profile:       DP2Profile,
+			mutable:       map[string]string{IOPS: "6000"},
+			wantIops:      "6000",
+			wantBandwidth: 0,
+		},
+		{
+			name:          "rfs VAC: throughput only",
+			profile:       RFSProfile,
+			mutable:       map[string]string{Throughput: "500"},
+			wantIops:      "",
+			wantBandwidth: 500,
+		},
+		{
+			name:          "rfs VAC: bandwidth alias treated as throughput",
+			profile:       RFSProfile,
+			mutable:       map[string]string{Bandwidth: "300"},
+			wantIops:      "",
+			wantBandwidth: 300,
+		},
+
+		// ── VAC throughput + bandwidth alias: throughput wins ─────────────────
+		{
+			name:          "rfs VAC: throughput+bandwidth, throughput wins",
+			profile:       RFSProfile,
+			mutable:       map[string]string{Throughput: "200", Bandwidth: "400"},
+			wantIops:      "",
+			wantBandwidth: 200,
+		},
+
+		// ── unknown VAC key is rejected on CreateVolume ───────────────────────
+		// (ControllerModifyVolume only warns; getVolumeParameters is stricter.)
+		{
+			name:    "unknown VAC key is rejected for dp2",
+			profile: DP2Profile,
+			mutable: map[string]string{"unknown-attr": "x"},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := vacCreateReq(tc.profile, nil, tc.mutable)
+			vol, err := getVolumeParameters(logger, req, cfg, nil)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "is an invalid parameter")
+				return
+			}
+			require.NoError(t, err)
+
+			if tc.wantIops == "" {
+				assert.Nil(t, vol.Iops, "expected nil Iops")
+			} else {
+				require.NotNil(t, vol.Iops, "expected non-nil Iops")
+				assert.Equal(t, tc.wantIops, *vol.Iops)
+			}
+			assert.Equal(t, tc.wantBandwidth, vol.VPCVolume.Bandwidth)
+		})
+	}
+}
+
+// TestGetVolumeParameters_VACStorageClassErrors verifies that invalid combinations
+// supplied through the StorageClass (not through a VAC) are treated as hard errors.
+func TestGetVolumeParameters_VACStorageClassErrors(t *testing.T) {
+	logger, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	cfg := &config.Config{VPC: &config.VPCProviderConfig{ResourceGroupID: "rg-vac"}}
+
+	testCases := []struct {
+		name        string
+		profile     string
+		sc          map[string]string // extra StorageClass parameters
+		wantErrFrag string
+	}{
+		{
+			name:        "dp2 SC with throughput is a hard error",
+			profile:     DP2Profile,
+			sc:          map[string]string{Throughput: "1000"},
+			wantErrFrag: "bandwidth is not supported for dp2",
+		},
+		{
+			name:        "rfs SC with iops is a hard error",
+			profile:     RFSProfile,
+			sc:          map[string]string{IOPS: "3000"},
+			wantErrFrag: "iops is not supported for rfs",
+		},
+		{
+			name:        "rfs SC with zone is a hard error",
+			profile:     RFSProfile,
+			sc:          map[string]string{Zone: "us-south-1"},
+			wantErrFrag: "zone is not supported for rfs",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := vacCreateReq(tc.profile, tc.sc, nil)
+			_, err := getVolumeParameters(logger, req, cfg, nil)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErrFrag)
+		})
+	}
+}
+
+// TestGetVolumeParameters_VACOverridesStorageClass confirms that a VAC parameter
+// overrides the same key coming from the StorageClass.
+func TestGetVolumeParameters_VACOverridesStorageClass(t *testing.T) {
+	logger, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	cfg := &config.Config{VPC: &config.VPCProviderConfig{ResourceGroupID: "rg-vac"}}
+
+	t.Run("rfs: VAC throughput overrides SC throughput", func(t *testing.T) {
+		req := vacCreateReq(RFSProfile,
+			map[string]string{Throughput: "100"}, // SC says 100
+			map[string]string{Throughput: "999"}, // VAC says 999 → wins
+		)
+		vol, err := getVolumeParameters(logger, req, cfg, nil)
+		require.NoError(t, err)
+		assert.Equal(t, int32(999), vol.VPCVolume.Bandwidth)
+	})
+
+	t.Run("dp2: VAC iops overrides SC iops", func(t *testing.T) {
+		req := vacCreateReq(DP2Profile,
+			map[string]string{IOPS: "1000"}, // SC says 1000
+			map[string]string{IOPS: "5000"}, // VAC says 5000 → wins
+		)
+		vol, err := getVolumeParameters(logger, req, cfg, nil)
+		require.NoError(t, err)
+		require.NotNil(t, vol.Iops)
+		assert.Equal(t, "5000", *vol.Iops)
+	})
+}
