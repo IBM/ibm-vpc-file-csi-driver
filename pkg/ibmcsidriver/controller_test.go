@@ -919,6 +919,74 @@ func TestCreateVolumeArguments(t *testing.T) {
 			libVolumeAccessPointError:     nil,
 			libVolumeAccessPointWaitError: nil,
 		},
+		{
+			// CreateVolume returns a share with NO inline VolumeAccessPoints
+			// (simulates POST /shares succeeding but the inline target being absent).
+			// The controller must fall into the re-attempt branch and call
+			// CreateVolumeAccessPoint explicitly, then succeed.
+			name: "Success: share created without inline access point, re-attempt succeeds",
+			req: &csi.CreateVolumeRequest{
+				Name:               volName,
+				CapacityRange:      stdCapRange,
+				VolumeCapabilities: stdVolCap,
+				Parameters:         stdENIParams,
+			},
+			expVol: &csi.Volume{
+				CapacityBytes:      20 * 1024 * 1024 * 1024,
+				VolumeId:           "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId",
+				VolumeContext:      map[string]string{utils.NodeRegionLabel: "testregion", VolumeIDLabel: "testVolumeId" + VolumeIDSeperator + "testVolumeAccessPointId", FileShareIDLabel: "testVolumeId", FileShareTargetIDLabel: "testVolumeAccessPointId", IsENIEnabled: "true", ENISecurityGroupIDs: "kube-fake-cluster-id", ENISubnetID: "sub-1", NFSServerPath: "abc:/xyz/pqr", Tag: "", VolumeCRNLabel: "", ClusterIDLabel: "fake-cluster-id"},
+				AccessibleTopology: stdENITopology,
+			},
+			// No VolumeAccessPoints in the CreateVolume response to trigger re-attempt
+			libVolumeResponse: &provider.Volume{
+				Capacity: &capacity,
+				Name:     &volName,
+				VolumeID: "testVolumeId",
+				Iops:     &iopsStr,
+				Az:       "myzone",
+				Region:   "myregion",
+			},
+			libVolumeAccessPointResp: &provider.VolumeAccessPointResponse{
+				VolumeID:      "testVolumeId",
+				AccessPointID: "testVolumeAccessPointId",
+				Status:        "Stable",
+				MountPath:     "abc:/xyz/pqr",
+				CreatedAt:     &time.Time{},
+			},
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			expErrCode:                    codes.OK,
+			libVolumeError:                nil,
+			libVolumeAccessPointError:     nil,
+			libVolumeAccessPointWaitError: nil,
+		},
+		{
+			// Same scenario but CreateVolumeAccessPoint itself fails during the
+			// re-attempt. The controller must propagate the error.
+			name: "Failure: share created without inline access point, re-attempt CreateVolumeAccessPoint fails",
+			req: &csi.CreateVolumeRequest{
+				Name:               volName,
+				CapacityRange:      stdCapRange,
+				VolumeCapabilities: stdVolCap,
+				Parameters:         stdENIParams,
+			},
+			expVol: nil,
+			libVolumeResponse: &provider.Volume{
+				Capacity: &capacity,
+				Name:     &volName,
+				VolumeID: "testVolumeId",
+				Iops:     &iopsStr,
+				Az:       "myzone",
+				Region:   "myregion",
+			},
+			libVolumeAccessPointResp:      nil,
+			subnetID:                      "sub-1",
+			securityGroupID:               "kube-fake-cluster-id",
+			expErrCode:                    codes.Internal,
+			libVolumeError:                nil,
+			libVolumeAccessPointError:     errors.New("Trace Code: b1f2e85c-1234-5678-abcd-9d0e1f2a3b4c, Code: InternalError , Description: LIF capacity reached, RC: 500 Internal Error"),
+			libVolumeAccessPointWaitError: nil,
+		},
 	}
 
 	// Creating test logger
@@ -941,7 +1009,7 @@ func TestCreateVolumeArguments(t *testing.T) {
 		fakeStructSession.GetSecurityGroupForVolumeAccessPointReturns(tc.securityGroupID, tc.securityGroupError)
 		fakeStructSession.GetVolumeByNameReturns(tc.libVolumeResponse, tc.libVolumeError)
 		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeError)
-		fakeStructSession.CreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, nil)
+		fakeStructSession.CreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointError)
 		fakeStructSession.WaitForCreateVolumeAccessPointReturns(tc.libVolumeAccessPointResp, tc.libVolumeAccessPointWaitError)
 
 		// Call CSI CreateVolume

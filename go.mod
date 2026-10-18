@@ -1,6 +1,6 @@
 module github.com/IBM/ibm-vpc-file-csi-driver
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.27
@@ -14,7 +14,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.49.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	k8s.io/api v0.35.4
