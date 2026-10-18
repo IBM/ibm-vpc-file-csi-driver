@@ -1628,11 +1628,11 @@ func TestControllerModifyVolume(t *testing.T) {
 			expErrCode: codes.InvalidArgument,
 		},
 		{
-			name: "Invalid VolumeID format returns InternalError",
+			name: "Invalid VolumeID format returns NotFound",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId: "not-a-valid-volume-id",
 			},
-			expErrCode: codes.Internal,
+			expErrCode: codes.NotFound,
 		},
 		{
 			name: "Volume not found returns NotFound error",

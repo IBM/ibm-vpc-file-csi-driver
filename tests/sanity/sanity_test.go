@@ -291,8 +291,13 @@ func (c *fakeProviderSession) GetProviderDisplayName() provider.VolumeProvider {
 // Volume operations
 // Create the volume with authorization by passing required information in the volume object
 func (c *fakeProviderSession) CreateVolume(volumeRequest provider.Volume) (*provider.Volume, error) {
-	if len(volumeRequest.SnapshotID) > 0 {
-		if _, ok := c.snapshots[volumeRequest.SnapshotID]; !ok {
+	// The driver passes a CRN snapshot identifier in SnapshotCRN and anything else in SnapshotID.
+	sourceSnapshotID := volumeRequest.SnapshotID
+	if sourceSnapshotID == "" {
+		sourceSnapshotID = volumeRequest.SnapshotCRN
+	}
+	if len(sourceSnapshotID) > 0 {
+		if _, ok := c.snapshots[sourceSnapshotID]; !ok {
 			errorMsg := providerError.Message{
 				Code:        "SnapshotIDNotFound",
 				Description: "Snapshot ID not found",
@@ -310,7 +315,7 @@ func (c *fakeProviderSession) CreateVolume(volumeRequest provider.Volume) (*prov
 			Name:     volumeRequest.Name,
 			Region:   volumeRequest.Region,
 			Capacity: volumeRequest.Capacity,
-			Snapshot: provider.Snapshot{SnapshotID: volumeRequest.SnapshotID},
+			Snapshot: provider.Snapshot{SnapshotID: sourceSnapshotID},
 			VPCVolume: provider.VPCVolume{
 				VPCFileVolume: provider.VPCFileVolume{
 					VolumeAccessPoints: &[]provider.VolumeAccessPoint{
@@ -480,7 +485,7 @@ func (c *fakeProviderSession) CreateSnapshot(sourceVolumeID string, snapshotPara
 		Snapshot: &provider.Snapshot{
 			VolumeID:             sourceVolumeID,
 			SnapshotCRN:          snapshotID,
-			ReadyToUse:           false,
+			ReadyToUse:           true,
 			SnapshotSize:         1,
 			SnapshotCreationTime: time.Now(),
 		},

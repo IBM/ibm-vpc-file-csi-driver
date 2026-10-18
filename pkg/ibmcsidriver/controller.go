@@ -791,8 +791,9 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 
 	tokens := getVolumeID(volumeID)
 	if len(tokens) != 2 {
+		// A volume ID that is not in volumeID#accessPointID form cannot match any volume.
 		ctxLogger.Info("Invalid VolumeID format", zap.Any("tokens", tokens))
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
+		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeID)
 	}
 
 	requestedVolume.VolumeID = tokens[0]
