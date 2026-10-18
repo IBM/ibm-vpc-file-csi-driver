@@ -55,7 +55,7 @@ vet:
 
 .PHONY: lint
 lint:
-	@echo "Running standalone linters for Go 1.25 ..."
+	@echo "Running standalone linters for Go 1.26 ..."
 
 	@command -v errcheck >/dev/null || go install github.com/kisielk/errcheck@latest
 	@errcheck ./...
