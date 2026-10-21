@@ -1753,7 +1753,7 @@ func TestControllerModifyVolume(t *testing.T) {
 				},
 			},
 			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", Bandwidth: 500},
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
 		},
 		{
 			name: "Non-numeric bandwidth param for rfs returns InvalidArgument",
@@ -1783,7 +1783,7 @@ func TestControllerModifyVolume(t *testing.T) {
 				},
 			},
 			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", Bandwidth: 300},
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 300}},
 		},
 		{
 			name: "Bandwidth param for dp2 returns InvalidArgument without API call",
@@ -1816,7 +1816,7 @@ func TestControllerModifyVolume(t *testing.T) {
 			expNoModifyCall: true,
 		},
 		{
-			name: "IOPS-only param for rfs returns OK (no-op success, iops not applicable for rfs)",
+			name: "IOPS-only param for rfs returns InvalidArgument (no applicable parameter, iops not applicable for rfs)",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
 				MutableParameters: map[string]string{IOPS: "3000"},
@@ -1827,7 +1827,7 @@ func TestControllerModifyVolume(t *testing.T) {
 					Profile: &provider.Profile{Name: RFSProfile},
 				},
 			},
-			expErrCode:      codes.OK,
+			expErrCode:      codes.InvalidArgument,
 			expNoModifyCall: true,
 		},
 		{
@@ -1846,7 +1846,7 @@ func TestControllerModifyVolume(t *testing.T) {
 			expNoModifyCall: true,
 		},
 		{
-			name: "Common VAC with iops and throughput on rfs sends only bandwidth",
+			name: "Common VAC with iops and throughput on rfs returns InvalidArgument (iops not supported for rfs)",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
 				MutableParameters: map[string]string{IOPS: "3000", Throughput: "500"},
@@ -1857,11 +1857,11 @@ func TestControllerModifyVolume(t *testing.T) {
 					Profile: &provider.Profile{Name: RFSProfile},
 				},
 			},
-			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", Bandwidth: 500},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
 		},
 		{
-			name: "All-zero params (unrecognised) returns InvalidArgument without API call",
+			name: "Unrecognised param returns InvalidArgument without API call",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
 				MutableParameters: map[string]string{"unknown-key": "value"},
@@ -1888,7 +1888,7 @@ func TestControllerModifyVolume(t *testing.T) {
 				},
 			},
 			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", Iops: 3000},
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Iops: 3000}},
 		},
 		{
 			name: "rfs throughput happy path sends bandwidth to ModifyVolume",
@@ -1903,7 +1903,7 @@ func TestControllerModifyVolume(t *testing.T) {
 				},
 			},
 			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", Bandwidth: 500},
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
 		},
 		{
 			name: "Backend ModifyVolume error returns error",
@@ -2003,29 +2003,29 @@ func TestControllerModifyVolume_VACScenarios(t *testing.T) {
 	}{
 		// ---------------------------- rfs ----------------------------
 		{
-			name:         "rfs: VAC with iops and throughput within range applies only throughput",
+			name:         "rfs: VAC with iops and throughput returns InvalidArgument and does not call the backend",
 			scParams:     rfsSC,
 			profile:      RFSProfile,
 			vac:          map[string]string{IOPS: "3000", Throughput: "500"},
-			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, Bandwidth: 500},
+			expErrCode:   codes.InvalidArgument,
+			expModifyReq: nil,
 		},
 		{
-			name:         "rfs: VAC with iops and throughput outside of range fails on the backend",
+			name:         "rfs: VAC with throughput outside of range fails on the backend",
 			scParams:     rfsSC,
 			profile:      RFSProfile,
-			vac:          map[string]string{IOPS: "999999", Throughput: "9000"},
+			vac:          map[string]string{Throughput: "9000"},
 			libModifyErr: errors.New("shares_bandwidth_invalid: bandwidth is out of range"),
 			expErrCode:   codes.InvalidArgument,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, Bandwidth: 9000},
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, VolumePerformance: provider.VolumePerformance{Bandwidth: 9000}},
 		},
 		{
-			name:            "rfs: VAC with iops only succeeds (no-op) without calling the backend",
-			scParams:        rfsSC,
-			profile:         RFSProfile,
-			vac:             map[string]string{IOPS: "3000"},
-			expErrCode:      codes.OK,
-			expModifyReq:    nil,
+			name:         "rfs: VAC with iops only returns InvalidArgument and does not call the backend",
+			scParams:     rfsSC,
+			profile:      RFSProfile,
+			vac:          map[string]string{IOPS: "3000"},
+			expErrCode:   codes.InvalidArgument,
+			expModifyReq: nil,
 		},
 		{
 			name:         "rfs: VAC with throughput only applies throughput",
@@ -2033,7 +2033,7 @@ func TestControllerModifyVolume_VACScenarios(t *testing.T) {
 			profile:      RFSProfile,
 			vac:          map[string]string{Throughput: "500"},
 			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, Bandwidth: 500},
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
 		},
 		// ---------------------------- dp2 ----------------------------
 		{
@@ -2049,7 +2049,7 @@ func TestControllerModifyVolume_VACScenarios(t *testing.T) {
 			profile:      DP2Profile,
 			vac:          map[string]string{IOPS: "3000"},
 			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, Iops: 3000},
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, VolumePerformance: provider.VolumePerformance{Iops: 3000}},
 		},
 		{
 			name:       "dp2: VAC with throughput only fails and does not call the backend",

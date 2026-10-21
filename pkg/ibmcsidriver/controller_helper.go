@@ -21,6 +21,7 @@ package ibmcsidriver
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -413,50 +414,34 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	// Profile-specific parameter validation.
 	//
-	// A common VolumeAttributesClass may carry both "iops" and "throughput" so
-	// that a single VAC works for both dp2 and rfs volumes.  In that case the
-	// driver strips the parameter that doesn't apply to the current profile
-	// (with a warning) rather than failing the provision request.
-	//
-	// Parameters that come exclusively from the StorageClass (not a VAC) and
-	// conflict with the profile are still treated as a hard configuration error
-	// to catch mismatched StorageClass definitions early.
-	// throughputFromVAC is true when "throughput" (or its alias "bandwidth") was
-	// supplied via a VolumeAttributesClass. A common VAC may carry both "iops"
-	// (for dp2) and "throughput" (for rfs); the field that doesn't apply to the
-	// volume's profile is dropped with a warning instead of failing the request.
+	// A parameter that does not apply to the volume's profile fails the request,
+	// whether it came from the StorageClass or from a VolumeAttributesClass. A
+	// warning is not reliably surfaced to the user in the PVC events, whereas an
+	// error is, so use a separate VolumeAttributesClass per profile.
 	_, iopsFromVAC := vacParams[IOPS]
 	_, throughputFromVAC := vacParams[Throughput]
 
 	// dp2: bandwidth/throughput is not a valid attribute.
-	// Drop it with a warning when it arrived via a common VAC; error if it came from the SC.
 	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
 		if throughputFromVAC {
-			logger.Warn("getVolumeParameters: throughput is not applicable for dp2 profile; "+
-				"ignoring it (supplied by a common VolumeAttributesClass)",
-				zap.Int32("bandwidth", volume.VPCVolume.Bandwidth))
-			volume.VPCVolume.Bandwidth = 0
+			err = fmt.Errorf("throughput is not supported for %s file share profile; please remove it from the VolumeAttributesClass", DP2Profile)
 		} else {
 			err = fmt.Errorf("bandwidth is not supported for %s file share profile; please remove the property from storage class", DP2Profile)
-			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-			return volume, err
 		}
+		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+		return volume, err
 	}
 
 	// rfs: iops and zone are not valid attributes.
-	// Silently drop iops when it arrived via a common VAC; error if it came from the SC.
 	if volume.VPCVolume.Profile.Name == RFSProfile {
 		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
 			if iopsFromVAC {
-				logger.Warn("getVolumeParameters: iops is not applicable for rfs profile; "+
-					"ignoring it (supplied by a common VolumeAttributesClass)",
-					zap.String("iops", *volume.Iops))
-				volume.Iops = nil
+				err = fmt.Errorf("iops is not supported for rfs profile; please remove it from the VolumeAttributesClass")
 			} else {
 				err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
-				logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-				return volume, err
 			}
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
 		}
 		if len(strings.TrimSpace(volume.Az)) > 0 {
 			err = fmt.Errorf("zone is not supported for rfs profile; please remove the zone parameter from the storage class")
@@ -786,6 +771,83 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 	}
 
 	return existingVol, err
+}
+
+// getModifyVolumeParameters validates the VolumeAttributesClass mutable parameters of a
+// ControllerModifyVolume request against the profile of the existing volume and builds the
+// provider ModifyVolumeRequest.
+//
+// Use a separate VolumeAttributesClass per profile; any parameter that is not accepted for
+// the volume's profile is an error, so the user sees VolumeModifyFailed in the PVC events:
+//
+//	dp2  → only "iops"
+//	rfs  → only "throughput" (or its alias "bandwidth")
+func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *provider.Volume, params map[string]string) (*provider.ModifyVolumeRequest, error) {
+	volumeProfile := ""
+	if volDetail != nil && volDetail.Profile != nil {
+		volumeProfile = strings.ToLower(volDetail.Profile.Name)
+	}
+	logger.Info("getModifyVolumeParameters: resolved volume profile", zap.String("profile", volumeProfile))
+
+	// The only parameters accepted for the volume's profile.
+	allowed := []string{IOPS}
+	if volumeProfile == RFSProfile {
+		allowed = []string{Throughput, Bandwidth}
+	}
+	for key, val := range params {
+		if !slices.Contains(allowed, key) {
+			notAllowedErr := fmt.Errorf("parameter '%s' is not supported for the '%s' profile of volume %s; "+
+				"use a VolumeAttributesClass with only %v", key, volumeProfile, volumeID, allowed)
+			logger.Error("getModifyVolumeParameters: parameter not supported for volume profile",
+				zap.String("profile", volumeProfile), zap.String("key", key), zap.String("value", val),
+				zap.Error(notAllowedErr))
+			return nil, notAllowedErr
+		}
+	}
+
+	var iops int64
+	var bandwidth int32
+
+	if volumeProfile == RFSProfile {
+		// "bandwidth" is an alias of "throughput"; "throughput" wins when both are present.
+		key := Throughput
+		val, found := params[Throughput]
+		if !found {
+			key = Bandwidth
+			val, found = params[Bandwidth]
+		}
+		if found {
+			parsed, parseErr := strconv.ParseInt(val, 10, 32)
+			if parseErr != nil {
+				return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, key, parseErr)
+			}
+			bandwidth = int32(parsed)
+		}
+	} else if val, ok := params[IOPS]; ok {
+		parsed, parseErr := strconv.ParseInt(val, 10, 64)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, IOPS, parseErr)
+		}
+		iops = parsed
+	}
+
+	// Fail when the VAC carries no non-zero value, e.g. an empty VAC or a zero value.
+	if iops == 0 && bandwidth == 0 {
+		applicable := IOPS
+		if volumeProfile == RFSProfile {
+			applicable = Throughput
+		}
+		mismatchErr := fmt.Errorf("VolumeAttributesClass has no applicable parameter for the '%s' profile of volume %s; "+
+			"use a VolumeAttributesClass with a non-zero '%s'", volumeProfile, volumeID, applicable)
+		logger.Error("getModifyVolumeParameters: no applicable parameters for volume profile",
+			zap.String("VolumeID", volumeID), zap.String("profile", volumeProfile), zap.Error(mismatchErr))
+		return nil, mismatchErr
+	}
+
+	return &provider.ModifyVolumeRequest{
+		VolumeID:          volumeID,
+		VolumePerformance: provider.VolumePerformance{Iops: iops, Bandwidth: bandwidth},
+	}, nil
 }
 
 // createCSIVolumeResponse ...

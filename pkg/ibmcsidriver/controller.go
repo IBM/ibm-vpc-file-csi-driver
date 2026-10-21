@@ -20,9 +20,7 @@
 package ibmcsidriver
 
 import (
-	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -806,120 +804,9 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
-	params := req.GetMutableParameters()
-
-	// Warn about VAC parameters this driver does not support; they are ignored.
-	for key, val := range params {
-		switch key {
-		case IOPS, Throughput, Bandwidth:
-		default:
-			ctxLogger.Warn("ControllerModifyVolume: unsupported VolumeAttributesClass parameter, ignoring it",
-				zap.String("key", key), zap.String("value", val),
-				zap.Strings("supportedParameters", []string{IOPS, Throughput, Bandwidth}))
-		}
-	}
-
-	var iops int64
-	var bandwidth int32
-
-	// Resolve the volume's profile so that a common VAC carrying both
-	// "iops" and "throughput" is routed correctly:
-	//   dp2  → only "iops" is sent  (bandwidth stays 0)
-	//   rfs  → only "throughput" is mapped to bandwidth ("iops" is ignored)
-	// This prevents VPC returning shares_bad_field_update_for_rfs_profile
-	// when both fields are submitted together.
-	volumeProfile := ""
-	if volDetail.Profile != nil {
-		volumeProfile = strings.ToLower(volDetail.Profile.Name)
-	}
-	ctxLogger.Info("ControllerModifyVolume: resolved volume profile",
-		zap.String("profile", volumeProfile))
-
-	// noOpAllowed is set to true when all VAC params were inapplicable-but-ignored
-	// for the profile (e.g. iops-only on rfs). In that case we skip the API call
-	// and return success — the VAC is recorded as applied in K8s.
-	noOpAllowed := false
-
-	switch volumeProfile {
-	case RFSProfile:
-		// rfs: iops is not applicable. Warn and drop it.
-		// If iops is the ONLY parameter, allow a no-op success so K8s records
-		// the VAC as applied (SC3 POSITIVE requirement).
-		if _, ok := params[IOPS]; ok {
-			ctxLogger.Warn("ControllerModifyVolume: iops is not applicable for rfs profile, ignoring it",
-				zap.String("profile", volumeProfile))
-		}
-		// rfs: accept "throughput" or "bandwidth" as the bandwidth value
-		if val, ok := params[Throughput]; ok {
-			parsed, err := strconv.ParseInt(val, 10, 32)
-			if err != nil {
-				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err, Throughput, val)
-			}
-			bandwidth = int32(parsed)
-		} else if val, ok := params[Bandwidth]; ok {
-			parsed, err := strconv.ParseInt(val, 10, 32)
-			if err != nil {
-				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err, Bandwidth, val)
-			}
-			bandwidth = int32(parsed)
-		} else {
-			// Only iops was provided (all rfs-inapplicable) — allow no-op success
-			noOpAllowed = true
-		}
-	default:
-		// dp2 (and any future iops-based profile): throughput/bandwidth are not
-		// applicable. Always return an error when present so the user sees
-		// VolumeModifyFailed in PVC events — even when iops is also present.
-		// This satisfies the SC5 NEGATIVE requirement.
-		for _, key := range []string{Throughput, Bandwidth} {
-			if val, ok := params[key]; ok {
-				inapplicableErr := fmt.Errorf("parameter '%s' is not applicable for the '%s' profile of volume %s; "+
-					"use a VolumeAttributesClass with only 'iops' for dp2 volumes",
-					key, volumeProfile, requestedVolume.VolumeID)
-				ctxLogger.Error("ControllerModifyVolume: parameter not applicable for dp2 profile",
-					zap.String("profile", volumeProfile), zap.String("key", key), zap.String("value", val),
-					zap.Error(inapplicableErr))
-				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, inapplicableErr)
-			}
-		}
-		// dp2 (and any future profile): accept "iops"
-		if val, ok := params[IOPS]; ok {
-			parsed, err := strconv.ParseInt(val, 10, 64)
-			if err != nil {
-				return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err, IOPS, val)
-			}
-			iops = parsed
-		}
-	}
-
-	// If all params were inapplicable but silently dropped (e.g. iops-only on rfs),
-	// return success without calling the VPC API. The VAC is recorded as applied.
-	if noOpAllowed {
-		ctxLogger.Info("ControllerModifyVolume: no applicable parameters for profile; returning success (no-op)",
-			zap.String("profile", volumeProfile), zap.String("VolumeID", requestedVolume.VolumeID))
-		return &csi.ControllerModifyVolumeResponse{}, nil
-	}
-
-	// Fail when no applicable parameter remains and no-op is not allowed.
-	// e.g. throughput-only VAC on dp2 (throughput already errored above),
-	// or any unrecognised-only VAC.
-	if iops == 0 && bandwidth == 0 {
-		applicable := IOPS
-		if volumeProfile == RFSProfile {
-			applicable = Throughput
-		}
-		mismatchErr := fmt.Errorf("VolumeAttributesClass has no applicable parameter for the '%s' profile of volume %s; "+
-			"use a VolumeAttributesClass with a non-zero '%s'", volumeProfile, requestedVolume.VolumeID, applicable)
-		ctxLogger.Error("ControllerModifyVolume: no applicable parameters for volume profile",
-			zap.String("VolumeID", requestedVolume.VolumeID), zap.String("profile", volumeProfile),
-			zap.Error(mismatchErr))
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, mismatchErr)
-	}
-
-	modifyReq := provider.ModifyVolumeRequest{
-		VolumeID:  requestedVolume.VolumeID,
-		Iops:      iops,
-		Bandwidth: bandwidth,
+	modifyReq, err := getModifyVolumeParameters(ctxLogger, requestedVolume.VolumeID, volDetail, req.GetMutableParameters())
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
 	}
 
 	ctxLogger.Info("ModifyVolume Request",
@@ -927,7 +814,7 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 		zap.Int64("IOPS", modifyReq.Iops),
 		zap.Int32("Bandwidth", modifyReq.Bandwidth),
 	)
-	_, err = session.ModifyVolume(modifyReq)
+	_, err = session.ModifyVolume(*modifyReq)
 	if err != nil {
 		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}

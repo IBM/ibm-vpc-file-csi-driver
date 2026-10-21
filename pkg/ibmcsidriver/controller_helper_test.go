@@ -1859,17 +1859,23 @@ func TestGetVolumeParameters_VACThroughputBandwidth(t *testing.T) {
 		profile           string
 		mutable           map[string]string
 		expectedBandwidth int32
+		wantErrFrag       string
 	}{
-		{"rfs: VAC throughput only", RFSProfile, map[string]string{Throughput: "100"}, 100},
-		{"rfs: VAC bandwidth only is treated as throughput", RFSProfile, map[string]string{Bandwidth: "200"}, 200},
-		{"rfs: VAC throughput and bandwidth, throughput wins", RFSProfile, map[string]string{Throughput: "100", Bandwidth: "200"}, 100},
-		{"dp2: VAC bandwidth is ignored", DP2Profile, map[string]string{Bandwidth: "200"}, 0},
-		{"dp2: VAC throughput and bandwidth are ignored", DP2Profile, map[string]string{Throughput: "100", Bandwidth: "200"}, 0},
+		{"rfs: VAC throughput only", RFSProfile, map[string]string{Throughput: "100"}, 100, ""},
+		{"rfs: VAC bandwidth only is treated as throughput", RFSProfile, map[string]string{Bandwidth: "200"}, 200, ""},
+		{"rfs: VAC throughput and bandwidth, throughput wins", RFSProfile, map[string]string{Throughput: "100", Bandwidth: "200"}, 100, ""},
+		{"dp2: VAC bandwidth is rejected", DP2Profile, map[string]string{Bandwidth: "200"}, 0, "throughput is not supported for dp2"},
+		{"dp2: VAC throughput and bandwidth are rejected", DP2Profile, map[string]string{Throughput: "100", Bandwidth: "200"}, 0, "throughput is not supported for dp2"},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			volume, err := getVolumeParameters(logger, newReq(tc.profile, tc.mutable), testConfig, nil)
+			if tc.wantErrFrag != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrFrag)
+				return
+			}
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedBandwidth, volume.VPCVolume.Bandwidth)
 		})
@@ -1995,9 +2001,9 @@ func vacCreateReq(profile string, sc map[string]string, mutable map[string]strin
 	}
 }
 
-// TestGetVolumeParameters_VACCommonVAC tests the "common VAC" scenario where a
-// single VolumeAttributesClass carries both "iops" and "throughput" and the
-// driver routes the correct field to each profile.
+// TestGetVolumeParameters_VACCommonVAC tests a VolumeAttributesClass that carries both
+// "iops" and "throughput". A parameter that does not apply to the volume's profile
+// fails the request instead of being dropped, so use a separate VAC per profile.
 func TestGetVolumeParameters_VACCommonVAC(t *testing.T) {
 	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
@@ -2011,21 +2017,22 @@ func TestGetVolumeParameters_VACCommonVAC(t *testing.T) {
 		wantIops      string // "" means nil
 		wantBandwidth int32
 		wantErr       bool
+		wantErrFrag   string
 	}{
-		// ── common VAC: both iops and throughput supplied ──────────────────────
+		// ── VAC carrying both iops and throughput is rejected ──────────────────
 		{
-			name:          "common VAC dp2: throughput dropped, iops applied",
-			profile:       DP2Profile,
-			mutable:       map[string]string{IOPS: "4000", Throughput: "1000"},
-			wantIops:      "4000",
-			wantBandwidth: 0, // throughput silently dropped for dp2
+			name:        "common VAC dp2: throughput is rejected",
+			profile:     DP2Profile,
+			mutable:     map[string]string{IOPS: "4000", Throughput: "1000"},
+			wantErr:     true,
+			wantErrFrag: "throughput is not supported for dp2",
 		},
 		{
-			name:          "common VAC rfs: iops dropped, throughput applied as bandwidth",
-			profile:       RFSProfile,
-			mutable:       map[string]string{IOPS: "4000", Throughput: "1000"},
-			wantIops:      "", // iops silently dropped for rfs
-			wantBandwidth: 1000,
+			name:        "common VAC rfs: iops is rejected",
+			profile:     RFSProfile,
+			mutable:     map[string]string{IOPS: "4000", Throughput: "1000"},
+			wantErr:     true,
+			wantErrFrag: "iops is not supported for rfs",
 		},
 
 		// ── VAC with single field ──────────────────────────────────────────────
@@ -2063,10 +2070,11 @@ func TestGetVolumeParameters_VACCommonVAC(t *testing.T) {
 		// ── unknown VAC key is rejected on CreateVolume ───────────────────────
 		// (ControllerModifyVolume only warns; getVolumeParameters is stricter.)
 		{
-			name:    "unknown VAC key is rejected for dp2",
-			profile: DP2Profile,
-			mutable: map[string]string{"unknown-attr": "x"},
-			wantErr: true,
+			name:        "unknown VAC key is rejected for dp2",
+			profile:     DP2Profile,
+			mutable:     map[string]string{"unknown-attr": "x"},
+			wantErr:     true,
+			wantErrFrag: "is an invalid parameter",
 		},
 	}
 
@@ -2076,7 +2084,7 @@ func TestGetVolumeParameters_VACCommonVAC(t *testing.T) {
 			vol, err := getVolumeParameters(logger, req, cfg, nil)
 			if tc.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "is an invalid parameter")
+				assert.Contains(t, err.Error(), tc.wantErrFrag)
 				return
 			}
 			require.NoError(t, err)

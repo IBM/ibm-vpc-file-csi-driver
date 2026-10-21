@@ -6,14 +6,10 @@ github.com/IBM/go-sdk-core/v5 v5.17.4 h1:VGb9+mRrnS2HpHZFM5hy4J6ppIWnwNrw0G+tLSg
 github.com/IBM/go-sdk-core/v5 v5.17.4/go.mod h1:KsAAI7eStAWwQa4F96MLy+whYSh39JzNjklZRbN/8ns=
 github.com/IBM/ibm-csi-common v1.1.27 h1:irwHXa0At/LofXLPOENcYU7To5UxHoFo7WUOWaJ1edM=
 github.com/IBM/ibm-csi-common v1.1.27/go.mod h1:qf0vG4gs+oTdHTpGP3ofJ9XaT6+IBsbfwfR9z/KBzoY=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.24-0.20260905214157-ac4eaad83965 h1:OgUa0yAPIncUcDIMhOc961HGAg4ZU71lf/HyJYNFDG0=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.24-0.20260905214157-ac4eaad83965/go.mod h1:lepblzKjiKYBYtrcqwMqVyAe5RBfP7TkYbdbpxKJTJ8=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.25-0.20261013142900-8d4399b51473 h1:RoguABLBOStBO922pJUvCS3v3SaUpqpzksM1+5RM9rw=
-github.com/IBM/ibmcloud-volume-file-vpc v1.2.25-0.20261013142900-8d4399b51473/go.mod h1:c2MGocxjdGHAxYITvPCuoUubzEhcQgMabiEFs2MuuLk=
-github.com/IBM/ibmcloud-volume-interface v1.2.23-0.20260905190036-ad92602ec0a4 h1:VlIu/EBZj2lB9DNBYqaB4NvJuVDGuwC9HhV9cbu50Vg=
-github.com/IBM/ibmcloud-volume-interface v1.2.23-0.20260905190036-ad92602ec0a4/go.mod h1:doR0bexx68aSBec2x2gp/1B7WnM19KmlnxQWayGHuZY=
-github.com/IBM/ibmcloud-volume-interface v1.2.23-0.20261013141242-3e3fe158e0d3 h1:NxQun0KGezMp4yarFVL+qRFbRY/ez+QhcwTmnrZPWUk=
-github.com/IBM/ibmcloud-volume-interface v1.2.23-0.20261013141242-3e3fe158e0d3/go.mod h1:doR0bexx68aSBec2x2gp/1B7WnM19KmlnxQWayGHuZY=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.25-0.20261020134513-406ac68d74bd h1:0rDv9OmRS5ayXW9S1vjqdi7fjA17R5zQ+Xz1F3wPNrE=
+github.com/IBM/ibmcloud-volume-file-vpc v1.2.25-0.20261020134513-406ac68d74bd/go.mod h1:Wd2Pp3HGVzrWdyqRSz+P4d+QlbMc6Z9s3ET6/smU3G0=
+github.com/IBM/ibmcloud-volume-interface v1.2.23-0.20261020062344-41a79e3821cc h1:H/HPEk86haaHm97182S3XT8lKw0Vu2My8bQFf4/qeAI=
+github.com/IBM/ibmcloud-volume-interface v1.2.23-0.20261020062344-41a79e3821cc/go.mod h1:doR0bexx68aSBec2x2gp/1B7WnM19KmlnxQWayGHuZY=
 github.com/IBM/secret-common-lib v1.1.15 h1:r2oQE7UAjHiPHhUUWJmI1NYYmuTRHWENtFolTSbXMwI=
 github.com/IBM/secret-common-lib v1.1.15/go.mod h1:bJO2iazBFnfjj6jhfgy/T4FQQQE/aIxio1CrNZ83+0U=
 github.com/IBM/secret-utils-lib v1.1.16 h1:RIainy11ICJVWjgi9FWSvBsl8xOwhzLvTKBI8AWq7wI=
@@ -233,8 +229,6 @@ golang.org/x/oauth2 v0.36.0/go.mod h1:YDBUJMTkDnJS+A4BP4eZBjCqtokkg1hODuPjwiGPO7
 golang.org/x/sync v0.22.0 h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=
 golang.org/x/sync v0.22.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=
 golang.org/x/sys v0.0.0-20220908164124-27713097b956/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=
-golang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
 golang.org/x/sys v0.49.0 h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=
 golang.org/x/sys v0.49.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
 golang.org/x/term v0.45.0 h1:NwWyBmoJCbfTHpxrWoZ9C6/VxOf7ic219I8xZZFdrf0=
