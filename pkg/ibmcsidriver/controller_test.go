@@ -1691,6 +1691,96 @@ func TestControllerModifyVolume(t *testing.T) {
 		expNoModifyCall bool
 	}{
 		{
+			name: "Bandwidth param for rfs will pass",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Bandwidth: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
+		},
+		{
+			name: "Bandwidth param for dp2 will fail",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Bandwidth: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "IOPS param for rfs will fail",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Common VAC with iops and throughput for dp2 will fail",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000", Throughput: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Common VAC with iops and throughput for rfs will fail",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000", Throughput: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "IOPS param for dp2 will pass",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Iops: 3000}},
+		},
+		{
 			name:       "Empty VolumeID returns EmptyVolumeID error",
 			req:        &csi.ControllerModifyVolumeRequest{},
 			expErrCode: codes.InvalidArgument,
@@ -1740,186 +1830,6 @@ func TestControllerModifyVolume(t *testing.T) {
 			},
 			expErrCode: codes.InvalidArgument,
 		},
-		{
-			name: "Bandwidth param for rfs is sent as bandwidth",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{Bandwidth: "500"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: RFSProfile},
-				},
-			},
-			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
-		},
-		{
-			name: "Non-numeric bandwidth param for rfs returns InvalidArgument",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{Bandwidth: "not-a-number"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: RFSProfile},
-				},
-			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
-		},
-		{
-			name: "Throughput and bandwidth for rfs, throughput takes precedence",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{Throughput: "300", Bandwidth: "500"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: RFSProfile},
-				},
-			},
-			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 300}},
-		},
-		{
-			name: "Bandwidth param for dp2 returns InvalidArgument without API call",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{Bandwidth: "500"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: DP2Profile},
-				},
-			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
-		},
-		{
-			name: "Throughput param for dp2 returns InvalidArgument without API call",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{Throughput: "500"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: DP2Profile},
-				},
-			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
-		},
-		{
-			name: "IOPS-only param for rfs returns InvalidArgument (no applicable parameter, iops not applicable for rfs)",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{IOPS: "3000"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: RFSProfile},
-				},
-			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
-		},
-		{
-			name: "Common VAC with iops and throughput on dp2 returns InvalidArgument (throughput not applicable for dp2)",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{IOPS: "3000", Throughput: "500"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: DP2Profile},
-				},
-			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
-		},
-		{
-			name: "Common VAC with iops and throughput on rfs returns InvalidArgument (iops not supported for rfs)",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{IOPS: "3000", Throughput: "500"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: RFSProfile},
-				},
-			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
-		},
-		{
-			name: "Unrecognised param returns InvalidArgument without API call",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{"unknown-key": "value"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: "dp2"},
-				},
-			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
-		},
-		{
-			name: "dp2 IOPS happy path sends IOPS to ModifyVolume",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{IOPS: "3000"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: DP2Profile},
-				},
-			},
-			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Iops: 3000}},
-		},
-		{
-			name: "rfs throughput happy path sends bandwidth to ModifyVolume",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{Throughput: "500"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: RFSProfile},
-				},
-			},
-			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
-		},
-		{
-			name: "Backend ModifyVolume error returns error",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{IOPS: "3000"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: "dp2"},
-				},
-			},
-			libModifyErr: errors.New("backend error"),
-			expErrCode:   codes.InvalidArgument,
-		},
 	}
 
 	// Creating test logger
@@ -1964,180 +1874,6 @@ func TestControllerModifyVolume(t *testing.T) {
 				assert.Equal(t, *tc.expModifyReq, fakeStructSession.ModifyVolumeArgsForCall(0), tc.name)
 			}
 		}
-	}
-}
-
-// TestControllerModifyVolume_VACScenarios covers the end-to-end flow of
-// "create a PVC from a profile specific StorageClass, then apply a VAC":
-//  1. CreateVolume is called with the StorageClass parameters of the profile.
-//  2. ControllerModifyVolume is called with the VAC parameters as MutableParameters.
-//
-// The valid ranges of iops and throughput are enforced by VPC, not by the driver.
-// An out of range value is therefore simulated with an error returned by the
-// fake session's ModifyVolume.
-func TestControllerModifyVolume_VACScenarios(t *testing.T) {
-	const (
-		volID    = "vac-vol-id"
-		accessID = "vac-access-point-id"
-	)
-	volName := "vac-test-vol"
-	capacity := 20 // matches stdCapRange (20 GiB)
-	iopsStr := ""
-	_ = os.Setenv("VPC_SUBNET_IDS", "sub-1,sub-2")
-	defer func() { _ = os.Unsetenv("VPC_SUBNET_IDS") }()
-
-	// StorageClass parameters per profile. rfs is regional, so it has no zone.
-	dp2SC := map[string]string{Profile: DP2Profile, Zone: "myzone", Region: "testregion", IsENIEnabled: "false"}
-	rfsSC := map[string]string{Profile: RFSProfile, Region: "testregion", IsENIEnabled: "false"}
-
-	testCases := []struct {
-		name         string
-		scParams     map[string]string
-		profile      string
-		vac          map[string]string
-		libModifyErr error
-		expErrCode   codes.Code
-		// expModifyReq is the request expected to reach session.ModifyVolume.
-		// nil means ModifyVolume must not be called.
-		expModifyReq *provider.ModifyVolumeRequest
-	}{
-		// ---------------------------- rfs ----------------------------
-		{
-			name:         "rfs: VAC with iops and throughput returns InvalidArgument and does not call the backend",
-			scParams:     rfsSC,
-			profile:      RFSProfile,
-			vac:          map[string]string{IOPS: "3000", Throughput: "500"},
-			expErrCode:   codes.InvalidArgument,
-			expModifyReq: nil,
-		},
-		{
-			name:         "rfs: VAC with throughput outside of range fails on the backend",
-			scParams:     rfsSC,
-			profile:      RFSProfile,
-			vac:          map[string]string{Throughput: "9000"},
-			libModifyErr: errors.New("shares_bandwidth_invalid: bandwidth is out of range"),
-			expErrCode:   codes.InvalidArgument,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, VolumePerformance: provider.VolumePerformance{Bandwidth: 9000}},
-		},
-		{
-			name:         "rfs: VAC with iops only returns InvalidArgument and does not call the backend",
-			scParams:     rfsSC,
-			profile:      RFSProfile,
-			vac:          map[string]string{IOPS: "3000"},
-			expErrCode:   codes.InvalidArgument,
-			expModifyReq: nil,
-		},
-		{
-			name:         "rfs: VAC with throughput only applies throughput",
-			scParams:     rfsSC,
-			profile:      RFSProfile,
-			vac:          map[string]string{Throughput: "500"},
-			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
-		},
-		// ---------------------------- dp2 ----------------------------
-		{
-			name:       "dp2: VAC with iops and throughput returns InvalidArgument (throughput not applicable for dp2)",
-			scParams:   dp2SC,
-			profile:    DP2Profile,
-			vac:        map[string]string{IOPS: "3000", Throughput: "500"},
-			expErrCode: codes.InvalidArgument,
-		},
-		{
-			name:         "dp2: VAC with iops only applies iops",
-			scParams:     dp2SC,
-			profile:      DP2Profile,
-			vac:          map[string]string{IOPS: "3000"},
-			expErrCode:   codes.OK,
-			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: volID, VolumePerformance: provider.VolumePerformance{Iops: 3000}},
-		},
-		{
-			name:       "dp2: VAC with throughput only fails and does not call the backend",
-			scParams:   dp2SC,
-			profile:    DP2Profile,
-			vac:        map[string]string{Throughput: "500"},
-			expErrCode: codes.InvalidArgument,
-		},
-	}
-
-	logger, teardown := cloudProvider.GetTestLogger(t)
-	defer teardown()
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			icDriver := initIBMCSIDriver(t)
-
-			fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
-			assert.Nil(t, err)
-			fakeStructSession, ok := fakeSession.(*fake.FakeSession)
-			assert.True(t, ok)
-
-			vpcVolume := &provider.Volume{
-				Capacity: &capacity,
-				Name:     &volName,
-				VolumeID: volID,
-				Iops:     &iopsStr,
-				Az:       "myzone",
-				Region:   "myregion",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: tc.profile},
-					VPCFileVolume: provider.VPCFileVolume{
-						VolumeAccessPoints: &[]provider.VolumeAccessPoint{{ID: accessID}},
-					},
-				},
-			}
-			accessPoint := &provider.VolumeAccessPointResponse{
-				VolumeID:      volID,
-				AccessPointID: accessID,
-				Status:        "Stable",
-				MountPath:     "abc:/xyz/pqr",
-				CreatedAt:     &time.Time{},
-			}
-			fakeStructSession.CreateVolumeReturns(vpcVolume, nil)
-			fakeStructSession.GetVolumeByNameReturns(vpcVolume, nil)
-			fakeStructSession.GetVolumeReturns(vpcVolume, nil)
-			fakeStructSession.GetSubnetForVolumeAccessPointReturns("sub-1", nil)
-			fakeStructSession.GetSecurityGroupForVolumeAccessPointReturns("kube-fake-cluster-id", nil)
-			fakeStructSession.CreateVolumeAccessPointReturns(accessPoint, nil)
-			fakeStructSession.WaitForCreateVolumeAccessPointReturns(accessPoint, nil)
-			if tc.libModifyErr != nil {
-				fakeStructSession.ModifyVolumeReturns(nil, tc.libModifyErr)
-			}
-
-			// Step 1: create the PVC's volume from the profile's StorageClass.
-			createResp, err := icDriver.cs.CreateVolume(context.Background(), &csi.CreateVolumeRequest{
-				Name:               volName,
-				CapacityRange:      stdCapRange,
-				VolumeCapabilities: stdVolCap,
-				Parameters:         tc.scParams,
-			})
-			if !assert.NoError(t, err, "volume creation from the StorageClass must succeed") {
-				return
-			}
-			createdID := createResp.GetVolume().GetVolumeId()
-			assert.Equal(t, volID+VolumeIDSeperator+accessID, createdID)
-
-			// Step 2: apply the VAC to the created volume.
-			_, err = icDriver.cs.ControllerModifyVolume(context.Background(), &csi.ControllerModifyVolumeRequest{
-				VolumeId:          createdID,
-				MutableParameters: tc.vac,
-			})
-			if tc.expErrCode == codes.OK {
-				assert.NoError(t, err)
-			} else {
-				if assert.Error(t, err) {
-					serverError, isStatus := status.FromError(err)
-					assert.True(t, isStatus)
-					assert.Equal(t, tc.expErrCode, serverError.Code(), "err: %v", err)
-				}
-			}
-
-			if tc.expModifyReq == nil {
-				assert.Equal(t, 0, fakeStructSession.ModifyVolumeCallCount(), "ModifyVolume must not be called")
-			} else if assert.Equal(t, 1, fakeStructSession.ModifyVolumeCallCount()) {
-				assert.Equal(t, *tc.expModifyReq, fakeStructSession.ModifyVolumeArgsForCall(0))
-			}
-		})
 	}
 }
 
