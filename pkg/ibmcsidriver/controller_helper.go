@@ -795,7 +795,7 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 	}
 
 	var iops int64
-	var bandwidth int32
+	var throughput int32
 
 	if volumeProfile == RFSProfile {
 		if val, found := params[Throughput]; found {
@@ -803,7 +803,7 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 			if parseErr != nil {
 				return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, Throughput, parseErr)
 			}
-			bandwidth = int32(parsed)
+			throughput = int32(parsed)
 		}
 	} else if val, ok := params[IOPS]; ok {
 		parsed, parseErr := strconv.ParseInt(val, 10, 64)
@@ -814,7 +814,7 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 	}
 
 	// Fail when the VAC carries no non-zero value, e.g. an empty VAC or a zero value.
-	if iops == 0 && bandwidth == 0 {
+	if iops == 0 && throughput == 0 {
 		applicable := IOPS
 		if volumeProfile == RFSProfile {
 			applicable = Throughput
@@ -826,9 +826,10 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 		return nil, mismatchErr
 	}
 
+	// The library field is named Bandwidth; it carries the throughput value.
 	return &provider.ModifyVolumeRequest{
 		VolumeID:          volumeID,
-		VolumePerformance: provider.VolumePerformance{Iops: iops, Bandwidth: bandwidth},
+		VolumePerformance: provider.VolumePerformance{Iops: iops, Bandwidth: throughput},
 	}, nil
 }
 
