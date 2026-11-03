@@ -4,8 +4,8 @@ go 1.26.10
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.27
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.27
-	github.com/IBM/ibmcloud-volume-interface v1.2.23
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.26
+	github.com/IBM/ibmcloud-volume-interface v1.2.22
 	github.com/IBM/secret-utils-lib v1.1.16
 	github.com/container-storage-interface/spec v1.13.0
 	github.com/golang/glog v1.2.5
@@ -90,8 +90,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
