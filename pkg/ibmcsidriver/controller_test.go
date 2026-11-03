@@ -1691,10 +1691,10 @@ func TestControllerModifyVolume(t *testing.T) {
 		expNoModifyCall bool
 	}{
 		{
-			name: "Bandwidth param for rfs will pass",
+			name: "Throughput param for rfs will pass",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{Bandwidth: "500"},
+				MutableParameters: map[string]string{Throughput: "500"},
 			},
 			libVolumeResponse: &provider.Volume{
 				VolumeID: "vol-id",
@@ -1706,10 +1706,10 @@ func TestControllerModifyVolume(t *testing.T) {
 			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
 		},
 		{
-			name: "Bandwidth param for dp2 will fail",
+			name: "Throughput param for dp2 will fail",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{Bandwidth: "500"},
+				MutableParameters: map[string]string{Throughput: "500"},
 			},
 			libVolumeResponse: &provider.Volume{
 				VolumeID: "vol-id",
