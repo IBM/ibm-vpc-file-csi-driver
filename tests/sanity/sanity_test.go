@@ -25,16 +25,22 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"context"
 
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	nodeInfo "github.com/IBM/ibmcloud-volume-file-vpc/pkg/metadata/fake"
 	"github.com/IBM/ibmcloud-volume-interface/config"
@@ -112,7 +118,14 @@ func TestSanity(t *testing.T) {
 	config.IDGen = &providerIDGenerator{}
 	config.TestVolumeParametersFile = os.Getenv("SANITY_PARAMS_FILE")
 	config.TestVolumeSize = 10737418240 // i.e 10 GB
-	config.TestVolumeMutableParameters = map[string]string{"iops": "3000"}
+	// VolumeAttributesClass parameters are profile specific (dp2: iops, rfs: throughput).
+	// Run the suite once per profile, selecting the VAC with SANITY_MUTABLE_PARAMS_FILE.
+	// Defaults to the dp2 VAC.
+	if mutableParamsFile := os.Getenv("SANITY_MUTABLE_PARAMS_FILE"); mutableParamsFile != "" {
+		config.TestVolumeMutableParametersFile = mutableParamsFile
+	} else {
+		config.TestVolumeMutableParameters = map[string]string{"iops": "3000"}
+	}
 	config.CreateTargetDir = func(targetPath string) (string, error) {
 		targetPath = path.Join(TempDir, targetPath)
 		return targetPath, createTargetDir(targetPath)
@@ -122,6 +135,166 @@ func TestSanity(t *testing.T) {
 		return stagePath, createTargetDir(stagePath)
 	}
 	sanity.Test(t, config)
+}
+
+// vacProfileCase describes the VolumeAttributesClass behaviour of one share profile.
+//
+// TestSanity can only exercise one profile per run, because the StorageClass and VAC
+// parameters it uses are fixed for the whole run. TestVACSanity runs the VAC scenarios for
+// both profiles in a single run, including the cross-profile rejections that the generic
+// csi-test specs do not cover.
+type vacProfileCase struct {
+	name         string
+	scParams     map[string]string // StorageClass parameters
+	validVAC     map[string]string // accepted by the profile
+	foreignVAC   map[string]string // valid for the other profile only
+	nonNumberVAC map[string]string // accepted key with a non-numeric value
+}
+
+var vacProfileCases = []vacProfileCase{
+	{
+		name:         "dp2",
+		scParams:     map[string]string{"profile": "dp2", "region": "myregion", "zone": "myzone"},
+		validVAC:     map[string]string{"iops": "3000"},
+		foreignVAC:   map[string]string{"throughput": "500"},
+		nonNumberVAC: map[string]string{"iops": "not-a-number"},
+	},
+	{
+		name:         "rfs",
+		scParams:     map[string]string{"profile": "rfs", "region": "myregion"},
+		validVAC:     map[string]string{"throughput": "512"},
+		foreignVAC:   map[string]string{"iops": "3000"},
+		nonNumberVAC: map[string]string{"throughput": "not-a-number"},
+	},
+}
+
+// TestVACSanity checks the VolumeAttributesClass handling of the CSI controller over gRPC
+// for the dp2 and rfs profiles: create with a VAC, modify with a VAC, and the rejection of
+// parameters that are invalid for the volume's profile.
+func TestVACSanity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping sanity testing...")
+	}
+
+	t.Setenv("VPC_SUBNET_IDS", "subnet-id")
+
+	// Keep the path short: unix socket paths are limited to ~104 characters.
+	dir, err := os.MkdirTemp("", "vac")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	endpoint := fmt.Sprintf("unix:%s", filepath.Join(dir, "csi.sock"))
+
+	// The driver has no stop hook; like TestSanity it keeps running until the test binary exits.
+	driver := initCSIDriverForSanity(t)
+	go driver.Run(endpoint)
+
+	// WaitForReady makes the first RPC wait for the driver socket instead of failing fast.
+	conn, err := grpc.NewClient(endpoint,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	client := csi.NewControllerClient(conn)
+
+	for _, pc := range vacProfileCases {
+		t.Run(pc.name, func(t *testing.T) {
+			runVACScenarios(t, client, pc)
+		})
+	}
+}
+
+func runVACScenarios(t *testing.T, client csi.ControllerClient, pc vacProfileCase) {
+	ctx := func(t *testing.T) context.Context {
+		c, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		t.Cleanup(cancel)
+		return c
+	}
+
+	// create makes a volume and registers its deletion.
+	create := func(t *testing.T, name string, vac map[string]string) (*csi.CreateVolumeResponse, error) {
+		resp, err := client.CreateVolume(ctx(t), &csi.CreateVolumeRequest{
+			Name: fmt.Sprintf("vac-%s-%s-%d", pc.name, name, time.Now().UnixNano()),
+			VolumeCapabilities: []*csi.VolumeCapability{{
+				AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{}},
+				AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER},
+			}},
+			CapacityRange:     &csi.CapacityRange{RequiredBytes: 10 * 1024 * 1024 * 1024},
+			Parameters:        pc.scParams,
+			MutableParameters: vac,
+		})
+		if err == nil {
+			volumeID := resp.GetVolume().GetVolumeId()
+			t.Cleanup(func() {
+				_, _ = client.DeleteVolume(ctx(t), &csi.DeleteVolumeRequest{VolumeId: volumeID})
+			})
+		}
+		return resp, err
+	}
+
+	modify := func(t *testing.T, volumeID string, vac map[string]string) error {
+		_, err := client.ControllerModifyVolume(ctx(t), &csi.ControllerModifyVolumeRequest{
+			VolumeId:          volumeID,
+			MutableParameters: vac,
+		})
+		return err
+	}
+
+	// createPlain makes a volume without a VAC and fails the test if that does not work.
+	createPlain := func(t *testing.T, name string) string {
+		resp, err := create(t, name, nil)
+		require.NoError(t, err)
+		return resp.GetVolume().GetVolumeId()
+	}
+
+	t.Run("create with a valid VAC succeeds", func(t *testing.T) {
+		resp, err := create(t, "create-valid", pc.validVAC)
+		require.NoError(t, err)
+		assert.NotEmpty(t, resp.GetVolume().GetVolumeId())
+	})
+
+	t.Run("create with a VAC of the other profile fails", func(t *testing.T) {
+		_, err := create(t, "create-foreign", pc.foreignVAC)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "err: %v", err)
+	})
+
+	t.Run("create with an unknown VAC key fails", func(t *testing.T) {
+		_, err := create(t, "create-unknown", map[string]string{"XXX_FakeKey": "XXX_FakeValue"})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "err: %v", err)
+	})
+
+	t.Run("modify with a valid VAC succeeds", func(t *testing.T) {
+		volumeID := createPlain(t, "modify-valid")
+		assert.NoError(t, modify(t, volumeID, pc.validVAC))
+	})
+
+	t.Run("modify with a valid VAC succeeds on a volume created with a VAC", func(t *testing.T) {
+		resp, err := create(t, "modify-valid-vac", pc.validVAC)
+		require.NoError(t, err)
+		assert.NoError(t, modify(t, resp.GetVolume().GetVolumeId(), pc.validVAC))
+	})
+
+	t.Run("modify with a VAC of the other profile fails", func(t *testing.T) {
+		volumeID := createPlain(t, "modify-foreign")
+		err := modify(t, volumeID, pc.foreignVAC)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "err: %v", err)
+	})
+
+	t.Run("modify with an unknown VAC key fails", func(t *testing.T) {
+		volumeID := createPlain(t, "modify-unknown")
+		err := modify(t, volumeID, map[string]string{"XXX_FakeKey": "XXX_FakeValue"})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "err: %v", err)
+	})
+
+	t.Run("modify with a non-numeric VAC value fails", func(t *testing.T) {
+		volumeID := createPlain(t, "modify-nan")
+		err := modify(t, volumeID, pc.nonNumberVAC)
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "err: %v", err)
+	})
+
+	t.Run("modify a volume that does not exist fails", func(t *testing.T) {
+		err := modify(t, "non-existing-volume-id", pc.validVAC)
+		assert.Equal(t, codes.NotFound, status.Code(err), "err: %v", err)
+	})
 }
 
 var _ sanity.IDGenerator = &providerIDGenerator{}
@@ -317,6 +490,7 @@ func (c *fakeProviderSession) CreateVolume(volumeRequest provider.Volume) (*prov
 			Capacity: volumeRequest.Capacity,
 			Snapshot: provider.Snapshot{SnapshotID: sourceSnapshotID},
 			VPCVolume: provider.VPCVolume{
+				Profile: volumeRequest.VPCVolume.Profile,
 				VPCFileVolume: provider.VPCFileVolume{
 					VolumeAccessPoints: &[]provider.VolumeAccessPoint{
 						{

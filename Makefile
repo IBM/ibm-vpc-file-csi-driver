@@ -105,9 +105,12 @@ build-systemutil:
 	docker run --env GHE_TOKEN=${GHE_TOKEN} csi-driver-builder
 	docker cp `docker ps -q -n=1`:/go/bin/${EXE_DRIVER_NAME} ./${EXE_DRIVER_NAME}
 
+# The VolumeAttributesClass parameters are profile specific (dp2: iops, rfs: throughput),
+# so the sanity suite runs once per profile.
 .PHONY: test-sanity
 test-sanity: deps
-	SANITY_PARAMS_FILE=./csi_sanity_params.yaml go test -timeout 60s ./tests/sanity -run ^TestSanity$$ -v
+	SANITY_PARAMS_FILE=./csi_sanity_params.yaml SANITY_MUTABLE_PARAMS_FILE=./csi_sanity_mutable_params.yaml go test -timeout 60s ./tests/sanity -run ^TestSanity$$ -v
+	SANITY_PARAMS_FILE=./csi_sanity_params_rfs.yaml SANITY_MUTABLE_PARAMS_FILE=./csi_sanity_mutable_params_rfs.yaml go test -timeout 60s ./tests/sanity -run ^TestSanity$$ -v
 
 .PHONY: clean
 clean:
