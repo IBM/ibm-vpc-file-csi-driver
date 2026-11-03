@@ -813,19 +813,6 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 		iops = parsed
 	}
 
-	// Fail when the VAC carries no non-zero value, e.g. an empty VAC or a zero value.
-	if iops == 0 && throughput == 0 {
-		applicable := IOPS
-		if volumeProfile == RFSProfile {
-			applicable = Throughput
-		}
-		mismatchErr := fmt.Errorf("VolumeAttributesClass has no applicable parameter for the '%s' profile of volume %s; "+
-			"use a VolumeAttributesClass with a non-zero '%s'", volumeProfile, volumeID, applicable)
-		logger.Error("getModifyVolumeParameters: no applicable parameters for volume profile",
-			zap.String("VolumeID", volumeID), zap.String("profile", volumeProfile), zap.Error(mismatchErr))
-		return nil, mismatchErr
-	}
-
 	// The library field is named Bandwidth; it carries the throughput value.
 	return &provider.ModifyVolumeRequest{
 		VolumeID:          volumeID,

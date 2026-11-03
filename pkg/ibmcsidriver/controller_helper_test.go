@@ -34,14 +34,12 @@ import (
 )
 
 const (
-	exceededZoneName    = "testzone-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	exceededRegionName  = "us-south-test-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	exceededResourceGID = "myresourcegroups-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	exceededTag         = "tag-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	exceededZoneName      = "testzone-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	exceededRegionName    = "us-south-test-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	exceededResourceGID   = "myresourcegroups-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	exceededTag           = "tag-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	exceededEncryptionKey = "key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 )
-
-// exceededEncryptionKey is longer than EncryptionKeyMaxLen; built at runtime to avoid a hardcoded secret-like literal.
-var exceededEncryptionKey = "enc-" + strings.Repeat("a", EncryptionKeyMaxLen)
 
 func TestGetRequestedCapacity(t *testing.T) {
 	testCases := []struct {
@@ -2043,25 +2041,6 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			params:      map[string]string{Throughput: "99999999999"},
 			wantErrFrag: "invalid value",
 		},
-		{
-			name:        "dp2: empty VAC has no applicable parameter",
-			volDetail:   volWithProfile(DP2Profile),
-			params:      map[string]string{},
-			wantErrFrag: "no applicable parameter",
-		},
-		{
-			name:        "rfs: zero throughput has no applicable parameter",
-			volDetail:   volWithProfile(RFSProfile),
-			params:      map[string]string{Throughput: "0"},
-			wantErrFrag: "no applicable parameter",
-		},
-		{
-			name:        "dp2: zero iops has no applicable parameter",
-			volDetail:   volWithProfile(DP2Profile),
-			params:      map[string]string{IOPS: "0"},
-			wantErrFrag: "no applicable parameter",
-		},
-
 		// ── volume without profile details is treated as dp2 ───────────────────
 		{
 			name:      "nil volume detail defaults to iops handling",
