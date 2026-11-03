@@ -796,7 +796,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
-			expectedError:  fmt.Errorf("bandwidth is not supported for dp2 file share profile; please remove the property from storage class"),
+			expectedError:  fmt.Errorf("throughput is not supported for dp2 file share profile; please remove the throughput parameter from storage class"),
 		},
 		{
 			testCaseName: "subnetID is missing if primaryIPAddress is provided",
@@ -1986,18 +1986,6 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			wantBandwidth: 500,
 		},
 		{
-			name:          "rfs: bandwidth alias treated as throughput",
-			volDetail:     volWithProfile(RFSProfile),
-			params:        map[string]string{Bandwidth: "300"},
-			wantBandwidth: 300,
-		},
-		{
-			name:          "rfs: throughput and bandwidth, throughput wins",
-			volDetail:     volWithProfile(RFSProfile),
-			params:        map[string]string{Throughput: "200", Bandwidth: "400"},
-			wantBandwidth: 200,
-		},
-		{
 			name:          "rfs: profile name is matched case-insensitively",
 			volDetail:     volWithProfile("RFS"),
 			params:        map[string]string{Throughput: "100"},
@@ -2010,12 +1998,6 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			volDetail:   volWithProfile(DP2Profile),
 			params:      map[string]string{Throughput: "500"},
 			wantErrFrag: "parameter 'throughput' is not supported",
-		},
-		{
-			name:        "dp2: bandwidth alias is rejected",
-			volDetail:   volWithProfile(DP2Profile),
-			params:      map[string]string{Bandwidth: "500"},
-			wantErrFrag: "parameter 'bandwidth' is not supported",
 		},
 		{
 			name:        "rfs: iops is rejected",

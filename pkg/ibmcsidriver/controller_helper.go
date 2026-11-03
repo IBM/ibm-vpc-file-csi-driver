@@ -152,21 +152,10 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	// Then, add/override with VolumeAttributesClass mutable parameters.
-	// "bandwidth" is accepted as an alias of "throughput" (same as ControllerModifyVolume);
-	// if both are present, "throughput" takes precedence.
 	vacParams := make(map[string]string)
 	for key, value := range req.GetMutableParameters() {
 		logger.Info("VolumeAttributesClass parameter detected", zap.String("key", key), zap.String("value", value))
 		vacParams[key] = value
-	}
-	if bw, ok := vacParams[Bandwidth]; ok {
-		if tp, hasTp := vacParams[Throughput]; hasTp {
-			logger.Warn("VolumeAttributesClass has both throughput and bandwidth; using throughput",
-				zap.String(Throughput, tp), zap.String(Bandwidth, bw))
-		} else {
-			vacParams[Throughput] = bw
-		}
-		delete(vacParams, Bandwidth)
 	}
 	for key, value := range vacParams {
 		allParameters[key] = value
@@ -421,12 +410,12 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	_, iopsFromVAC := vacParams[IOPS]
 	_, throughputFromVAC := vacParams[Throughput]
 
-	// dp2: bandwidth/throughput is not a valid attribute.
+	// dp2: throughput is not a valid attribute.
 	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
 		if throughputFromVAC {
 			err = fmt.Errorf("throughput is not supported for %s file share profile; please remove it from the VolumeAttributesClass", DP2Profile)
 		} else {
-			err = fmt.Errorf("bandwidth is not supported for %s file share profile; please remove the property from storage class", DP2Profile)
+			err = fmt.Errorf("throughput is not supported for %s file share profile; please remove the throughput parameter from storage class", DP2Profile)
 		}
 		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 		return volume, err
@@ -781,7 +770,7 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 // the volume's profile is an error, so the user sees VolumeModifyFailed in the PVC events:
 //
 //	dp2  → only "iops"
-//	rfs  → only "throughput" (or its alias "bandwidth")
+//	rfs  → only "throughput"
 func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *provider.Volume, params map[string]string) (*provider.ModifyVolumeRequest, error) {
 	volumeProfile := ""
 	if volDetail != nil && volDetail.Profile != nil {
@@ -792,7 +781,7 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 	// The only parameters accepted for the volume's profile.
 	allowed := []string{IOPS}
 	if volumeProfile == RFSProfile {
-		allowed = []string{Throughput, Bandwidth}
+		allowed = []string{Throughput}
 	}
 	for key, val := range params {
 		if !slices.Contains(allowed, key) {
@@ -809,17 +798,10 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 	var bandwidth int32
 
 	if volumeProfile == RFSProfile {
-		// "bandwidth" is an alias of "throughput"; "throughput" wins when both are present.
-		key := Throughput
-		val, found := params[Throughput]
-		if !found {
-			key = Bandwidth
-			val, found = params[Bandwidth]
-		}
-		if found {
+		if val, found := params[Throughput]; found {
 			parsed, parseErr := strconv.ParseInt(val, 10, 32)
 			if parseErr != nil {
-				return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, key, parseErr)
+				return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, Throughput, parseErr)
 			}
 			bandwidth = int32(parsed)
 		}
