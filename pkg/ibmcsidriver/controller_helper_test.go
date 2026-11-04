@@ -2066,6 +2066,42 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			wantErrFrag: "must be greater than 0",
 		},
 		{
+			name:        "dp2: empty params is rejected",
+			volDetail:   volWithProfile(DP2Profile),
+			params:      map[string]string{},
+			wantErrFrag: "must contain parameter 'iops'",
+		},
+		{
+			name:        "dp2: nil params is rejected",
+			volDetail:   volWithProfile(DP2Profile),
+			params:      nil,
+			wantErrFrag: "must contain parameter 'iops'",
+		},
+		{
+			name:        "rfs: empty params is rejected",
+			volDetail:   volWithProfile(RFSProfile),
+			params:      map[string]string{},
+			wantErrFrag: "must contain parameter 'throughput'",
+		},
+		{
+			name:        "dp2: blank iops value is rejected",
+			volDetail:   volWithProfile(DP2Profile),
+			params:      map[string]string{IOPS: "  "},
+			wantErrFrag: "must contain parameter 'iops'",
+		},
+		{
+			name:        "rfs: empty throughput value is rejected",
+			volDetail:   volWithProfile(RFSProfile),
+			params:      map[string]string{Throughput: ""},
+			wantErrFrag: "must contain parameter 'throughput'",
+		},
+		{
+			name:        "nil volume detail: empty params is rejected",
+			volDetail:   nil,
+			params:      map[string]string{},
+			wantErrFrag: "must contain parameter 'iops'",
+		},
+		{
 			name:        "nil volume detail: zero iops is rejected",
 			volDetail:   nil,
 			params:      map[string]string{IOPS: "0"},

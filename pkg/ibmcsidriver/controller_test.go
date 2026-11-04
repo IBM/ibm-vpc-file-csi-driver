@@ -1817,6 +1817,35 @@ func TestControllerModifyVolume(t *testing.T) {
 			expErrCode: codes.InvalidArgument,
 		},
 		{
+			name: "Empty mutable parameters for dp2 returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Empty mutable parameters for rfs returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId: "vol-id#zone1",
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
 			name: "Zero IOPS param for dp2 returns InvalidArgument and does not call ModifyVolume",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",

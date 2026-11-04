@@ -787,22 +787,31 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 		}
 	}
 
+	// The required parameter must be present: an empty request would reach the provider as a
+	// zero-value ModifyVolumeRequest, which it treats as a successful no-op.
+	val, ok := params[allowedKey]
+	if !ok || strings.TrimSpace(val) == "" {
+		missingErr := fmt.Errorf("VolumeAttributesClass must contain parameter '%s' for the '%s' profile of volume %s",
+			allowedKey, volumeProfile, volumeID)
+		logger.Error("getModifyVolumeParameters: missing required parameter",
+			zap.String("profile", volumeProfile), zap.String("volumeID", volumeID), zap.Error(missingErr))
+		return nil, missingErr
+	}
+
 	var iops int64
 	var throughput int32
 
-	if volumeProfile == RFSProfile {
-		if val, found := params[Throughput]; found {
-			parsed, parseErr := strconv.ParseInt(val, 10, 32)
-			if parseErr != nil {
-				return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, Throughput, parseErr)
-			}
-			// The provider treats non-positive values as a successful no-op, so reject them here.
-			if parsed <= 0 {
-				return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, Throughput)
-			}
-			throughput = int32(parsed)
+	if allowedKey == Throughput {
+		parsed, parseErr := strconv.ParseInt(val, 10, 32)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, Throughput, parseErr)
 		}
-	} else if val, ok := params[IOPS]; ok {
+		// The provider treats non-positive values as a successful no-op, so reject them here.
+		if parsed <= 0 {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, Throughput)
+		}
+		throughput = int32(parsed)
+	} else {
 		parsed, parseErr := strconv.ParseInt(val, 10, 64)
 		if parseErr != nil {
 			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, IOPS, parseErr)
