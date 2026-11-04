@@ -21,7 +21,6 @@ package ibmcsidriver
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -152,12 +151,16 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	// Then, add/override with VolumeAttributesClass mutable parameters.
-	vacParams := make(map[string]string)
-	for key, value := range req.GetMutableParameters() {
+	// Only iops and throughput are supported in a VolumeAttributesClass (same as
+	// ControllerModifyVolume); any other key is rejected.
+	mutableParams := req.GetMutableParameters()
+	for key, value := range mutableParams {
+		if key != IOPS && key != Throughput {
+			err = fmt.Errorf("parameter '%s' is not supported in VolumeAttributesClass; supported parameters are [%s %s]", key, IOPS, Throughput)
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
+		}
 		logger.Info("VolumeAttributesClass parameter detected", zap.String("key", key), zap.String("value", value))
-		vacParams[key] = value
-	}
-	for key, value := range vacParams {
 		allParameters[key] = value
 	}
 
@@ -407,16 +410,10 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	// whether it came from the StorageClass or from a VolumeAttributesClass. A
 	// warning is not reliably surfaced to the user in the PVC events, whereas an
 	// error is, so use a separate VolumeAttributesClass per profile.
-	_, iopsFromVAC := vacParams[IOPS]
-	_, throughputFromVAC := vacParams[Throughput]
 
 	// dp2: throughput is not a valid attribute.
 	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
-		if throughputFromVAC {
-			err = fmt.Errorf("throughput is not supported for %s file share profile; please remove it from the VolumeAttributesClass", DP2Profile)
-		} else {
-			err = fmt.Errorf("throughput is not supported for %s file share profile; please remove the throughput parameter from storage class", DP2Profile)
-		}
+		err = fmt.Errorf("throughput is not supported for %s file share profile; please remove the throughput parameter from storage class or VolumeAttributesClass", DP2Profile)
 		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 		return volume, err
 	}
@@ -424,11 +421,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	// rfs: iops and zone are not valid attributes.
 	if volume.VPCVolume.Profile.Name == RFSProfile {
 		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
-			if iopsFromVAC {
-				err = fmt.Errorf("iops is not supported for rfs profile; please remove it from the VolumeAttributesClass")
-			} else {
-				err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
-			}
+			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class or VolumeAttributesClass")
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
@@ -778,15 +771,15 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 	}
 	logger.Info("getModifyVolumeParameters: resolved volume profile", zap.String("profile", volumeProfile))
 
-	// The only parameters accepted for the volume's profile.
-	allowed := []string{IOPS}
+	// The only parameter accepted for the volume's profile.
+	allowedKey := IOPS
 	if volumeProfile == RFSProfile {
-		allowed = []string{Throughput}
+		allowedKey = Throughput
 	}
 	for key, val := range params {
-		if !slices.Contains(allowed, key) {
+		if key != allowedKey {
 			notAllowedErr := fmt.Errorf("parameter '%s' is not supported for the '%s' profile of volume %s; "+
-				"use a VolumeAttributesClass with only %v", key, volumeProfile, volumeID, allowed)
+				"use a VolumeAttributesClass with only '%s'", key, volumeProfile, volumeID, allowedKey)
 			logger.Error("getModifyVolumeParameters: parameter not supported for volume profile",
 				zap.String("profile", volumeProfile), zap.String("key", key), zap.String("value", val),
 				zap.Error(notAllowedErr))
@@ -962,7 +955,7 @@ func createCSISnapshotResponse(snapshot provider.Snapshot) *csi.CreateSnapshotRe
 	}
 }
 
-func getVolumeID(volumeID string) []string {
+func splitVolumeID(volumeID string) []string {
 	if strings.Contains(volumeID, VolumeIDSeperator) {
 		//Volume ID is in format volumeID#volumeAccessPointID
 		return strings.Split(volumeID, VolumeIDSeperator)

@@ -360,7 +360,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getVolumeID(volumeID)
+	tokens := splitVolumeID(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-DeleteVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -430,7 +430,7 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 	}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getVolumeID(volumeID)
+	tokens := splitVolumeID(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -533,7 +533,7 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	requestedVolume := &provider.Volume{}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getVolumeID(volumeID)
+	tokens := splitVolumeID(volumeID)
 	if len(tokens) != 2 {
 		ctxLogger.Info("CSIControllerServer-ExpandVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
@@ -616,9 +616,9 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	}
 
 	//Volume ID is in format volumeID#accesspointID
-	volumeID := getVolumeID(sourceVolumeID)
-	if len(volumeID) != 2 {
-		ctxLogger.Info("CSIControllerServer-CreateSnapshot...", zap.Reflect("Volume ID is not in format volumeID#accesspointID", volumeID))
+	tokens := splitVolumeID(sourceVolumeID)
+	if len(tokens) != 2 {
+		ctxLogger.Info("CSIControllerServer-CreateSnapshot...", zap.Reflect("Volume ID is not in format volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, nil)
 	}
 
@@ -628,11 +628,11 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
-	snapshot, _ := session.GetSnapshotByName(snapshotName, volumeID[0]) // #nosec G104: Errors are intentionally not handled as we are checking for the presence of the expected output only.
+	snapshot, _ := session.GetSnapshotByName(snapshotName, tokens[0]) // #nosec G104: Errors are intentionally not handled as we are checking for the presence of the expected output only.
 	if snapshot != nil {
-		if snapshot.VolumeID != volumeID[0] {
+		if snapshot.VolumeID != tokens[0] {
 			// According to CSI Driver Sanity Tester, should fail when we use same snapshotName accross volumeIDs
-			return nil, commonError.GetCSIError(ctxLogger, commonError.SnapshotAlreadyExists, requestID, err, snapshotName, volumeID[0])
+			return nil, commonError.GetCSIError(ctxLogger, commonError.SnapshotAlreadyExists, requestID, err, snapshotName, tokens[0])
 		}
 		ctxLogger.Info("Snapshot with name already exist for volume", zap.Reflect("SnapshotName", snapshotName), zap.Reflect("VolumeID", sourceVolumeID))
 		return createCSISnapshotResponse(*snapshot), nil
@@ -644,7 +644,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	}
 	snapshotParameters.SnapshotTags = snapshotTags
 
-	snapshot, err = session.CreateSnapshot(volumeID[0], snapshotParameters)
+	snapshot, err = session.CreateSnapshot(tokens[0], snapshotParameters)
 
 	if err != nil {
 		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
@@ -788,7 +788,7 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 
 	requestedVolume := &provider.Volume{}
 
-	tokens := getVolumeID(volumeID)
+	tokens := splitVolumeID(volumeID)
 	if len(tokens) != 2 {
 		// A volume ID that is not in volumeID#accessPointID form cannot match any volume.
 		ctxLogger.Info("Invalid VolumeID format", zap.Any("tokens", tokens))

@@ -355,7 +355,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 
 			expectedStatus: true,
-			expectedError:  fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class"),
+			expectedError:  fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class or VolumeAttributesClass"),
 		},
 		{
 			testCaseName: "Negative IOPS value - invalid parameter",
@@ -794,7 +794,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
-			expectedError:  fmt.Errorf("throughput is not supported for dp2 file share profile; please remove the throughput parameter from storage class"),
+			expectedError:  fmt.Errorf("throughput is not supported for dp2 file share profile; please remove the throughput parameter from storage class or VolumeAttributesClass"),
 		},
 		{
 			testCaseName: "subnetID is missing if primaryIPAddress is provided",
@@ -2070,6 +2070,42 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			assert.Equal(t, volumeID, got.VolumeID)
 			assert.Equal(t, tc.wantIops, got.Iops)
 			assert.Equal(t, tc.wantBandwidth, got.Bandwidth)
+		})
+	}
+}
+
+func TestSplitVolumeID(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "Standard # separator",
+			input:    "vol123#target456",
+			expected: []string{"vol123", "target456"},
+		},
+		{
+			name:     "Deprecated : separator",
+			input:    "vol123:target456",
+			expected: []string{"vol123", "target456"},
+		},
+		{
+			name:     "No separator",
+			input:    "vol123",
+			expected: []string{"vol123"},
+		},
+		{
+			name:     "Empty input",
+			input:    "",
+			expected: []string{""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := splitVolumeID(tc.input)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
