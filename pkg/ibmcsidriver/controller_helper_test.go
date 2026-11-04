@@ -2041,6 +2041,36 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			params:      map[string]string{Throughput: "99999999999"},
 			wantErrFrag: "invalid value",
 		},
+		{
+			name:        "dp2: zero iops is rejected",
+			volDetail:   volWithProfile(DP2Profile),
+			params:      map[string]string{IOPS: "0"},
+			wantErrFrag: "must be greater than 0",
+		},
+		{
+			name:        "dp2: negative iops is rejected",
+			volDetail:   volWithProfile(DP2Profile),
+			params:      map[string]string{IOPS: "-100"},
+			wantErrFrag: "must be greater than 0",
+		},
+		{
+			name:        "rfs: zero throughput is rejected",
+			volDetail:   volWithProfile(RFSProfile),
+			params:      map[string]string{Throughput: "0"},
+			wantErrFrag: "must be greater than 0",
+		},
+		{
+			name:        "rfs: negative throughput is rejected",
+			volDetail:   volWithProfile(RFSProfile),
+			params:      map[string]string{Throughput: "-500"},
+			wantErrFrag: "must be greater than 0",
+		},
+		{
+			name:        "nil volume detail: zero iops is rejected",
+			volDetail:   nil,
+			params:      map[string]string{IOPS: "0"},
+			wantErrFrag: "must be greater than 0",
+		},
 		// ── volume without profile details is treated as dp2 ───────────────────
 		{
 			name:      "nil volume detail defaults to iops handling",

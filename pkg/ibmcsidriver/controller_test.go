@@ -1817,6 +1817,66 @@ func TestControllerModifyVolume(t *testing.T) {
 			expErrCode: codes.InvalidArgument,
 		},
 		{
+			name: "Zero IOPS param for dp2 returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "0"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Negative IOPS param for dp2 returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "-100"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Zero throughput param for rfs returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Throughput: "0"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Negative throughput param for rfs returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Throughput: "-500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
 			name: "Non-numeric throughput param for rfs returns InvalidArgument",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",

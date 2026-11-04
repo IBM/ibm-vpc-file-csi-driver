@@ -796,12 +796,20 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *p
 			if parseErr != nil {
 				return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, Throughput, parseErr)
 			}
+			// The provider treats non-positive values as a successful no-op, so reject them here.
+			if parsed <= 0 {
+				return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, Throughput)
+			}
 			throughput = int32(parsed)
 		}
 	} else if val, ok := params[IOPS]; ok {
 		parsed, parseErr := strconv.ParseInt(val, 10, 64)
 		if parseErr != nil {
 			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, IOPS, parseErr)
+		}
+		// The provider treats non-positive values as a successful no-op, so reject them here.
+		if parsed <= 0 {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, IOPS)
 		}
 		iops = parsed
 	}
