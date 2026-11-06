@@ -423,7 +423,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	// dp2: throughput is not a valid attribute.
 	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
-		err = fmt.Errorf("throughput is not supported for %s file share profile; please remove the throughput parameter from storage class or VolumeAttributesClass", DP2Profile)
+		err = fmt.Errorf("bandwidth is not supported for %s file share profile; please remove the property from storage class", DP2Profile)
 		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 		return volume, err
 	}
@@ -431,7 +431,7 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	// rfs: iops and zone are not valid attributes.
 	if volume.VPCVolume.Profile.Name == RFSProfile {
 		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
-			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class or VolumeAttributesClass")
+			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
 			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 			return volume, err
 		}
