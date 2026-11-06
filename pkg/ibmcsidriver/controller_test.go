@@ -1515,6 +1515,7 @@ func TestControllerGetCapabilities(t *testing.T) {
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT}}},
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS}}},
 					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_EXPAND_VOLUME}}},
+					{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_MODIFY_VOLUME}}},
 					// &csi.ControllerServiceCapability{Type: &csi.ControllerServiceCapability_Rpc{Rpc: &csi.ControllerServiceCapability_RPC{Type: csi.ControllerServiceCapability_RPC_PUBLISH_READONLY}}},
 				},
 			},
@@ -1678,21 +1679,219 @@ func TestControllerGetVolume(t *testing.T) {
 func TestControllerModifyVolume(t *testing.T) {
 	// test cases
 	testCases := []struct {
-		name        string
-		req         *csi.ControllerModifyVolumeRequest
-		expResponse *csi.ControllerModifyVolumeResponse
-		expErrCode  codes.Code
+		name              string
+		req               *csi.ControllerModifyVolumeRequest
+		libVolumeResponse *provider.Volume
+		libVolumeErr      error
+		libModifyErr      error
+		expErrCode        codes.Code
+		// expModifyReq, when set, is the request expected to reach session.ModifyVolume.
+		expModifyReq *provider.ModifyVolumeRequest
+		// expNoModifyCall asserts that session.ModifyVolume is not called.
+		expNoModifyCall bool
 	}{
 		{
-			name:        "Unsupported operation modify volume",
-			req:         &csi.ControllerModifyVolumeRequest{},
-			expResponse: nil,
-			expErrCode:  codes.OK,
+			name: "Throughput param for rfs will pass",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Throughput: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
+		},
+		{
+			name: "Common VAC with iops and throughput for dp2 will pass",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000", Throughput: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Iops: 3000, Bandwidth: 500}},
+		},
+		{
+			name: "Common VAC with iops and throughput for rfs will pass",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000", Throughput: "500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Iops: 3000, Bandwidth: 500}},
+		},
+		{
+			name: "IOPS param for dp2 will pass",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Iops: 3000}},
+		},
+		{
+			name:       "Empty VolumeID returns EmptyVolumeID error",
+			req:        &csi.ControllerModifyVolumeRequest{},
+			expErrCode: codes.InvalidArgument,
+		},
+		{
+			name: "Invalid VolumeID format returns NotFound",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId: "not-a-valid-volume-id",
+			},
+			expErrCode: codes.NotFound,
+		},
+		{
+			name: "ModifyVolume backend failure returns Internal error",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "3000"},
+			},
+			libModifyErr: errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InternalError , Description: Modify Volume Failed, RC: 500 Internal Error"),
+			expErrCode:   codes.Internal,
+		},
+		{
+			name: "Non-numeric IOPS param returns InvalidArgument",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "not-a-number"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: "dp2"},
+				},
+			},
+			expErrCode: codes.InvalidArgument,
+		},
+		{
+			name: "Empty mutable parameters for dp2 returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Empty mutable parameters for rfs returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId: "vol-id#zone1",
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Zero IOPS param for dp2 returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "0"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Negative IOPS param for dp2 returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{IOPS: "-100"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: DP2Profile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Zero throughput param for rfs returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Throughput: "0"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Negative throughput param for rfs returns InvalidArgument and does not call ModifyVolume",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Throughput: "-500"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode:      codes.InvalidArgument,
+			expNoModifyCall: true,
+		},
+		{
+			name: "Non-numeric throughput param for rfs returns InvalidArgument",
+			req: &csi.ControllerModifyVolumeRequest{
+				VolumeId:          "vol-id#zone1",
+				MutableParameters: map[string]string{Throughput: "not-a-number"},
+			},
+			libVolumeResponse: &provider.Volume{
+				VolumeID: "vol-id",
+				VPCVolume: provider.VPCVolume{
+					Profile: &provider.Profile{Name: RFSProfile},
+				},
+			},
+			expErrCode: codes.InvalidArgument,
 		},
 	}
 
 	// Creating test logger
-	_, teardown := cloudProvider.GetTestLogger(t)
+	logger, teardown := cloudProvider.GetTestLogger(t)
 	defer teardown()
 
 	// Run test cases
@@ -1701,9 +1900,18 @@ func TestControllerModifyVolume(t *testing.T) {
 		// Setup new driver each time so no interference
 		icDriver := initIBMCSIDriver(t)
 
-		_, err := icDriver.cs.ControllerModifyVolume(context.Background(), tc.req)
+		fakeSession, err := icDriver.cs.CSIProvider.GetProviderSession(context.Background(), logger)
+		assert.Nil(t, err)
+		fakeStructSession, ok := fakeSession.(*fake.FakeSession)
+		assert.True(t, ok)
+
+		fakeStructSession.GetVolumeReturns(tc.libVolumeResponse, tc.libVolumeErr)
+		if tc.libModifyErr != nil {
+			fakeStructSession.ModifyVolumeReturns(nil, tc.libModifyErr)
+		}
+
+		_, err = icDriver.cs.ControllerModifyVolume(context.Background(), tc.req)
 		if tc.expErrCode != codes.OK {
-			t.Logf("Error code")
 			assert.NotNil(t, err)
 			serverError, ok := status.FromError(err)
 			if !ok {
@@ -1711,6 +1919,17 @@ func TestControllerModifyVolume(t *testing.T) {
 			}
 			if serverError.Code() != tc.expErrCode {
 				t.Fatalf("Expected error code-> %v, Actual error code: %v. err : %v", tc.expErrCode, serverError.Code(), err)
+			}
+		} else {
+			assert.Nil(t, err)
+		}
+		if tc.expNoModifyCall {
+			assert.Equal(t, 0, fakeStructSession.ModifyVolumeCallCount(), tc.name)
+		}
+		if tc.expModifyReq != nil {
+			if assert.Equal(t, 1, fakeStructSession.ModifyVolumeCallCount(), tc.name) {
+				// ModifyVolume on the session delegates to ModifyShare at the client layer
+				assert.Equal(t, *tc.expModifyReq, fakeStructSession.ModifyVolumeArgsForCall(0), tc.name)
 			}
 		}
 	}
