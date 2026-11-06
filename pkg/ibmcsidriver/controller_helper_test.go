@@ -355,7 +355,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 
 			expectedStatus: true,
-			expectedError:  fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class or VolumeAttributesClass"),
+			expectedError:  fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class"),
 		},
 		{
 			testCaseName: "Negative IOPS value - invalid parameter",

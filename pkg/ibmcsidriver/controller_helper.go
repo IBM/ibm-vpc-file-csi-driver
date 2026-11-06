@@ -414,13 +414,6 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
-	// Profile-specific parameter validation.
-	//
-	// A parameter that does not apply to the volume's profile fails the request,
-	// whether it came from the StorageClass or from a VolumeAttributesClass. A
-	// warning is not reliably surfaced to the user in the PVC events, whereas an
-	// error is, so use a separate VolumeAttributesClass per profile.
-
 	// dp2: throughput is not a valid attribute.
 	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
 		err = fmt.Errorf("bandwidth is not supported for %s file share profile; please remove the property from storage class", DP2Profile)
