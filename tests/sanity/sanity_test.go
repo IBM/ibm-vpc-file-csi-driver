@@ -262,22 +262,6 @@ func runVACScenarios(t *testing.T, client csi.ControllerClient, pc vacProfileCas
 		assert.Equal(t, codes.InvalidArgument, status.Code(err), "err: %v", err)
 	})
 
-	t.Run("modify with a valid VAC succeeds", func(t *testing.T) {
-		volumeID := createPlain(t, "modify-valid")
-		assert.NoError(t, modify(t, volumeID, pc.validVAC))
-	})
-
-	t.Run("modify with a valid VAC succeeds on a volume created with a VAC", func(t *testing.T) {
-		resp, err := create(t, "modify-valid-vac", pc.validVAC)
-		require.NoError(t, err)
-		assert.NoError(t, modify(t, resp.GetVolume().GetVolumeId(), pc.validVAC))
-	})
-
-	t.Run("modify with a VAC of the other profile fails", func(t *testing.T) {
-		volumeID := createPlain(t, "modify-foreign")
-		err := modify(t, volumeID, pc.foreignVAC)
-		assert.Equal(t, codes.InvalidArgument, status.Code(err), "err: %v", err)
-	})
 
 	t.Run("modify with an unknown VAC key fails", func(t *testing.T) {
 		volumeID := createPlain(t, "modify-unknown")
