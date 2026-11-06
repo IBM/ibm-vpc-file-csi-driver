@@ -794,7 +794,7 @@ func TestGetVolumeParameters(t *testing.T) {
 			},
 			expectedVolume: &provider.Volume{},
 			expectedStatus: true,
-			expectedError:  fmt.Errorf("throughput is not supported for dp2 file share profile; please remove the throughput parameter from storage class or VolumeAttributesClass"),
+			expectedError:  fmt.Errorf("bandwidth is not supported for dp2 file share profile; please remove the property from storage class"),
 		},
 		{
 			testCaseName: "subnetID is missing if primaryIPAddress is provided",
