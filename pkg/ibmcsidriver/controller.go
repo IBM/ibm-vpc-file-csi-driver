@@ -344,8 +344,8 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	ctxLogger.Info("CSIControllerServer-DeleteVolume... ", zap.Reflect("Request", req))
 
 	// Validate arguments
-	volumeHandler := req.GetVolumeId()
-	if len(volumeHandler) == 0 {
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 
@@ -360,15 +360,14 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	volumeID := getVolumeID(volumeHandler)
-	accessPointID := getAccessPointID(volumeHandler)
-	if volumeID == "" || accessPointID == "" {
-		ctxLogger.Info("CSIControllerServer-DeleteVolume...",
-			zap.String("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", volumeHandler))
+	tokens := getTokens(volumeID)
+	if len(tokens) != 2 {
+		ctxLogger.Info("CSIControllerServer-DeleteVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
 	}
 
-	volume := &provider.Volume{VolumeID: volumeID}
+	volume := &provider.Volume{}
+	volume.VolumeID = tokens[0]
 
 	existingVol, err := checkIfVolumeExists(session, *volume, ctxLogger)
 	if existingVol == nil && err == nil {
@@ -379,7 +378,7 @@ func (csiCS *CSIControllerServer) DeleteVolume(ctx context.Context, req *csi.Del
 	//If volume exists no need to check for access point existence as library takes care of the same
 	volumeAccesspointReq := provider.VolumeAccessPointRequest{
 		VolumeID:      volume.VolumeID,
-		AccessPointID: accessPointID,
+		AccessPointID: tokens[1],
 	}
 
 	ctxLogger.Info("Deleting VolumeAccessPoint...")
@@ -425,16 +424,15 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 	if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.NoVolumeCapabilities, requestID, nil)
 	}
-	volumeHandler := req.GetVolumeId()
-	if len(volumeHandler) == 0 {
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getVolumeID(volumeHandler)
-	if tokens == "" {
-		ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities...",
-			zap.String("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", volumeHandler))
+	tokens := getTokens(volumeID)
+	if len(tokens) != 2 {
+		ctxLogger.Info("CSIControllerServer-ValidateVolumeCapabilities...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
 	}
 
@@ -445,10 +443,10 @@ func (csiCS *CSIControllerServer) ValidateVolumeCapabilities(ctx context.Context
 	}
 
 	// Get volume details by using volume ID, it should exists with provider
-	_, err = session.GetVolume(tokens)
+	_, err = session.GetVolume(tokens[0])
 	if err != nil {
 		if providerError.RetrivalFailed == providerError.GetErrorType(err) {
-			return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, volumeHandler)
+			return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, err, volumeID)
 		}
 		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
 	}
@@ -521,9 +519,9 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	_ = context.WithValue(ctx, provider.RequestID, requestID)
 	defer metrics.UpdateDurationFromStart(ctxLogger, "CSIExpandVolume", time.Now())
 	ctxLogger.Info("CSIControllerServer-ControllerExpandVolume", zap.Reflect("Request", requestID))
-	volumeHandler := req.GetVolumeId()
+	volumeID := req.GetVolumeId()
 	capacity := req.GetCapacityRange().GetRequiredBytes()
-	if len(volumeHandler) == 0 {
+	if len(volumeID) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 
@@ -535,18 +533,18 @@ func (csiCS *CSIControllerServer) ControllerExpandVolume(ctx context.Context, re
 	requestedVolume := &provider.Volume{}
 
 	//Volume ID is in format volumeID:accesspointID or volumeID#accesspointID
-	tokens := getVolumeID(volumeHandler)
-	if tokens == "" {
-		ctxLogger.Info("CSIControllerServer-ExpandVolume...", zap.String("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", volumeHandler))
+	tokens := getTokens(volumeID)
+	if len(tokens) != 2 {
+		ctxLogger.Info("CSIControllerServer-ExpandVolume...", zap.Reflect("Volume ID is not in format volumeID:accesspointID or volumeID#accesspointID", tokens))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, nil)
 	}
 
-	requestedVolume.VolumeID = tokens
+	requestedVolume.VolumeID = tokens[0]
 	volDetail, err := checkIfVolumeExists(session, *requestedVolume, ctxLogger)
 
 	// Volume not found
 	if volDetail == nil && err == nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeHandler)
+		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeID)
 	} else if err != nil { // In case of other errors apart from volume not  found
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
@@ -618,8 +616,8 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	}
 
 	//Volume ID is in format volumeID#accesspointID
-	volumeID := getVolumeID(sourceVolumeID)
-	if volumeID == "" {
+	volumeID := getTokens(sourceVolumeID)
+	if len(volumeID) != 2 {
 		ctxLogger.Info("CSIControllerServer-CreateSnapshot...", zap.Reflect("Volume ID is not in format volumeID#accesspointID", volumeID))
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, nil)
 	}
@@ -630,11 +628,11 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InternalError, requestID, err)
 	}
 
-	snapshot, _ := session.GetSnapshotByName(snapshotName, volumeID) // #nosec G104: Errors are intentionally not handled as we are checking for the presence of the expected output only.
+	snapshot, _ := session.GetSnapshotByName(snapshotName, volumeID[0]) // #nosec G104: Errors are intentionally not handled as we are checking for the presence of the expected output only.
 	if snapshot != nil {
-		if snapshot.VolumeID != volumeID {
+		if snapshot.VolumeID != volumeID[0] {
 			// According to CSI Driver Sanity Tester, should fail when we use same snapshotName accross volumeIDs
-			return nil, commonError.GetCSIError(ctxLogger, commonError.SnapshotAlreadyExists, requestID, err, snapshotName, volumeID)
+			return nil, commonError.GetCSIError(ctxLogger, commonError.SnapshotAlreadyExists, requestID, err, snapshotName, volumeID[0])
 		}
 		ctxLogger.Info("Snapshot with name already exist for volume", zap.Reflect("SnapshotName", snapshotName), zap.Reflect("VolumeID", sourceVolumeID))
 		return createCSISnapshotResponse(*snapshot), nil
@@ -646,7 +644,7 @@ func (csiCS *CSIControllerServer) CreateSnapshot(ctx context.Context, req *csi.C
 	}
 	snapshotParameters.SnapshotTags = snapshotTags
 
-	snapshot, err = session.CreateSnapshot(volumeID, snapshotParameters)
+	snapshot, err = session.CreateSnapshot(volumeID[0], snapshotParameters)
 
 	if err != nil {
 		return nil, commonError.GetCSIBackendError(ctxLogger, requestID, err)
@@ -778,16 +776,16 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 		zap.String("VolumeID", req.GetVolumeId()),
 	)
 
-	volumeHandler := req.GetVolumeId()
-	if len(volumeHandler) == 0 {
+	volumeID := req.GetVolumeId()
+	if len(volumeID) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 
-	volumeID := getVolumeID(volumeHandler)
-	if volumeID == "" {
+	tokens := getTokens(volumeID)
+	if len(tokens) != 2 {
 		// A volume ID that is not in volumeID#accessPointID form cannot match any volume.
-		ctxLogger.Info("Invalid VolumeID format", zap.String("volumeHandler", volumeHandler))
-		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeHandler)
+		ctxLogger.Info("Invalid VolumeID format", zap.String("volumeID", volumeID))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeID)
 	}
 
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
@@ -797,7 +795,7 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 
 	volumeProfile := ""
 	// GetMutableParameters returns the VolumeAttributesClass parameters (new iops/throughput) the PVC is being moved to; validated against the volume's profile.
-	modifyReq, err := getModifyVolumeParameters(ctxLogger, volumeID, volumeProfile, req.GetMutableParameters())
+	modifyReq, err := getModifyVolumeParameters(ctxLogger, tokens[0], volumeProfile, req.GetMutableParameters())
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
 	}

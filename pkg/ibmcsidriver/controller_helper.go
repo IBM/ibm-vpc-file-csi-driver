@@ -969,32 +969,14 @@ func createCSISnapshotResponse(snapshot provider.Snapshot) *csi.CreateSnapshotRe
 	}
 }
 
-func getVolumeID(volumeHandler string) string {
-	var tokens []string
-	if strings.Contains(volumeHandler, VolumeIDSeperator) {
-		// Volume ID is in format volumeID#volumeAccessPointID
-		tokens = strings.Split(volumeHandler, VolumeIDSeperator)
-	} else if strings.Contains(volumeHandler, DeprecatedVolumeIDSeperator) {
-		// Deprecated -- Try for volumeID:volumeAccessPointID, support for old format for few releases.
-		tokens = strings.Split(volumeHandler, DeprecatedVolumeIDSeperator)
+func getTokens(volumeID string) []string {
+	if strings.Contains(volumeID, VolumeIDSeperator) {
+		//Volume ID is in format volumeID#volumeAccessPointID
+		return strings.Split(volumeID, VolumeIDSeperator)
+	} else {
+		//Deprecated -- Try for volumeID:volumeAccessPointID, support for old format for few releases.
+		return strings.Split(volumeID, DeprecatedVolumeIDSeperator)
 	}
-	if len(tokens) == 2 && len(tokens[0]) > 0 && len(tokens[1]) > 0 {
-		return tokens[0]
-	}
-	return ""
-}
-
-func getAccessPointID(volumeHandler string) string {
-	var tokens []string
-	if strings.Contains(volumeHandler, VolumeIDSeperator) {
-		tokens = strings.Split(volumeHandler, VolumeIDSeperator)
-	} else if strings.Contains(volumeHandler, DeprecatedVolumeIDSeperator) {
-		tokens = strings.Split(volumeHandler, DeprecatedVolumeIDSeperator)
-	}
-	if len(tokens) == 2 && len(tokens[0]) > 0 && len(tokens[1]) > 0 {
-		return tokens[1]
-	}
-	return ""
 }
 
 func pickTargetTopologyParams(top *csi.TopologyRequirement) (map[string]string, error) {

@@ -2164,7 +2164,7 @@ func TestSplitVolumeID(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := getVolumeID(tc.input)
+			result := getTokens(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
