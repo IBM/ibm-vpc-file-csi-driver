@@ -392,9 +392,9 @@ func (csiNS *CSINodeServer) NodeUnpublishVolume(ctx context.Context, req *csi.No
 	// Note: We only remove the tunnel after successful unmount to avoid disrupting active mounts
 	if csiNS.StunnelMgr != nil {
 		// Extract the share ID from the volume ID (format: shareID#targetID)
-		fileShareID := splitVolumeID(volID)
+		fileShareID := getVolumeID(volID)
 		if len(fileShareID) > 0 {
-			shareID := fileShareID[0]
+			shareID := fileShareID
 
 			ctxLogger.Info("Checking for tunnel config cleanup",
 				zap.String("volumeID", volID),

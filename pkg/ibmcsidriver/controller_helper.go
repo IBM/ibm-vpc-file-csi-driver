@@ -21,6 +21,8 @@ package ibmcsidriver
 
 import (
 	"fmt"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -130,6 +132,17 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 	return allSupported
 }
 
+// validateVACParams ensures a VolumeAttributesClass contains only the allowed
+// parameters; any other key is rejected.
+func validateVACParams(params map[string]string, allowedKeys ...string) error {
+	for key := range params {
+		if !slices.Contains(allowedKeys, key) {
+			return fmt.Errorf("parameter '%s' is not supported in VolumeAttributesClass; supported parameters are %v", key, allowedKeys)
+		}
+	}
+	return nil
+}
+
 // getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
 func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, dp2Bands []provider.VolumeProfileBand) (*provider.Volume, error) {
@@ -151,15 +164,12 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	}
 
 	// Then, add/override with VolumeAttributesClass mutable parameters.
-	// Only iops and throughput are supported in a VolumeAttributesClass (same as
-	// ControllerModifyVolume); any other key is rejected.
 	mutableParams := req.GetMutableParameters()
+	if err = validateVACParams(mutableParams, IOPS, Throughput); err != nil {
+		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+		return volume, err
+	}
 	for key, value := range mutableParams {
-		if key != IOPS && key != Throughput {
-			err = fmt.Errorf("parameter '%s' is not supported in VolumeAttributesClass; supported parameters are [%s %s]", key, IOPS, Throughput)
-			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-			return volume, err
-		}
 		logger.Info("VolumeAttributesClass parameter detected", zap.String("key", key), zap.String("value", value))
 		allParameters[key] = value
 	}
@@ -755,78 +765,65 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 	return existingVol, err
 }
 
-// getModifyVolumeParameters validates the VolumeAttributesClass mutable parameters of a
-// ControllerModifyVolume request against the profile of the existing volume and builds the
-// provider ModifyVolumeRequest.
+// getModifyVolumeParameters validates the VolumeAttributesClass mutable parameters
+// against the existing volume profile and builds the provider ModifyVolumeRequest.
 //
-// Use a separate VolumeAttributesClass per profile; any parameter that is not accepted for
-// the volume's profile is an error, so the user sees VolumeModifyFailed in the PVC events:
-//
-//	dp2  → only "iops"
-//	rfs  → only "throughput"
-func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volDetail *provider.Volume, params map[string]string) (*provider.ModifyVolumeRequest, error) {
-	volumeProfile := ""
-	if volDetail != nil && volDetail.Profile != nil {
-		volumeProfile = strings.ToLower(volDetail.Profile.Name)
-	}
-	logger.Info("getModifyVolumeParameters: resolved volume profile", zap.String("profile", volumeProfile))
+// Use a separate VolumeAttributesClass per profile:
+// dp2 → only "iops"
+// rfs → only "throughput"
+func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volumeProfile string, params map[string]string) (*provider.ModifyVolumeRequest, error) {
+	volumeProfile = strings.ToLower(volumeProfile)
 
-	// The only parameter accepted for the volume's profile.
+	logger.Info("getModifyVolumeParameters: resolved volume profile",
+		zap.String("profile", volumeProfile))
+
+	// Determine the parameter supported by the volume profile.
 	allowedKey := IOPS
 	if volumeProfile == RFSProfile {
 		allowedKey = Throughput
 	}
-	for key, val := range params {
-		if key != allowedKey {
-			notAllowedErr := fmt.Errorf("parameter '%s' is not supported for the '%s' profile of volume %s; "+
-				"use a VolumeAttributesClass with only '%s'", key, volumeProfile, volumeID, allowedKey)
-			logger.Error("getModifyVolumeParameters: parameter not supported for volume profile",
-				zap.String("profile", volumeProfile), zap.String("key", key), zap.String("value", val),
-				zap.Error(notAllowedErr))
-			return nil, notAllowedErr
-		}
+
+	// Reject parameters that are not supported by the volume profile.
+	if err := validateVACParams(params, allowedKey); err != nil {
+		return nil, fmt.Errorf("volume %s with '%s' profile: %w", volumeID, volumeProfile, err)
 	}
 
-	// The required parameter must be present: an empty request would reach the provider as a
-	// zero-value ModifyVolumeRequest, which it treats as a successful no-op.
+	// Ensure the required parameter is present.
 	val, ok := params[allowedKey]
 	if !ok || strings.TrimSpace(val) == "" {
-		missingErr := fmt.Errorf("VolumeAttributesClass must contain parameter '%s' for the '%s' profile of volume %s",
-			allowedKey, volumeProfile, volumeID)
-		logger.Error("getModifyVolumeParameters: missing required parameter",
-			zap.String("profile", volumeProfile), zap.String("volumeID", volumeID), zap.Error(missingErr))
-		return nil, missingErr
+		return nil, fmt.Errorf(
+			"VolumeAttributesClass must contain parameter '%s' for the '%s' profile of volume %s",
+			allowedKey, volumeProfile, volumeID,
+		)
 	}
 
-	var iops int64
-	var throughput int32
+	// Parse and validate the parameter value.
+	parsed, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, allowedKey, err)
+	}
 
+	if parsed <= 0 {
+		return nil, fmt.Errorf(
+			"invalid value %q for parameter '%s': must be greater than 0",
+			val, allowedKey,
+		)
+	}
+
+	// Assign only the performance field supported by the volume profile.
+	performance := provider.VolumePerformance{}
 	if allowedKey == Throughput {
-		parsed, parseErr := strconv.ParseInt(val, 10, 32)
-		if parseErr != nil {
-			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, Throughput, parseErr)
+		if parsed > math.MaxInt32 {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': exceeds maximum value", val, allowedKey)
 		}
-		// The provider treats non-positive values as a successful no-op, so reject them here.
-		if parsed <= 0 {
-			return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, Throughput)
-		}
-		throughput = int32(parsed)
+		performance.Bandwidth = int32(parsed)
 	} else {
-		parsed, parseErr := strconv.ParseInt(val, 10, 64)
-		if parseErr != nil {
-			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, IOPS, parseErr)
-		}
-		// The provider treats non-positive values as a successful no-op, so reject them here.
-		if parsed <= 0 {
-			return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, IOPS)
-		}
-		iops = parsed
+		performance.Iops = parsed
 	}
 
-	// The library field is named Bandwidth; it carries the throughput value.
 	return &provider.ModifyVolumeRequest{
 		VolumeID:          volumeID,
-		VolumePerformance: provider.VolumePerformance{Iops: iops, Bandwidth: throughput},
+		VolumePerformance: performance,
 	}, nil
 }
 
@@ -972,14 +969,32 @@ func createCSISnapshotResponse(snapshot provider.Snapshot) *csi.CreateSnapshotRe
 	}
 }
 
-func splitVolumeID(volumeID string) []string {
-	if strings.Contains(volumeID, VolumeIDSeperator) {
-		//Volume ID is in format volumeID#volumeAccessPointID
-		return strings.Split(volumeID, VolumeIDSeperator)
-	} else {
-		//Deprecated -- Try for volumeID:volumeAccessPointID, support for old format for few releases.
-		return strings.Split(volumeID, DeprecatedVolumeIDSeperator)
+func getVolumeID(volumeHandler string) string {
+	var tokens []string
+	if strings.Contains(volumeHandler, VolumeIDSeperator) {
+		// Volume ID is in format volumeID#volumeAccessPointID
+		tokens = strings.Split(volumeHandler, VolumeIDSeperator)
+	} else if strings.Contains(volumeHandler, DeprecatedVolumeIDSeperator) {
+		// Deprecated -- Try for volumeID:volumeAccessPointID, support for old format for few releases.
+		tokens = strings.Split(volumeHandler, DeprecatedVolumeIDSeperator)
 	}
+	if len(tokens) == 2 && len(tokens[0]) > 0 && len(tokens[1]) > 0 {
+		return tokens[0]
+	}
+	return ""
+}
+
+func getAccessPointID(volumeHandler string) string {
+	var tokens []string
+	if strings.Contains(volumeHandler, VolumeIDSeperator) {
+		tokens = strings.Split(volumeHandler, VolumeIDSeperator)
+	} else if strings.Contains(volumeHandler, DeprecatedVolumeIDSeperator) {
+		tokens = strings.Split(volumeHandler, DeprecatedVolumeIDSeperator)
+	}
+	if len(tokens) == 2 && len(tokens[0]) > 0 && len(tokens[1]) > 0 {
+		return tokens[1]
+	}
+	return ""
 }
 
 func pickTargetTopologyParams(top *csi.TopologyRequirement) (map[string]string, error) {

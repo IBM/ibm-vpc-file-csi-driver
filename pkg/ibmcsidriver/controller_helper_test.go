@@ -1955,16 +1955,10 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 	defer teardown()
 
 	const volumeID = "vol-id"
-	volWithProfile := func(profile string) *provider.Volume {
-		return &provider.Volume{
-			VolumeID:  volumeID,
-			VPCVolume: provider.VPCVolume{Profile: &provider.Profile{Name: profile}},
-		}
-	}
 
 	testCases := []struct {
 		name          string
-		volDetail     *provider.Volume
+		profile       string
 		params        map[string]string
 		wantIops      int64
 		wantBandwidth int32
@@ -1972,20 +1966,20 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 	}{
 		// ── positive ───────────────────────────────────────────────────────────
 		{
-			name:      "dp2: iops only",
-			volDetail: volWithProfile(DP2Profile),
-			params:    map[string]string{IOPS: "3000"},
-			wantIops:  3000,
+			name:     "dp2: iops only",
+			profile:  DP2Profile,
+			params:   map[string]string{IOPS: "3000"},
+			wantIops: 3000,
 		},
 		{
 			name:          "rfs: throughput only",
-			volDetail:     volWithProfile(RFSProfile),
+			profile:       RFSProfile,
 			params:        map[string]string{Throughput: "500"},
 			wantBandwidth: 500,
 		},
 		{
 			name:          "rfs: profile name is matched case-insensitively",
-			volDetail:     volWithProfile("RFS"),
+			profile:       "RFS",
 			params:        map[string]string{Throughput: "100"},
 			wantBandwidth: 100,
 		},
@@ -1993,31 +1987,31 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 		// ── negative: parameter not valid for the profile ──────────────────────
 		{
 			name:        "dp2: throughput is rejected",
-			volDetail:   volWithProfile(DP2Profile),
+			profile:     DP2Profile,
 			params:      map[string]string{Throughput: "500"},
 			wantErrFrag: "parameter 'throughput' is not supported",
 		},
 		{
 			name:        "rfs: iops is rejected",
-			volDetail:   volWithProfile(RFSProfile),
+			profile:     RFSProfile,
 			params:      map[string]string{IOPS: "3000"},
 			wantErrFrag: "parameter 'iops' is not supported",
 		},
 		{
 			name:        "common VAC dp2: iops and throughput is rejected",
-			volDetail:   volWithProfile(DP2Profile),
+			profile:     DP2Profile,
 			params:      map[string]string{IOPS: "3000", Throughput: "500"},
 			wantErrFrag: "parameter 'throughput' is not supported",
 		},
 		{
 			name:        "common VAC rfs: iops and throughput is rejected",
-			volDetail:   volWithProfile(RFSProfile),
+			profile:     RFSProfile,
 			params:      map[string]string{IOPS: "3000", Throughput: "500"},
 			wantErrFrag: "parameter 'iops' is not supported",
 		},
 		{
 			name:        "dp2: unknown key is rejected",
-			volDetail:   volWithProfile(DP2Profile),
+			profile:     DP2Profile,
 			params:      map[string]string{"unknown-attr": "x"},
 			wantErrFrag: "parameter 'unknown-attr' is not supported",
 		},
@@ -2025,98 +2019,98 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 		// ── negative: invalid or missing values ────────────────────────────────
 		{
 			name:        "dp2: non-numeric iops",
-			volDetail:   volWithProfile(DP2Profile),
+			profile:     DP2Profile,
 			params:      map[string]string{IOPS: "not-a-number"},
 			wantErrFrag: "invalid value",
 		},
 		{
 			name:        "rfs: non-numeric throughput",
-			volDetail:   volWithProfile(RFSProfile),
+			profile:     RFSProfile,
 			params:      map[string]string{Throughput: "not-a-number"},
 			wantErrFrag: "invalid value",
 		},
 		{
 			name:        "rfs: throughput above int32 range",
-			volDetail:   volWithProfile(RFSProfile),
+			profile:     RFSProfile,
 			params:      map[string]string{Throughput: "99999999999"},
 			wantErrFrag: "invalid value",
 		},
 		{
 			name:        "dp2: zero iops is rejected",
-			volDetail:   volWithProfile(DP2Profile),
+			profile:     DP2Profile,
 			params:      map[string]string{IOPS: "0"},
 			wantErrFrag: "must be greater than 0",
 		},
 		{
 			name:        "dp2: negative iops is rejected",
-			volDetail:   volWithProfile(DP2Profile),
+			profile:     DP2Profile,
 			params:      map[string]string{IOPS: "-100"},
 			wantErrFrag: "must be greater than 0",
 		},
 		{
 			name:        "rfs: zero throughput is rejected",
-			volDetail:   volWithProfile(RFSProfile),
+			profile:     RFSProfile,
 			params:      map[string]string{Throughput: "0"},
 			wantErrFrag: "must be greater than 0",
 		},
 		{
 			name:        "rfs: negative throughput is rejected",
-			volDetail:   volWithProfile(RFSProfile),
+			profile:     RFSProfile,
 			params:      map[string]string{Throughput: "-500"},
 			wantErrFrag: "must be greater than 0",
 		},
 		{
 			name:        "dp2: empty params is rejected",
-			volDetail:   volWithProfile(DP2Profile),
+			profile:     DP2Profile,
 			params:      map[string]string{},
 			wantErrFrag: "must contain parameter 'iops'",
 		},
 		{
 			name:        "dp2: nil params is rejected",
-			volDetail:   volWithProfile(DP2Profile),
+			profile:     DP2Profile,
 			params:      nil,
 			wantErrFrag: "must contain parameter 'iops'",
 		},
 		{
 			name:        "rfs: empty params is rejected",
-			volDetail:   volWithProfile(RFSProfile),
+			profile:     RFSProfile,
 			params:      map[string]string{},
 			wantErrFrag: "must contain parameter 'throughput'",
 		},
 		{
 			name:        "dp2: blank iops value is rejected",
-			volDetail:   volWithProfile(DP2Profile),
+			profile:     DP2Profile,
 			params:      map[string]string{IOPS: "  "},
 			wantErrFrag: "must contain parameter 'iops'",
 		},
 		{
 			name:        "rfs: empty throughput value is rejected",
-			volDetail:   volWithProfile(RFSProfile),
+			profile:     RFSProfile,
 			params:      map[string]string{Throughput: ""},
 			wantErrFrag: "must contain parameter 'throughput'",
 		},
 		{
 			name:        "nil volume detail: empty params is rejected",
-			volDetail:   nil,
+			profile:     "",
 			params:      map[string]string{},
 			wantErrFrag: "must contain parameter 'iops'",
 		},
 		{
 			name:        "nil volume detail: zero iops is rejected",
-			volDetail:   nil,
+			profile:     "",
 			params:      map[string]string{IOPS: "0"},
 			wantErrFrag: "must be greater than 0",
 		},
 		// ── volume without profile details is treated as dp2 ───────────────────
 		{
-			name:      "nil volume detail defaults to iops handling",
-			volDetail: nil,
-			params:    map[string]string{IOPS: "1000"},
-			wantIops:  1000,
+			name:     "nil volume detail defaults to iops handling",
+			profile:  "",
+			params:   map[string]string{IOPS: "1000"},
+			wantIops: 1000,
 		},
 		{
 			name:        "nil volume detail rejects throughput",
-			volDetail:   nil,
+			profile:     "",
 			params:      map[string]string{Throughput: "500"},
 			wantErrFrag: "parameter 'throughput' is not supported",
 		},
@@ -2124,7 +2118,7 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := getModifyVolumeParameters(logger, volumeID, tc.volDetail, tc.params)
+			got, err := getModifyVolumeParameters(logger, volumeID, tc.profile, tc.params)
 			if tc.wantErrFrag != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.wantErrFrag)
@@ -2144,33 +2138,33 @@ func TestSplitVolumeID(t *testing.T) {
 	testCases := []struct {
 		name     string
 		input    string
-		expected []string
+		expected string
 	}{
 		{
 			name:     "Standard # separator",
 			input:    "vol123#target456",
-			expected: []string{"vol123", "target456"},
+			expected: "vol123",
 		},
 		{
 			name:     "Deprecated : separator",
 			input:    "vol123:target456",
-			expected: []string{"vol123", "target456"},
+			expected: "vol123",
 		},
 		{
 			name:     "No separator",
 			input:    "vol123",
-			expected: []string{"vol123"},
+			expected: "",
 		},
 		{
 			name:     "Empty input",
 			input:    "",
-			expected: []string{""},
+			expected: "",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := splitVolumeID(tc.input)
+			result := getVolumeID(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
