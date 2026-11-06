@@ -776,28 +776,27 @@ func (csiCS *CSIControllerServer) ControllerModifyVolume(ctx context.Context, re
 		zap.String("VolumeID", req.GetVolumeId()),
 	)
 
-	volumeID := req.GetVolumeId()
-	if len(volumeID) == 0 {
+	volumeHandler := req.GetVolumeId()
+	if len(volumeHandler) == 0 {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.EmptyVolumeID, requestID, nil)
 	}
 
-	tokens := getTokens(volumeID)
+	tokens := getTokens(volumeHandler)
 	if len(tokens) != 2 {
 		// A volume ID that is not in volumeID#accessPointID form cannot match any volume.
-		ctxLogger.Info("Invalid VolumeID format", zap.String("volumeID", volumeID))
-		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeID)
+		ctxLogger.Info("Invalid VolumeID format", zap.String("volumeID", volumeHandler))
+		return nil, commonError.GetCSIError(ctxLogger, commonError.ObjectNotFound, requestID, nil, volumeHandler)
+	}
+
+	// GetMutableParameters returns the VolumeAttributesClass parameters (new iops/throughput) the PVC is being moved to; validated against the volume's profile.
+	modifyReq, err := getModifyVolumeParameters(ctxLogger, tokens[0], req.GetMutableParameters())
+	if err != nil {
+		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
 	}
 
 	session, err := csiCS.CSIProvider.GetProviderSession(ctx, ctxLogger)
 	if err != nil {
 		return nil, commonError.GetCSIError(ctxLogger, commonError.FailedPrecondition, requestID, err)
-	}
-
-	volumeProfile := ""
-	// GetMutableParameters returns the VolumeAttributesClass parameters (new iops/throughput) the PVC is being moved to; validated against the volume's profile.
-	modifyReq, err := getModifyVolumeParameters(ctxLogger, tokens[0], volumeProfile, req.GetMutableParameters())
-	if err != nil {
-		return nil, commonError.GetCSIError(ctxLogger, commonError.InvalidParameters, requestID, err)
 	}
 
 	_, err = session.ModifyVolume(*modifyReq)

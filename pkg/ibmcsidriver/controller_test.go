@@ -1706,7 +1706,7 @@ func TestControllerModifyVolume(t *testing.T) {
 			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
 		},
 		{
-			name: "Common VAC with iops and throughput for dp2 will fail",
+			name: "Common VAC with iops and throughput for dp2 will pass",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
 				MutableParameters: map[string]string{IOPS: "3000", Throughput: "500"},
@@ -1717,11 +1717,11 @@ func TestControllerModifyVolume(t *testing.T) {
 					Profile: &provider.Profile{Name: DP2Profile},
 				},
 			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Iops: 3000, Bandwidth: 500}},
 		},
 		{
-			name: "Common VAC with iops and throughput for rfs will fail",
+			name: "Common VAC with iops and throughput for rfs will pass",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
 				MutableParameters: map[string]string{IOPS: "3000", Throughput: "500"},
@@ -1732,8 +1732,8 @@ func TestControllerModifyVolume(t *testing.T) {
 					Profile: &provider.Profile{Name: RFSProfile},
 				},
 			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
+			expErrCode:   codes.OK,
+			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Iops: 3000, Bandwidth: 500}},
 		},
 		{
 			name: "IOPS param for dp2 will pass",

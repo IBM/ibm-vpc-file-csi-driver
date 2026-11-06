@@ -1984,30 +1984,32 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			wantBandwidth: 100,
 		},
 
-		// ── negative: parameter not valid for the profile ──────────────────────
+		// ── positive: get iops and throughput from VAC and let VPC handle them ──
 		{
-			name:        "dp2: throughput is rejected",
-			profile:     DP2Profile,
-			params:      map[string]string{Throughput: "500"},
-			wantErrFrag: "parameter 'throughput' is not supported",
+			name:          "dp2: throughput is passed",
+			profile:       DP2Profile,
+			params:        map[string]string{Throughput: "500"},
+			wantBandwidth: 500,
 		},
 		{
-			name:        "rfs: iops is rejected",
-			profile:     RFSProfile,
-			params:      map[string]string{IOPS: "3000"},
-			wantErrFrag: "parameter 'iops' is not supported",
+			name:     "rfs: iops is passed",
+			profile:  RFSProfile,
+			params:   map[string]string{IOPS: "3000"},
+			wantIops: 3000,
 		},
 		{
-			name:        "common VAC dp2: iops and throughput is rejected",
-			profile:     DP2Profile,
-			params:      map[string]string{IOPS: "3000", Throughput: "500"},
-			wantErrFrag: "parameter 'throughput' is not supported",
+			name:          "common VAC dp2: iops and throughput are both passed",
+			profile:       DP2Profile,
+			params:        map[string]string{IOPS: "3000", Throughput: "500"},
+			wantIops:      3000,
+			wantBandwidth: 500,
 		},
 		{
-			name:        "common VAC rfs: iops and throughput is rejected",
-			profile:     RFSProfile,
-			params:      map[string]string{IOPS: "3000", Throughput: "500"},
-			wantErrFrag: "parameter 'iops' is not supported",
+			name:          "common VAC rfs: iops and throughput are both passed",
+			profile:       RFSProfile,
+			params:        map[string]string{IOPS: "3000", Throughput: "500"},
+			wantIops:      3000,
+			wantBandwidth: 500,
 		},
 		{
 			name:        "dp2: unknown key is rejected",
@@ -2063,37 +2065,37 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			name:        "dp2: empty params is rejected",
 			profile:     DP2Profile,
 			params:      map[string]string{},
-			wantErrFrag: "must contain parameter 'iops'",
+			wantErrFrag: "must contain at least parameter",
 		},
 		{
 			name:        "dp2: nil params is rejected",
 			profile:     DP2Profile,
 			params:      nil,
-			wantErrFrag: "must contain parameter 'iops'",
+			wantErrFrag: "must contain at least parameter",
 		},
 		{
 			name:        "rfs: empty params is rejected",
 			profile:     RFSProfile,
 			params:      map[string]string{},
-			wantErrFrag: "must contain parameter 'throughput'",
+			wantErrFrag: "must contain at least parameter",
 		},
 		{
 			name:        "dp2: blank iops value is rejected",
 			profile:     DP2Profile,
 			params:      map[string]string{IOPS: "  "},
-			wantErrFrag: "must contain parameter 'iops'",
+			wantErrFrag: "must contain at least parameter",
 		},
 		{
 			name:        "rfs: empty throughput value is rejected",
 			profile:     RFSProfile,
 			params:      map[string]string{Throughput: ""},
-			wantErrFrag: "must contain parameter 'throughput'",
+			wantErrFrag: "must contain at least parameter",
 		},
 		{
 			name:        "nil volume detail: empty params is rejected",
 			profile:     "",
 			params:      map[string]string{},
-			wantErrFrag: "must contain parameter 'iops'",
+			wantErrFrag: "must contain at least parameter",
 		},
 		{
 			name:        "nil volume detail: zero iops is rejected",
@@ -2115,16 +2117,17 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			wantBandwidth: 500,
 		},
 		{
-			name:        "unspecified profile with both iops and throughput is rejected",
-			profile:     "",
-			params:      map[string]string{IOPS: "1000", Throughput: "500"},
-			wantErrFrag: "both 'iops' and 'throughput' parameters cannot be specified together",
+			name:          "unspecified profile with both iops and throughput is passed",
+			profile:       "",
+			params:        map[string]string{IOPS: "1000", Throughput: "500"},
+			wantIops:      1000,
+			wantBandwidth: 500,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := getModifyVolumeParameters(logger, volumeID, tc.profile, tc.params)
+			got, err := getModifyVolumeParameters(logger, volumeID, tc.params)
 			if tc.wantErrFrag != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.wantErrFrag)

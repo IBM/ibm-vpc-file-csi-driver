@@ -764,67 +764,45 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 // Use a separate VolumeAttributesClass per profile:
 // dp2 → only "iops"
 // rfs → only "throughput"
-func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volumeProfile string, params map[string]string) (*provider.ModifyVolumeRequest, error) {
-	volumeProfile = strings.ToLower(volumeProfile)
+func getModifyVolumeParameters(logger *zap.Logger, volumeID string, params map[string]string) (*provider.ModifyVolumeRequest, error) {
 
-	logger.Info("getModifyVolumeParameters: resolved volume profile",
-		zap.String("profile", volumeProfile))
-
-	// Determine the parameter supported by the volume profile.
-	var allowedKey string
-	if volumeProfile == RFSProfile {
-		allowedKey = Throughput
-	} else if volumeProfile == DP2Profile {
-		allowedKey = IOPS
-	} else {
-		_, hasThroughput := params[Throughput]
-		_, hasIOPS := params[IOPS]
-		if hasThroughput && hasIOPS {
-			return nil, fmt.Errorf("volume %s: both '%s' and '%s' parameters cannot be specified together", volumeID, IOPS, Throughput)
-		}
-		if hasThroughput {
-			allowedKey = Throughput
-		} else {
-			allowedKey = IOPS
-		}
+	// Reject parameters that are not supported at all (only allow 'iops' and 'throughput').
+	if err := validateVACParams(params, IOPS, Throughput); err != nil {
+		return nil, fmt.Errorf("volume %s: %w", volumeID, err)
 	}
 
-	// Reject parameters that are not supported by the volume profile.
-	if err := validateVACParams(params, allowedKey); err != nil {
-		return nil, fmt.Errorf("volume %s with '%s' profile: %w", volumeID, volumeProfile, err)
-	}
-
-	// Ensure the required parameter is present.
-	val, ok := params[allowedKey]
-	if !ok || strings.TrimSpace(val) == "" {
-		return nil, fmt.Errorf(
-			"VolumeAttributesClass must contain parameter '%s' for the '%s' profile of volume %s",
-			allowedKey, volumeProfile, volumeID,
-		)
-	}
-
-	// Parse and validate the parameter value.
-	parsed, err := strconv.ParseInt(val, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, allowedKey, err)
-	}
-
-	if parsed <= 0 {
-		return nil, fmt.Errorf(
-			"invalid value %q for parameter '%s': must be greater than 0",
-			val, allowedKey,
-		)
-	}
-
-	// Assign only the performance field supported by the volume profile.
 	performance := provider.VolumePerformance{}
-	if allowedKey == Throughput {
+	hasParams := false
+
+	if val, ok := params[IOPS]; ok && strings.TrimSpace(val) != "" {
+		parsed, err := strconv.ParseInt(strings.TrimSpace(val), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, IOPS, err)
+		}
+		if parsed <= 0 {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, IOPS)
+		}
+		performance.Iops = parsed
+		hasParams = true
+	}
+
+	if val, ok := params[Throughput]; ok && strings.TrimSpace(val) != "" {
+		parsed, err := strconv.ParseInt(strings.TrimSpace(val), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, Throughput, err)
+		}
+		if parsed <= 0 {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, Throughput)
+		}
 		if parsed > math.MaxInt32 {
-			return nil, fmt.Errorf("invalid value %q for parameter '%s': exceeds maximum value", val, allowedKey)
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': exceeds maximum value", val, Throughput)
 		}
 		performance.Bandwidth = int32(parsed)
-	} else {
-		performance.Iops = parsed
+		hasParams = true
+	}
+
+	if !hasParams {
+		return nil, fmt.Errorf("VolumeAttributesClass must contain at least parameter '%s' or '%s' for volume %s", IOPS, Throughput, volumeID)
 	}
 
 	return &provider.ModifyVolumeRequest{
