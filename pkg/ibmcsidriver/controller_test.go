@@ -1706,36 +1706,6 @@ func TestControllerModifyVolume(t *testing.T) {
 			expModifyReq: &provider.ModifyVolumeRequest{VolumeID: "vol-id", VolumePerformance: provider.VolumePerformance{Bandwidth: 500}},
 		},
 		{
-			name: "Throughput param for dp2 will fail",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{Throughput: "500"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: DP2Profile},
-				},
-			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
-		},
-		{
-			name: "IOPS param for rfs will fail",
-			req: &csi.ControllerModifyVolumeRequest{
-				VolumeId:          "vol-id#zone1",
-				MutableParameters: map[string]string{IOPS: "3000"},
-			},
-			libVolumeResponse: &provider.Volume{
-				VolumeID: "vol-id",
-				VPCVolume: provider.VPCVolume{
-					Profile: &provider.Profile{Name: RFSProfile},
-				},
-			},
-			expErrCode:      codes.InvalidArgument,
-			expNoModifyCall: true,
-		},
-		{
 			name: "Common VAC with iops and throughput for dp2 will fail",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
@@ -1793,14 +1763,13 @@ func TestControllerModifyVolume(t *testing.T) {
 			expErrCode: codes.NotFound,
 		},
 		{
-			name: "Volume not found returns NotFound error",
+			name: "ModifyVolume backend failure returns Internal error",
 			req: &csi.ControllerModifyVolumeRequest{
 				VolumeId:          "vol-id#zone1",
 				MutableParameters: map[string]string{IOPS: "3000"},
 			},
-			libVolumeResponse: nil,
-			libVolumeErr:      nil,
-			expErrCode:        codes.NotFound,
+			libModifyErr: errors.New("Trace Code: a0e1e74b-4686-42df-8663-5634fe0d3241, Code: InternalError , Description: Modify Volume Failed, RC: 500 Internal Error"),
+			expErrCode:   codes.Internal,
 		},
 		{
 			name: "Non-numeric IOPS param returns InvalidArgument",

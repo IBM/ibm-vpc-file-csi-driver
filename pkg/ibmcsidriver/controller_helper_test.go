@@ -2101,18 +2101,24 @@ func TestGetModifyVolumeParameters(t *testing.T) {
 			params:      map[string]string{IOPS: "0"},
 			wantErrFrag: "must be greater than 0",
 		},
-		// ── volume without profile details is treated as dp2 ───────────────────
+		// ── volume without profile details allows either iops or throughput ─────
 		{
-			name:     "nil volume detail defaults to iops handling",
+			name:     "unspecified profile with iops",
 			profile:  "",
 			params:   map[string]string{IOPS: "1000"},
 			wantIops: 1000,
 		},
 		{
-			name:        "nil volume detail rejects throughput",
+			name:          "unspecified profile with throughput",
+			profile:       "",
+			params:        map[string]string{Throughput: "500"},
+			wantBandwidth: 500,
+		},
+		{
+			name:        "unspecified profile with both iops and throughput is rejected",
 			profile:     "",
-			params:      map[string]string{Throughput: "500"},
-			wantErrFrag: "parameter 'throughput' is not supported",
+			params:      map[string]string{IOPS: "1000", Throughput: "500"},
+			wantErrFrag: "both 'iops' and 'throughput' parameters cannot be specified together",
 		},
 	}
 
@@ -2138,27 +2144,27 @@ func TestSplitVolumeID(t *testing.T) {
 	testCases := []struct {
 		name     string
 		input    string
-		expected string
+		expected []string
 	}{
 		{
 			name:     "Standard # separator",
 			input:    "vol123#target456",
-			expected: "vol123",
+			expected: []string{"vol123", "target456"},
 		},
 		{
 			name:     "Deprecated : separator",
 			input:    "vol123:target456",
-			expected: "vol123",
+			expected: []string{"vol123", "target456"},
 		},
 		{
 			name:     "No separator",
 			input:    "vol123",
-			expected: "",
+			expected: []string{"vol123"},
 		},
 		{
 			name:     "Empty input",
 			input:    "",
-			expected: "",
+			expected: []string{""},
 		},
 	}
 

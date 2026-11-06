@@ -771,9 +771,22 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, volumeProfil
 		zap.String("profile", volumeProfile))
 
 	// Determine the parameter supported by the volume profile.
-	allowedKey := IOPS
+	var allowedKey string
 	if volumeProfile == RFSProfile {
 		allowedKey = Throughput
+	} else if volumeProfile == DP2Profile {
+		allowedKey = IOPS
+	} else {
+		_, hasThroughput := params[Throughput]
+		_, hasIOPS := params[IOPS]
+		if hasThroughput && hasIOPS {
+			return nil, fmt.Errorf("volume %s: both '%s' and '%s' parameters cannot be specified together", volumeID, IOPS, Throughput)
+		}
+		if hasThroughput {
+			allowedKey = Throughput
+		} else {
+			allowedKey = IOPS
+		}
 	}
 
 	// Reject parameters that are not supported by the volume profile.
