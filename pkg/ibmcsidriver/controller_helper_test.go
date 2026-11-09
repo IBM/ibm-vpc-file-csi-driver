@@ -1918,3 +1918,263 @@ func TestGetMinCapacityForIops_EmptyBands(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 0, got)
 }
+
+// vacCreateReq builds a minimal CreateVolumeRequest for VAC routing tests.
+// zone is only set for dp2 (zone is invalid for rfs).
+func vacCreateReq(profile string, sc map[string]string, mutable map[string]string) *csi.CreateVolumeRequest {
+	params := map[string]string{
+		Profile:       profile,
+		Region:        "us-south",
+		ResourceGroup: "rg-vac",
+	}
+	if profile == DP2Profile {
+		params[Zone] = "us-south-1"
+	}
+	for k, v := range sc {
+		params[k] = v
+	}
+	return &csi.CreateVolumeRequest{
+		Name:          "vac-test-vol",
+		CapacityRange: &csi.CapacityRange{RequiredBytes: 20 * utils.GiB},
+		VolumeCapabilities: []*csi.VolumeCapability{{
+			AccessMode: &csi.VolumeCapability_AccessMode{
+				Mode: csi.VolumeCapability_AccessMode_MULTI_NODE_MULTI_WRITER,
+			},
+		}},
+		Parameters:        params,
+		MutableParameters: mutable,
+	}
+}
+
+// TestGetModifyVolumeParameters covers how getModifyVolumeParameters validates the
+// VolumeAttributesClass mutable parameters of a ControllerModifyVolume request against
+// the profile of the existing volume. Any parameter that is not accepted for the
+// volume's profile is an error.
+func TestGetModifyVolumeParameters(t *testing.T) {
+	logger, teardown := cloudProvider.GetTestLogger(t)
+	defer teardown()
+
+	const volumeID = "vol-id"
+
+	testCases := []struct {
+		name          string
+		profile       string
+		params        map[string]string
+		wantIops      int64
+		wantBandwidth int32
+		wantErrFrag   string // non-empty means an error is expected
+	}{
+		// ── positive ───────────────────────────────────────────────────────────
+		{
+			name:     "dp2: iops only",
+			profile:  DP2Profile,
+			params:   map[string]string{IOPS: "3000"},
+			wantIops: 3000,
+		},
+		{
+			name:          "rfs: throughput only",
+			profile:       RFSProfile,
+			params:        map[string]string{Throughput: "500"},
+			wantBandwidth: 500,
+		},
+		{
+			name:          "rfs: profile name is matched case-insensitively",
+			profile:       "RFS",
+			params:        map[string]string{Throughput: "100"},
+			wantBandwidth: 100,
+		},
+
+		// ── positive: get iops and throughput from VAC and let VPC handle them ──
+		{
+			name:          "dp2: throughput is passed",
+			profile:       DP2Profile,
+			params:        map[string]string{Throughput: "500"},
+			wantBandwidth: 500,
+		},
+		{
+			name:     "rfs: iops is passed",
+			profile:  RFSProfile,
+			params:   map[string]string{IOPS: "3000"},
+			wantIops: 3000,
+		},
+		{
+			name:          "common VAC dp2: iops and throughput are both passed",
+			profile:       DP2Profile,
+			params:        map[string]string{IOPS: "3000", Throughput: "500"},
+			wantIops:      3000,
+			wantBandwidth: 500,
+		},
+		{
+			name:          "common VAC rfs: iops and throughput are both passed",
+			profile:       RFSProfile,
+			params:        map[string]string{IOPS: "3000", Throughput: "500"},
+			wantIops:      3000,
+			wantBandwidth: 500,
+		},
+		{
+			name:        "dp2: unknown key is rejected",
+			profile:     DP2Profile,
+			params:      map[string]string{"unknown-attr": "x"},
+			wantErrFrag: "parameter 'unknown-attr' is not supported",
+		},
+
+		// ── negative: invalid or missing values ────────────────────────────────
+		{
+			name:        "dp2: non-numeric iops",
+			profile:     DP2Profile,
+			params:      map[string]string{IOPS: "not-a-number"},
+			wantErrFrag: "invalid value",
+		},
+		{
+			name:        "rfs: non-numeric throughput",
+			profile:     RFSProfile,
+			params:      map[string]string{Throughput: "not-a-number"},
+			wantErrFrag: "invalid value",
+		},
+		{
+			name:        "rfs: throughput above int32 range",
+			profile:     RFSProfile,
+			params:      map[string]string{Throughput: "99999999999"},
+			wantErrFrag: "invalid value",
+		},
+		{
+			name:        "dp2: zero iops is rejected",
+			profile:     DP2Profile,
+			params:      map[string]string{IOPS: "0"},
+			wantErrFrag: "must be greater than 0",
+		},
+		{
+			name:        "dp2: negative iops is rejected",
+			profile:     DP2Profile,
+			params:      map[string]string{IOPS: "-100"},
+			wantErrFrag: "must be greater than 0",
+		},
+		{
+			name:        "rfs: zero throughput is rejected",
+			profile:     RFSProfile,
+			params:      map[string]string{Throughput: "0"},
+			wantErrFrag: "must be greater than 0",
+		},
+		{
+			name:        "rfs: negative throughput is rejected",
+			profile:     RFSProfile,
+			params:      map[string]string{Throughput: "-500"},
+			wantErrFrag: "must be greater than 0",
+		},
+		{
+			name:        "dp2: empty params is rejected",
+			profile:     DP2Profile,
+			params:      map[string]string{},
+			wantErrFrag: "must contain at least parameter",
+		},
+		{
+			name:        "dp2: nil params is rejected",
+			profile:     DP2Profile,
+			params:      nil,
+			wantErrFrag: "must contain at least parameter",
+		},
+		{
+			name:        "rfs: empty params is rejected",
+			profile:     RFSProfile,
+			params:      map[string]string{},
+			wantErrFrag: "must contain at least parameter",
+		},
+		{
+			name:        "dp2: blank iops value is rejected",
+			profile:     DP2Profile,
+			params:      map[string]string{IOPS: "  "},
+			wantErrFrag: "must contain at least parameter",
+		},
+		{
+			name:        "rfs: empty throughput value is rejected",
+			profile:     RFSProfile,
+			params:      map[string]string{Throughput: ""},
+			wantErrFrag: "must contain at least parameter",
+		},
+		{
+			name:        "nil volume detail: empty params is rejected",
+			profile:     "",
+			params:      map[string]string{},
+			wantErrFrag: "must contain at least parameter",
+		},
+		{
+			name:        "nil volume detail: zero iops is rejected",
+			profile:     "",
+			params:      map[string]string{IOPS: "0"},
+			wantErrFrag: "must be greater than 0",
+		},
+		// ── volume without profile details allows either iops or throughput ─────
+		{
+			name:     "unspecified profile with iops",
+			profile:  "",
+			params:   map[string]string{IOPS: "1000"},
+			wantIops: 1000,
+		},
+		{
+			name:          "unspecified profile with throughput",
+			profile:       "",
+			params:        map[string]string{Throughput: "500"},
+			wantBandwidth: 500,
+		},
+		{
+			name:          "unspecified profile with both iops and throughput is passed",
+			profile:       "",
+			params:        map[string]string{IOPS: "1000", Throughput: "500"},
+			wantIops:      1000,
+			wantBandwidth: 500,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := getModifyVolumeParameters(logger, volumeID, tc.params)
+			if tc.wantErrFrag != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrFrag)
+				assert.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, volumeID, got.VolumeID)
+			assert.Equal(t, tc.wantIops, got.Iops)
+			assert.Equal(t, tc.wantBandwidth, got.Bandwidth)
+		})
+	}
+}
+
+func TestSplitVolumeID(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "Standard # separator",
+			input:    "vol123#target456",
+			expected: []string{"vol123", "target456"},
+		},
+		{
+			name:     "Deprecated : separator",
+			input:    "vol123:target456",
+			expected: []string{"vol123", "target456"},
+		},
+		{
+			name:     "No separator",
+			input:    "vol123",
+			expected: []string{"vol123"},
+		},
+		{
+			name:     "Empty input",
+			input:    "",
+			expected: []string{""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getTokens(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}

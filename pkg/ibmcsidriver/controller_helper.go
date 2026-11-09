@@ -130,6 +130,23 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 	return allSupported
 }
 
+// validateVACParams ensures a VolumeAttributesClass contains only the parameters listed in SupportedVACParams
+func validateVACParams(params map[string]string) error {
+	for key := range params {
+		supported := false
+		for _, allowed := range SupportedVACParams {
+			if key == allowed {
+				supported = true
+				break
+			}
+		}
+		if !supported {
+			return fmt.Errorf("parameter '%s' is not supported in VolumeAttributesClass; supported parameters are: %s", key, strings.Join(SupportedVACParams, ", "))
+		}
+	}
+	return nil
+}
+
 // getVolumeParameters this function get the parameters from storage class, this also validate
 // all parameters passed in storage class or not which are mandatory.
 func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, config *config.Config, dp2Bands []provider.VolumeProfileBand) (*provider.Volume, error) {
@@ -141,7 +158,29 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 	volume := &provider.Volume{}
 	volume.Name = &req.Name
 	volume.VPCVolume.AccessControlMode = SecurityGroup //Default mode is ENI/VNI
+	// Merge parameters from StorageClass and VolumeAttributesClass
+	// VolumeAttributesClass parameters take precedence over StorageClass parameters
+	allParameters := make(map[string]string)
+
+	// First, add StorageClass parameters
 	for key, value := range req.GetParameters() {
+		allParameters[key] = value
+	}
+
+	// Then, add/override with VolumeAttributesClass mutable parameters, if any.
+	if mutableParams := req.GetMutableParameters(); len(mutableParams) > 0 {
+		if err = validateVACParams(mutableParams); err != nil {
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
+		}
+		for key, value := range mutableParams {
+			logger.Info("VolumeAttributesClass parameter detected", zap.String("key", key), zap.String("value", value))
+			allParameters[key] = value
+		}
+	}
+
+	// Process all merged parameters
+	for key, value := range allParameters {
 		switch key {
 		case Profile:
 			if utils.ListContainsSubstr(SupportedProfile, value) {
@@ -380,14 +419,14 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 
 	//TODO port the code from VPC BLOCK to find region if zone is given
 
-	// validate bandwidth for dp2 profile
+	// dp2: throughput is not a valid attribute.
 	if volume.VPCVolume.Profile.Name == DP2Profile && volume.VPCVolume.Bandwidth > 0 {
 		err = fmt.Errorf("bandwidth is not supported for %s file share profile; please remove the property from storage class", DP2Profile)
 		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
 		return volume, err
 	}
 
-	// validation zone and iops for 'rfs' profile
+	// rfs: iops and zone are not valid attributes.
 	if volume.VPCVolume.Profile.Name == RFSProfile {
 		if volume.Iops != nil && len(strings.TrimSpace(*volume.Iops)) > 0 {
 			err = fmt.Errorf("iops is not supported for rfs profile; please remove the iops parameter from the storage class")
@@ -722,6 +761,56 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 	}
 
 	return existingVol, err
+}
+
+// getModifyVolumeParameters validates the VolumeAttributesClass mutable parameters
+// against the existing volume profile and builds the provider ModifyVolumeRequest.
+//
+// Use a separate VolumeAttributesClass per profile:
+// dp2 → only "iops"
+// rfs → only "throughput"
+func getModifyVolumeParameters(logger *zap.Logger, volumeID string, params map[string]string) (*provider.ModifyVolumeRequest, error) {
+
+	// Reject parameters that are not supported at all (only allow 'iops' and 'throughput').
+	if err := validateVACParams(params); err != nil {
+		return nil, fmt.Errorf("volume %s: %w", volumeID, err)
+	}
+
+	performance := provider.VolumePerformance{}
+	hasParams := false
+
+	if val, ok := params[IOPS]; ok && strings.TrimSpace(val) != "" {
+		parsed, err := strconv.ParseInt(strings.TrimSpace(val), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, IOPS, err)
+		}
+		if parsed <= 0 {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, IOPS)
+		}
+		performance.Iops = parsed
+		hasParams = true
+	}
+
+	if val, ok := params[Throughput]; ok && strings.TrimSpace(val) != "" {
+		parsed, err := strconv.ParseInt(strings.TrimSpace(val), 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, Throughput, err)
+		}
+		if parsed <= 0 {
+			return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, Throughput)
+		}
+		performance.Bandwidth = int32(parsed)
+		hasParams = true
+	}
+
+	if !hasParams {
+		return nil, fmt.Errorf("VolumeAttributesClass must contain at least parameter '%s' or '%s' for volume %s", IOPS, Throughput, volumeID)
+	}
+
+	return &provider.ModifyVolumeRequest{
+		VolumeID:          volumeID,
+		VolumePerformance: performance,
+	}, nil
 }
 
 // createCSIVolumeResponse ...
