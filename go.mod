@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.27
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.27
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.28-0.20261109095312-af0c200349e7
 	github.com/IBM/ibmcloud-volume-interface v1.2.23
 	github.com/IBM/secret-utils-lib v1.1.16
 	github.com/container-storage-interface/spec v1.13.0
@@ -114,6 +114,7 @@ require (
 )
 
 replace (
+	github.com/IBM/ibmcloud-volume-file-vpc => ../../library/ibmcloud-volume-file-vpc
 	github.com/golang/glog => github.com/golang/glog v1.2.4
 	golang.org/x/crypto => golang.org/x/crypto v0.45.0
 )
