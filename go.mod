@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	github.com/IBM/ibm-csi-common v1.1.27
-	github.com/IBM/ibmcloud-volume-file-vpc v1.2.27
+	github.com/IBM/ibmcloud-volume-file-vpc v1.2.28-0.20261109124320-3f24673c93ec
 	github.com/IBM/ibmcloud-volume-interface v1.2.23
 	github.com/IBM/secret-utils-lib v1.1.16
 	github.com/container-storage-interface/spec v1.13.0
