@@ -218,3 +218,6 @@ var SupportedFS = []string{"nfs"}
 
 // SupportedProfile the supported profile names
 var SupportedProfile = []string{DP2Profile, RFSProfile}
+
+// SupportedVACParams the parameters allowed in a VolumeAttributesClass
+var SupportedVACParams = []string{IOPS, Throughput}

@@ -21,8 +21,6 @@ package ibmcsidriver
 
 import (
 	"fmt"
-	"math"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -132,12 +130,18 @@ func areVolumeCapabilitiesSupported(volCaps []*csi.VolumeCapability, driverVolum
 	return allSupported
 }
 
-// validateVACParams ensures a VolumeAttributesClass contains only the allowed
-// parameters; any other key is rejected.
-func validateVACParams(params map[string]string, allowedKeys ...string) error {
+// validateVACParams ensures a VolumeAttributesClass contains only the parameters listed in SupportedVACParams
+func validateVACParams(params map[string]string) error {
 	for key := range params {
-		if !slices.Contains(allowedKeys, key) {
-			return fmt.Errorf("parameter '%s' is not supported in VolumeAttributesClass; supported parameters are %v", key, allowedKeys)
+		supported := false
+		for _, allowed := range SupportedVACParams {
+			if key == allowed {
+				supported = true
+				break
+			}
+		}
+		if !supported {
+			return fmt.Errorf("parameter '%s' is not supported in VolumeAttributesClass; supported parameters are: %s", key, strings.Join(SupportedVACParams, ", "))
 		}
 	}
 	return nil
@@ -163,15 +167,16 @@ func getVolumeParameters(logger *zap.Logger, req *csi.CreateVolumeRequest, confi
 		allParameters[key] = value
 	}
 
-	// Then, add/override with VolumeAttributesClass mutable parameters.
-	mutableParams := req.GetMutableParameters()
-	if err = validateVACParams(mutableParams, IOPS, Throughput); err != nil {
-		logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
-		return volume, err
-	}
-	for key, value := range mutableParams {
-		logger.Info("VolumeAttributesClass parameter detected", zap.String("key", key), zap.String("value", value))
-		allParameters[key] = value
+	// Then, add/override with VolumeAttributesClass mutable parameters, if any.
+	if mutableParams := req.GetMutableParameters(); len(mutableParams) > 0 {
+		if err = validateVACParams(mutableParams); err != nil {
+			logger.Error("getVolumeParameters", zap.NamedError("invalidParameter", err))
+			return volume, err
+		}
+		for key, value := range mutableParams {
+			logger.Info("VolumeAttributesClass parameter detected", zap.String("key", key), zap.String("value", value))
+			allParameters[key] = value
+		}
 	}
 
 	// Process all merged parameters
@@ -767,7 +772,7 @@ func checkIfVolumeExists(session provider.Session, vol provider.Volume, ctxLogge
 func getModifyVolumeParameters(logger *zap.Logger, volumeID string, params map[string]string) (*provider.ModifyVolumeRequest, error) {
 
 	// Reject parameters that are not supported at all (only allow 'iops' and 'throughput').
-	if err := validateVACParams(params, IOPS, Throughput); err != nil {
+	if err := validateVACParams(params); err != nil {
 		return nil, fmt.Errorf("volume %s: %w", volumeID, err)
 	}
 
@@ -787,15 +792,12 @@ func getModifyVolumeParameters(logger *zap.Logger, volumeID string, params map[s
 	}
 
 	if val, ok := params[Throughput]; ok && strings.TrimSpace(val) != "" {
-		parsed, err := strconv.ParseInt(strings.TrimSpace(val), 10, 64)
+		parsed, err := strconv.ParseInt(strings.TrimSpace(val), 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid value %q for parameter '%s': %w", val, Throughput, err)
 		}
 		if parsed <= 0 {
 			return nil, fmt.Errorf("invalid value %q for parameter '%s': must be greater than 0", val, Throughput)
-		}
-		if parsed > math.MaxInt32 {
-			return nil, fmt.Errorf("invalid value %q for parameter '%s': exceeds maximum value", val, Throughput)
 		}
 		performance.Bandwidth = int32(parsed)
 		hasParams = true
