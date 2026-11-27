@@ -32,21 +32,6 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-// stopDebounceOnCleanup stops any pending debounce timer when the test ends and
-// waits for an in-flight callback to finish. The timer callback logs through a
-// zaptest logger bound to t, so it must not outlive the test (data race on t.done).
-func stopDebounceOnCleanup(t *testing.T, sm *StunnelManager) {
-	t.Helper()
-	t.Cleanup(func() {
-		sm.debounceMu.Lock()
-		defer sm.debounceMu.Unlock()
-		if sm.debounceTimer != nil {
-			sm.debounceTimer.Stop()
-		}
-		sm.pendingSIGHUP = false
-	})
-}
-
 // TestNewStunnelManager tests the constructor with hardcoded defaults
 func TestNewStunnelManager(t *testing.T) {
 	tests := []struct {
@@ -520,7 +505,6 @@ func TestEnsureTunnel(t *testing.T) {
 		debounceWindow: 100 * time.Millisecond,
 		stunnelStarted: true, // Skip stunnel check
 	}
-	stopDebounceOnCleanup(t, sm)
 
 	tests := []struct {
 		name      string
@@ -628,7 +612,6 @@ func TestEnsureTunnel_NoTLSConfig(t *testing.T) {
 				logger:         logger,
 				stunnelStarted: true,
 			}
-			stopDebounceOnCleanup(t, sm)
 
 			port, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 			if err != nil {
@@ -658,7 +641,6 @@ func TestRemoveTunnel(t *testing.T) {
 		debounceWindow: 100 * time.Millisecond,
 		stunnelStarted: true,
 	}
-	stopDebounceOnCleanup(t, sm)
 
 	// Create a tunnel first
 	port, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
@@ -946,7 +928,6 @@ func TestScheduleDebouncedSIGHUP(t *testing.T) {
 		debounceWindow: 50 * time.Millisecond,
 		stunnelStarted: true,
 	}
-	stopDebounceOnCleanup(t, sm)
 
 	// Schedule multiple SIGHUPs rapidly
 	for i := 0; i < 5; i++ {
@@ -1027,7 +1008,6 @@ func TestRemoveTunnel_LastTunnel(t *testing.T) {
 		debounceWindow: 50 * time.Millisecond,
 		stunnelStarted: true,
 	}
-	stopDebounceOnCleanup(t, sm)
 
 	_, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 	if err != nil {
@@ -1167,7 +1147,6 @@ func TestEnsureTunnel_WriteConfigError(t *testing.T) {
 		logger:         logger,
 		stunnelStarted: true,
 	}
-	stopDebounceOnCleanup(t, sm)
 
 	_, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 	if err == nil {
@@ -1260,7 +1239,6 @@ func TestScheduleDebouncedSIGHUP_AlreadyPending(t *testing.T) {
 		debounceWindow: 100 * time.Millisecond,
 		stunnelStarted: true,
 	}
-	stopDebounceOnCleanup(t, sm)
 
 	sm.scheduleDebouncedSIGHUP("request-1")
 
@@ -1312,7 +1290,6 @@ func TestRemoveTunnel_WithPendingSIGHUP(t *testing.T) {
 		debounceWindow: 50 * time.Millisecond,
 		stunnelStarted: true,
 	}
-	stopDebounceOnCleanup(t, sm)
 
 	_, err := sm.EnsureTunnel("vol1", "server1.example.com", "test-request")
 	if err != nil {
